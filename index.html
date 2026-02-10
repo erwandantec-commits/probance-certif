@@ -331,18 +331,41 @@
         height: 100%;
         transition: width 0.3s;
     }
+  .header-center {
+    display: flex;
+    flex-direction: column;   /* pour empiler logo + titre + sous-titre */
+    align-items: center;      /* centrer horizontalement */
+    justify-content: center;  /* centrer verticalement */
+    text-align: center;
+    height: 300px;            /* ajuste la hauteur selon ton besoin */
+}
+
+.header-center .brand-logo {
+    max-width: 150px;         /* ajuste la taille du logo */
+    margin-bottom: 16px;
+}
+
+.header-center h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.header-center p {
+    font-size: 16px;
+    color: var(--muted);
+    font-weight: 500;
+}      
 </style>
 </head>
 
 <body>
-<div class="container">
-    <div class="header">
-        <h1 class="brand-title">
-<img src="assets/probance-logo.png" alt="Probance" class="brand-logo" width="100">
-     Certification Platform
-</h1>
-        <p id="headerSubtitle">Test your skills</p>
-    </div>
+<div class="header-center">
+    <img src="assets/probance-logo.png" alt="Probance" class="brand-logo">
+    <h1>Probance Certification Platform</h1>
+    <p>Test your skills</p>
+</div>
 
     <div class="content">
 
@@ -821,4 +844,5 @@
 </script>
 </body>
 </html>
+
 
