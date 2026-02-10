@@ -104,12 +104,6 @@
             transform: translateY(0);
         }
         
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
         .btn-secondary {
             background: #6c757d;
             margin-top: 10px;
@@ -278,14 +272,11 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
-            font-size: 14px;
-            overflow-x: auto;
-            display: block;
         }
         
         .admin-table th,
         .admin-table td {
-            padding: 12px 8px;
+            padding: 12px;
             text-align: left;
             border-bottom: 1px solid #e0e0e0;
         }
@@ -294,8 +285,6 @@
             background: #f8f9fa;
             font-weight: 600;
             color: #333;
-            position: sticky;
-            top: 0;
         }
         
         .admin-table tr:hover {
@@ -329,7 +318,17 @@
             text-align: center;
             padding: 40px;
             color: #667eea;
-            font-size: 18px;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
         }
         
         .error {
@@ -339,24 +338,6 @@
             border-radius: 8px;
             margin-bottom: 20px;
             border: 1px solid #f5c6cb;
-        }
-        
-        .success {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .warning {
-            background: #fff3cd;
-            color: #856404;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #ffeaa7;
         }
         
         .progress-bar {
@@ -372,33 +353,6 @@
             height: 100%;
             transition: width 0.3s;
         }
-        
-        .config-notice {
-            background: #d1ecf1;
-            border: 2px solid #17a2b8;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        
-        .config-notice h3 {
-            color: #0c5460;
-            margin-bottom: 15px;
-        }
-        
-        .config-notice ol {
-            margin-left: 20px;
-            line-height: 1.8;
-            color: #0c5460;
-        }
-        
-        .config-notice code {
-            background: #fff;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-            color: #d63384;
-        }
     </style>
 </head>
 <body>
@@ -409,48 +363,20 @@
         </div>
         
         <div class="content">
-            <!-- Configuration Screen -->
-            <div id="configScreen" class="screen active">
-                <h2 style="margin-bottom: 20px;">⚙️ Configuration</h2>
-                <div class="config-notice">
-                    <h3>📋 Comment obtenir votre URL API :</h3>
-                    <ol>
-                        <li>Ouvrez votre Google Sheet</li>
-                        <li>Allez dans <strong>Extensions → Apps Script</strong></li>
-                        <li>Collez le code Apps Script fourni</li>
-                        <li>Remplacez <code>VOTRE_SHEET_ID_ICI</code> par l'ID de votre Sheet</li>
-                        <li>Cliquez sur <strong>Déployer → Nouveau déploiement</strong></li>
-                        <li>Type : <strong>Application Web</strong></li>
-                        <li>Exécuter en tant que : <strong>Moi</strong></li>
-                        <li>Qui a accès : <strong>Tout le monde</strong></li>
-                        <li>Copiez l'URL qui se termine par <code>/exec</code></li>
-                    </ol>
-                </div>
-                <div class="input-group">
-                    <label for="apiUrlInput">URL de votre API Apps Script</label>
-                    <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/AKfycby.../exec">
-                </div>
-                <button class="btn" onclick="saveApiUrl()">💾 Enregistrer et tester</button>
-                <div id="configMessage"></div>
-            </div>
-            
             <!-- Login Screen -->
-            <div id="loginScreen" class="screen">
+            <div id="loginScreen" class="screen active">
                 <h2 style="margin-bottom: 20px;">Connexion</h2>
-                <div id="loginMessage"></div>
                 <div class="input-group">
                     <label for="emailInput">Adresse Email</label>
                     <input type="email" id="emailInput" placeholder="votre.email@exemple.com" required>
                 </div>
-                <button class="btn" onclick="login()" id="loginBtn">Se connecter</button>
+                <button class="btn" onclick="login()">Se connecter</button>
                 <button class="btn btn-secondary" onclick="showAdminLogin()">Accès Admin</button>
-                <button class="btn btn-secondary" onclick="showScreen('configScreen')">⚙️ Configurer l'API</button>
             </div>
             
             <!-- Admin Login -->
             <div id="adminLoginScreen" class="screen">
                 <h2 style="margin-bottom: 20px;">Connexion Admin</h2>
-                <div id="adminLoginMessage"></div>
                 <div class="input-group">
                     <label for="adminPassword">Mot de passe Admin</label>
                     <input type="password" id="adminPassword" placeholder="••••••••">
@@ -462,7 +388,6 @@
             <!-- Package Selection -->
             <div id="packageScreen" class="screen">
                 <h2 style="margin-bottom: 20px;">Choisissez votre certification</h2>
-                <div id="packageMessage"></div>
                 <div id="packageList"></div>
                 <button class="btn" onclick="startExam()" id="startExamBtn" disabled>Démarrer l'examen</button>
                 <button class="btn btn-secondary" onclick="logout()">Déconnexion</button>
@@ -503,8 +428,8 @@
     </div>
 
     <script>
-        // Configuration
-        let API_URL = localStorage.getItem('API_URL') || '';
+        // Configuration - REMPLACER PAR VOTRE URL APPS SCRIPT
+        const API_URL = 'https://erwandantec-commits.github.io/probance-certif/';
         const ADMIN_PASSWORD = 'admin123'; // À changer en production
         
         // State Management
@@ -517,134 +442,42 @@
         let timerInterval = null;
         let isAdmin = false;
         
-        // Check configuration on load
-        window.onload = function() {
-            if (API_URL) {
-                showScreen('loginScreen');
-            } else {
-                showScreen('configScreen');
-            }
-        };
-        
-        // Save and test API URL
-        async function saveApiUrl() {
-            const url = document.getElementById('apiUrlInput').value.trim();
-            const messageEl = document.getElementById('configMessage');
-            
-            if (!url) {
-                messageEl.innerHTML = '<div class="error">❌ Veuillez entrer une URL</div>';
-                return;
-            }
-            
-            if (!url.includes('script.google.com') || !url.endsWith('/exec')) {
-                messageEl.innerHTML = '<div class="error">❌ L\'URL doit être une URL Google Apps Script se terminant par /exec</div>';
-                return;
-            }
-            
-            messageEl.innerHTML = '<div class="warning">⏳ Test de connexion à l\'API...</div>';
-            
-            // Test the API
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'getPackages'
-                    }),
-                    redirect: 'follow'
-                });
-                
-                const text = await response.text();
-                const data = JSON.parse(text);
-                
-                if (data.packages || data.error) {
-                    API_URL = url;
-                    localStorage.setItem('API_URL', url);
-                    messageEl.innerHTML = '<div class="success">✅ API configurée avec succès ! Redirection...</div>';
-                    
-                    setTimeout(() => {
-                        showScreen('loginScreen');
-                    }, 1500);
-                } else {
-                    messageEl.innerHTML = '<div class="error">❌ L\'API ne répond pas correctement. Vérifiez votre déploiement.</div>';
-                }
-                
-            } catch (error) {
-                messageEl.innerHTML = `<div class="error">❌ Impossible de se connecter à l'API.<br><br>Erreur: ${error.message}<br><br>Vérifiez que :<br>1. L'URL est correcte<br>2. L'application est déployée<br>3. L'accès est configuré sur "Tout le monde"</div>`;
-            }
-        }
-        
-        // API Call Helper with better error handling
-        async function apiCall(action, data = {}) {
-            if (!API_URL) {
-                return { error: 'API non configurée' };
-            }
-            
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ action, ...data }),
-                    redirect: 'follow'
-                });
-                
-                const text = await response.text();
-                
-                // Try to parse as JSON
-                try {
-                    return JSON.parse(text);
-                } catch (parseError) {
-                    console.error('Parse error:', parseError);
-                    console.error('Response text:', text);
-                    return { 
-                        error: 'Réponse invalide de l\'API. Vérifiez les logs de Apps Script.' 
-                    };
-                }
-                
-            } catch (error) {
-                console.error('API Error:', error);
-                return { 
-                    error: `Erreur de connexion: ${error.message}` 
-                };
-            }
-        }
-        
-        // Show message helper
-        function showMessage(elementId, message, type = 'info') {
-            const el = document.getElementById(elementId);
-            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'warning';
-            el.innerHTML = `<div class="${className}">${message}</div>`;
-        }
+      // API Call Helper (corrigé pour GitHub Pages + Google Apps Script)
+		async function apiCall(action, data = {}) {
+		  try {
+			const response = await fetch(API_URL, {
+			  method: "POST",
+			  mode: "cors",
+			  headers: {
+				"Content-Type": "text/plain;charset=utf-8"
+			  },
+			  body: JSON.stringify({ action, ...data })
+			});
+
+			return await response.json();
+		  } catch (error) {
+			console.error("API Error:", error);
+			return { error: "Erreur de connexion" };
+		  }
+		}
+
         
         // Login
         async function login() {
             const email = document.getElementById('emailInput').value.trim();
             if (!email || !email.includes('@')) {
-                showMessage('loginMessage', '❌ Veuillez entrer une adresse email valide', 'error');
+                alert('Veuillez entrer une adresse email valide');
                 return;
             }
             
-            const loginBtn = document.getElementById('loginBtn');
-            loginBtn.disabled = true;
-            loginBtn.textContent = 'Connexion...';
-            
             const result = await apiCall('login', { email });
-            
-            loginBtn.disabled = false;
-            loginBtn.textContent = 'Se connecter';
-            
             if (result.error) {
-                showMessage('loginMessage', `❌ ${result.error}`, 'error');
+                alert(result.error);
                 return;
             }
             
             currentUser = email;
-            showMessage('loginMessage', '✅ Connexion réussie !', 'success');
-            setTimeout(() => loadPackages(), 800);
+            loadPackages();
         }
         
         // Admin Login
@@ -656,32 +489,23 @@
             const password = document.getElementById('adminPassword').value;
             if (password === ADMIN_PASSWORD) {
                 isAdmin = true;
-                showMessage('adminLoginMessage', '✅ Connexion admin réussie !', 'success');
-                setTimeout(() => loadAdminDashboard(), 800);
+                loadAdminDashboard();
             } else {
-                showMessage('adminLoginMessage', '❌ Mot de passe incorrect', 'error');
+                alert('Mot de passe incorrect');
             }
         }
         
         // Load Packages
         async function loadPackages() {
             showScreen('packageScreen');
-            const packageList = document.getElementById('packageList');
-            packageList.innerHTML = '<div class="loading">Chargement des certifications...</div>';
-            
             const result = await apiCall('getPackages');
             
             if (result.error) {
-                showMessage('packageMessage', `❌ ${result.error}`, 'error');
-                packageList.innerHTML = '';
+                alert(result.error);
                 return;
             }
             
-            if (!result.packages || result.packages.length === 0) {
-                packageList.innerHTML = '<div class="warning">⚠️ Aucune certification disponible.<br><br>Ajoutez des données dans l\'onglet "Packages" de votre Google Sheet.</div>';
-                return;
-            }
-            
+            const packageList = document.getElementById('packageList');
             packageList.innerHTML = '';
             
             result.packages.forEach(pkg => {
@@ -717,7 +541,7 @@
             });
             
             if (result.error) {
-                showMessage('packageMessage', `❌ ${result.error}`, 'error');
+                alert(result.error);
                 return;
             }
             
@@ -741,7 +565,7 @@
                 
                 if (diff <= 0) {
                     clearInterval(timerInterval);
-                    alert('⏰ Temps écoulé ! Votre examen va être automatiquement terminé.');
+                    alert('Temps écoulé ! Votre examen va être automatiquement terminé.');
                     finishExam();
                     return;
                 }
@@ -752,7 +576,7 @@
                 
                 timerEl.textContent = `⏱️ Temps restant: ${hours}h ${minutes}m ${seconds}s`;
                 
-                if (diff < 600000) {
+                if (diff < 600000) { // 10 minutes
                     timerEl.classList.add('warning');
                 }
             }, 1000);
@@ -843,7 +667,7 @@
             });
             
             if (result.error) {
-                alert(`❌ ${result.error}`);
+                alert(result.error);
                 return;
             }
             
@@ -863,7 +687,7 @@
             });
             
             if (resultData.error) {
-                alert(`❌ ${resultData.error}`);
+                alert(resultData.error);
                 return;
             }
             
@@ -874,7 +698,7 @@
                 const div = document.createElement('div');
                 div.className = `result-item ${result.is_correct ? 'correct' : 'incorrect'}`;
                 div.innerHTML = `
-                    <div class="result-question">${result.is_correct ? '✅' : '❌'} Question ${index + 1}: ${result.question}</div>
+                    <div class="result-question">Question ${index + 1}: ${result.question}</div>
                     <div class="result-answer">Votre réponse: ${result.user_answer.toUpperCase()} - ${result.options[result.user_answer]}</div>
                     ${!result.is_correct ? `<div class="result-answer" style="color: #28a745; font-weight: 600;">Bonne réponse: ${result.correct_answer.toUpperCase()} - ${result.options[result.correct_answer]}</div>` : ''}
                 `;
@@ -887,21 +711,14 @@
             showScreen('adminScreen');
             document.getElementById('headerSubtitle').textContent = 'Administration Probance';
             
-            const content = document.getElementById('adminContent');
-            content.innerHTML = '<div class="loading">Chargement des données...</div>';
-            
             const result = await apiCall('adminGetSessions');
             
             if (result.error) {
-                content.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                alert(result.error);
                 return;
             }
             
-            if (!result.sessions || result.sessions.length === 0) {
-                content.innerHTML = '<div class="warning">⚠️ Aucune session trouvée</div>';
-                return;
-            }
-            
+            const content = document.getElementById('adminContent');
             content.innerHTML = `
                 <table class="admin-table">
                     <thead>
@@ -921,7 +738,7 @@
             
             const tbody = document.getElementById('adminTableBody');
             
-            result.sessions.reverse().forEach(session => {
+            result.sessions.forEach(session => {
                 const tr = document.createElement('tr');
                 const date = new Date(session.start_date).toLocaleDateString('fr-FR');
                 const statusBadge = session.status === 'completed' ? 'badge-success' : session.status === 'active' ? 'badge-warning' : 'badge-danger';
@@ -930,7 +747,7 @@
                     <td>${session.email}</td>
                     <td>${session.package_id}</td>
                     <td>${date}</td>
-                    <td>${session.score !== '' ? session.score : '-'} / ${session.total || '-'}</td>
+                    <td>${session.score || '-'} / ${session.total || '-'}</td>
                     <td><span class="badge ${statusBadge}">${session.status}</span></td>
                     <td>${session.certified ? '✅' : '❌'}</td>
                     <td><button class="btn" style="width: auto; padding: 8px 16px; font-size: 14px;" onclick="viewSessionDetail('${session.session_id}')">Détails</button></td>
@@ -943,7 +760,7 @@
             const result = await apiCall('adminGetSessionDetail', { session_id: sessionId });
             
             if (result.error) {
-                alert(`❌ ${result.error}`);
+                alert(result.error);
                 return;
             }
             
@@ -951,7 +768,7 @@
             result.details.forEach((detail, index) => {
                 html += `
                     <div class="result-item ${detail.is_correct ? 'correct' : 'incorrect'}">
-                        <div class="result-question">${detail.is_correct ? '✅' : '❌'} Q${index + 1}: ${detail.question}</div>
+                        <div class="result-question">Q${index + 1}: ${detail.question}</div>
                         <div class="result-answer">Réponse: ${detail.user_answer}</div>
                         ${!detail.is_correct ? `<div class="result-answer" style="color: #28a745;">Correcte: ${detail.correct_answer}</div>` : ''}
                     </div>
@@ -986,3 +803,22 @@
     </script>
 </body>
 </html>
+```
+
+## 4. Instructions de Déploiement (100% Gratuit)
+
+### Étape 1: Configuration Google Sheets
+1. Créez un nouveau Google Sheet
+2. Créez les 6 onglets: Users, Sessions, Packages, Questions, Answers, Config
+3. Ajoutez les en-têtes de colonnes pour chaque onglet
+4. Ajoutez des données d'exemple dans "Packages" et "Questions"
+
+**Exemple de données - Onglet Packages:**
+```
+PKG001 | JavaScript Basics | variables,functions,loops | beginner | 70 | 10
+```
+
+**Exemple de données - Onglet Questions:**
+```
+Q001 | PKG001 | variables | beginner | Quelle est la syntaxe correcte pour déclarer une variable en JavaScript? | var x = 5 | variable x = 5 | x := 5 | declare x = 5 | a
+Q002 | PKG001 | functions | beginner | Comment déclare-t-on une fonction en JavaScript? | function myFunc() {} | def myFunc(): | func myFunc() {} | fn myFunc() {} | a
