@@ -572,36 +572,31 @@
     }
 
     // Timer
-    function startTimer() {
-    let remainingTime = 10 * 60;
-    const timerEl = document.getElementById('timer');
+    function startTimer(endDate) {
+        const timerEl = document.getElementById('timer');
 
-    const timerInterval = setInterval(() => {
-        const minutes = Math.floor(remainingTime / 60);
-        const seconds = remainingTime % 60;
+        timerInterval = setInterval(() => {
+            const now = new Date();
+            const diff = endDate - now;
 
-        // Affichage du timer
-        timerEl.textContent = `⏱️ Time remaining: ${minutes}m ${seconds}s`;
+            if (diff <= 0) {
+                clearInterval(timerInterval);
+                alert('Time is up! Your exam will now be submitted.');
+                finishExam(true);
+                return;
+            }
 
-        // Style warning si moins de 1 minute
-        if (remainingTime <= 60) {
-            timerEl.classList.add('warning');
-        }
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
 
-        // Quand le temps est écoulé
-        if (remainingTime <= 0) {
-            clearInterval(timerInterval);
-            alert('Time is up! Your exam will now be submitted.');
-            finishExam(true); // ta fonction pour terminer l'examen
-        }
+            timerEl.textContent = `⏱️ Time remaining: ${hours}h ${minutes}m ${seconds}s`;
 
-        remainingTime--;
-    }, 1000);
-}
-
-// Démarrage automatique du timer
-startTimer();
-
+            if (diff < 600000) {
+                timerEl.classList.add('warning');
+            }
+        }, 1000);
+    }
     // Display Question
     function displayQuestion() {
         const question = questions[currentQuestionIndex];
@@ -848,6 +843,7 @@ startTimer();
 </script>
 </body>
 </html>
+
 
 
 
