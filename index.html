@@ -1,23 +1,19 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plateforme de Certification QCM</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Probance Certification Platform</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
+
         .container {
             max-width: 800px;
             margin: 0 auto;
@@ -26,48 +22,39 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             overflow: hidden;
         }
-        
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
         }
-        
+
         .header h1 {
             font-size: 28px;
             margin-bottom: 10px;
         }
-        
-        .content {
-            padding: 40px;
-        }
-        
-        .screen {
-            display: none;
-        }
-        
+
+        .content { padding: 40px; }
+
+        .screen { display: none; }
         .screen.active {
             display: block;
             animation: fadeIn 0.3s;
         }
-        
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        
-        .input-group {
-            margin-bottom: 20px;
-        }
-        
+
+        .input-group { margin-bottom: 20px; }
         .input-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
             color: #333;
         }
-        
         .input-group input {
             width: 100%;
             padding: 12px;
@@ -76,12 +63,11 @@
             font-size: 16px;
             transition: border-color 0.3s;
         }
-        
         .input-group input:focus {
             outline: none;
             border-color: #667eea;
         }
-        
+
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -94,29 +80,16 @@
             transition: transform 0.2s, box-shadow 0.2s;
             width: 100%;
         }
-        
         .btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
-        
-        .btn:active {
-            transform: translateY(0);
-        }
-        
-        .btn-secondary {
-            background: #6c757d;
-            margin-top: 10px;
-        }
-        
-        .btn-success {
-            background: #28a745;
-        }
-        
-        .btn-danger {
-            background: #dc3545;
-        }
-        
+        .btn:active { transform: translateY(0); }
+
+        .btn-secondary { background: #6c757d; margin-top: 10px; }
+        .btn-success { background: #28a745; }
+        .btn-danger { background: #dc3545; }
+
         .package-card {
             border: 2px solid #e0e0e0;
             border-radius: 10px;
@@ -125,48 +98,36 @@
             cursor: pointer;
             transition: all 0.3s;
         }
-        
         .package-card:hover {
             border-color: #667eea;
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
             transform: translateY(-2px);
         }
-        
         .package-card.selected {
             border-color: #667eea;
             background: #f8f9ff;
         }
-        
-        .package-card h3 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        
-        .package-info {
-            font-size: 14px;
-            color: #666;
-        }
-        
+        .package-card h3 { color: #333; margin-bottom: 10px; }
+        .package-info { font-size: 14px; color: #666; }
+
         .question-card {
             background: #f8f9fa;
             border-radius: 10px;
             padding: 30px;
             margin-bottom: 20px;
         }
-        
         .question-number {
             color: #667eea;
             font-weight: 600;
             margin-bottom: 15px;
         }
-        
         .question-text {
             font-size: 18px;
             color: #333;
             margin-bottom: 25px;
             line-height: 1.6;
         }
-        
+
         .option {
             background: white;
             border: 2px solid #e0e0e0;
@@ -178,34 +139,28 @@
             display: flex;
             align-items: center;
         }
-        
         .option:hover {
             border-color: #667eea;
             background: #f8f9ff;
         }
-        
         .option.selected {
             border-color: #667eea;
             background: #667eea;
             color: white;
         }
-        
         .option-label {
             font-weight: 600;
             margin-right: 12px;
             min-width: 30px;
         }
-        
+
         .navigation {
             display: flex;
             gap: 15px;
             margin-top: 30px;
         }
-        
-        .navigation button {
-            flex: 1;
-        }
-        
+        .navigation button { flex: 1; }
+
         .timer {
             background: #fff3cd;
             border: 2px solid #ffc107;
@@ -217,13 +172,12 @@
             font-weight: 600;
             color: #856404;
         }
-        
         .timer.warning {
             background: #f8d7da;
             border-color: #dc3545;
             color: #721c24;
         }
-        
+
         .result-item {
             background: white;
             border-left: 4px solid #e0e0e0;
@@ -231,29 +185,25 @@
             margin-bottom: 15px;
             border-radius: 8px;
         }
-        
         .result-item.correct {
             border-left-color: #28a745;
             background: #f1f9f3;
         }
-        
         .result-item.incorrect {
             border-left-color: #dc3545;
             background: #fcf1f2;
         }
-        
         .result-question {
             font-weight: 600;
             margin-bottom: 10px;
             color: #333;
         }
-        
         .result-answer {
             font-size: 14px;
             color: #666;
             margin: 5px 0;
         }
-        
+
         .score-display {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -262,35 +212,25 @@
             text-align: center;
             margin-bottom: 30px;
         }
-        
-        .score-display h2 {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-        
+        .score-display h2 { font-size: 48px; margin-bottom: 10px; }
+
         .admin-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
         }
-        
-        .admin-table th,
-        .admin-table td {
+        .admin-table th, .admin-table td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #e0e0e0;
         }
-        
         .admin-table th {
             background: #f8f9fa;
             font-weight: 600;
             color: #333;
         }
-        
-        .admin-table tr:hover {
-            background: #f8f9ff;
-        }
-        
+        .admin-table tr:hover { background: #f8f9ff; }
+
         .badge {
             display: inline-block;
             padding: 4px 12px;
@@ -298,48 +238,10 @@
             font-size: 12px;
             font-weight: 600;
         }
-        
-        .badge-success {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .badge-warning {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        .badge-danger {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #667eea;
-        }
-        
-        .loading::after {
-            content: '...';
-            animation: dots 1.5s infinite;
-        }
-        
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
-        }
-        
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #f5c6cb;
-        }
-        
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+
         .progress-bar {
             background: #e0e0e0;
             height: 8px;
@@ -347,7 +249,6 @@
             margin-bottom: 20px;
             overflow: hidden;
         }
-        
         .progress-fill {
             background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
             height: 100%;
@@ -355,451 +256,488 @@
         }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🎓 Plateforme de Certification</h1>
-            <p id="headerSubtitle">Testez vos compétences</p>
-        </div>
-        
-        <div class="content">
-            <!-- Login Screen -->
-            <div id="loginScreen" class="screen active">
-                <h2 style="margin-bottom: 20px;">Connexion</h2>
-                <div class="input-group">
-                    <label for="emailInput">Adresse Email</label>
-                    <input type="email" id="emailInput" placeholder="votre.email@exemple.com" required>
-                </div>
-                <button class="btn" onclick="login()">Se connecter</button>
-                <button class="btn btn-secondary" onclick="showAdminLogin()">Accès Admin</button>
-            </div>
-            
-            <!-- Admin Login -->
-            <div id="adminLoginScreen" class="screen">
-                <h2 style="margin-bottom: 20px;">Connexion Admin</h2>
-                <div class="input-group">
-                    <label for="adminPassword">Mot de passe Admin</label>
-                    <input type="password" id="adminPassword" placeholder="••••••••">
-                </div>
-                <button class="btn" onclick="adminLogin()">Se connecter</button>
-                <button class="btn btn-secondary" onclick="showScreen('loginScreen')">Retour</button>
-            </div>
-            
-            <!-- Package Selection -->
-            <div id="packageScreen" class="screen">
-                <h2 style="margin-bottom: 20px;">Choisissez votre certification</h2>
-                <div id="packageList"></div>
-                <button class="btn" onclick="startExam()" id="startExamBtn" disabled>Démarrer l'examen</button>
-                <button class="btn btn-secondary" onclick="logout()">Déconnexion</button>
-            </div>
-            
-            <!-- Exam Screen -->
-            <div id="examScreen" class="screen">
-                <div class="timer" id="timer"></div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressBar" style="width: 0%"></div>
-                </div>
-                <div id="questionContainer"></div>
-                <div class="navigation">
-                    <button class="btn btn-secondary" onclick="previousQuestion()" id="prevBtn">← Précédent</button>
-                    <button class="btn" onclick="nextQuestion()" id="nextBtn">Suivant →</button>
-                    <button class="btn btn-success" onclick="finishExam()" id="finishBtn" style="display: none;">Terminer</button>
-                </div>
-            </div>
-            
-            <!-- Results Screen -->
-            <div id="resultsScreen" class="screen">
-                <div class="score-display">
-                    <h2 id="scorePercentage">0%</h2>
-                    <p id="scoreText"></p>
-                </div>
-                <h3 style="margin-bottom: 20px;">Détail des réponses</h3>
-                <div id="resultsContainer"></div>
-                <button class="btn" onclick="backToPackages()">Nouvelle certification</button>
-            </div>
-            
-            <!-- Admin Dashboard -->
-            <div id="adminScreen" class="screen">
-                <h2 style="margin-bottom: 20px;">Tableau de bord Admin</h2>
-                <div id="adminContent"></div>
-                <button class="btn btn-secondary" onclick="logout()">Déconnexion</button>
-            </div>
-        </div>
+<div class="container">
+    <div class="header">
+        <h1>🎓 Certification Platform</h1>
+        <p id="headerSubtitle">Test your skills</p>
     </div>
 
-    <script>
-        // Configuration - REMPLACER PAR VOTRE URL APPS SCRIPT
-        const API_URL = 'https://script.google.com/macros/s/AKfycbyuwhn9Oy9oiVADVQXq-q1JUJjCU18uSVU3wMPvh-9s9HQ7bJ3XLQ6hYsDr9-FxrH4/exec';
-        const ADMIN_PASSWORD = 'admin123'; // À changer en production
-        
-        // State Management
-        let currentUser = null;
-        let selectedPackage = null;
-        let currentSession = null;
-        let questions = [];
-        let currentQuestionIndex = 0;
-        let userAnswers = {};
-        let timerInterval = null;
-        let isAdmin = false;
-        
-      // API Call Helper (corrigé pour GitHub Pages + Google Apps Script)
-		async function apiCall(action, data = {}) {
-		  try {
-			const response = await fetch(API_URL, {
-			  method: "POST",
-			  mode: "cors",
-			  headers: {
-				"Content-Type": "text/plain;charset=utf-8"
-			  },
-			  body: JSON.stringify({ action, ...data })
-			});
+    <div class="content">
 
-			return await response.json();
-		  } catch (error) {
-			console.error("API Error:", error);
-			return { error: "Erreur de connexion" };
-		  }
-		}
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen active">
+            <h2 style="margin-bottom: 20px;">Sign In</h2>
+            <div class="input-group">
+                <label for="emailInput">Email Address</label>
+                <input type="email" id="emailInput" placeholder="your.email@example.com" required />
+            </div>
+            <button class="btn" onclick="login()">Sign in</button>
+            <button class="btn btn-secondary" onclick="showAdminLogin()">Admin access</button>
+        </div>
 
-        
-        // Login
-        async function login() {
-            const email = document.getElementById('emailInput').value.trim();
-            if (!email || !email.includes('@')) {
-                alert('Veuillez entrer une adresse email valide');
-                return;
-            }
-            
-            const result = await apiCall('login', { email });
-            if (result.error) {
-                alert(result.error);
-                return;
-            }
-            
-            currentUser = email;
-            loadPackages();
-        }
-        
-        // Admin Login
-        function showAdminLogin() {
-            showScreen('adminLoginScreen');
-        }
-        
-        async function adminLogin() {
-            const password = document.getElementById('adminPassword').value;
-            if (password === ADMIN_PASSWORD) {
-                isAdmin = true;
-                loadAdminDashboard();
-            } else {
-                alert('Mot de passe incorrect');
-            }
-        }
-        
-        // Load Packages
-        async function loadPackages() {
-            showScreen('packageScreen');
-            const result = await apiCall('getPackages');
-            
-            if (result.error) {
-                alert(result.error);
-                return;
-            }
-            
-            const packageList = document.getElementById('packageList');
-            packageList.innerHTML = '';
-            
-            result.packages.forEach(pkg => {
-                const card = document.createElement('div');
-                card.className = 'package-card';
-                card.innerHTML = `
-                    <h3>${pkg.name}</h3>
-                    <div class="package-info">
-                        <p>📚 Sujets: ${pkg.topics}</p>
-                        <p>📊 Niveaux: ${pkg.levels}</p>
-                        <p>❓ Questions: ${Math.ceil(pkg.total_questions * pkg.percentage / 100)} sur ${pkg.total_questions}</p>
-                    </div>
-                `;
-                card.onclick = () => selectPackage(pkg, card);
-                packageList.appendChild(card);
+        <!-- Admin Login -->
+        <div id="adminLoginScreen" class="screen">
+            <h2 style="margin-bottom: 20px;">Admin Login</h2>
+            <div class="input-group">
+                <label for="adminPassword">Admin Password</label>
+                <input type="password" id="adminPassword" placeholder="••••••••" />
+            </div>
+            <button class="btn" onclick="adminLogin()">Sign in</button>
+            <button class="btn btn-secondary" onclick="showScreen('loginScreen')">Back</button>
+        </div>
+
+        <!-- Package Selection -->
+        <div id="packageScreen" class="screen">
+            <h2 style="margin-bottom: 20px;">Choose your certification</h2>
+            <div id="packageList"></div>
+            <button class="btn" onclick="startExam()" id="startExamBtn" disabled>Start exam</button>
+            <button class="btn btn-secondary" onclick="logout()">Sign out</button>
+        </div>
+
+        <!-- Exam Screen -->
+        <div id="examScreen" class="screen">
+            <div class="timer" id="timer"></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+            </div>
+            <div id="questionContainer"></div>
+            <div class="navigation">
+                <button class="btn btn-secondary" onclick="previousQuestion()" id="prevBtn">← Previous</button>
+                <button class="btn" onclick="nextQuestion()" id="nextBtn">Next →</button>
+                <button class="btn btn-success" onclick="finishExam()" id="finishBtn" style="display: none;">Finish</button>
+            </div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="resultsScreen" class="screen">
+            <div class="score-display">
+                <h2 id="scorePercentage">0%</h2>
+                <p id="scoreText"></p>
+            </div>
+            <h3 style="margin-bottom: 20px;">Answer details</h3>
+            <div id="resultsContainer"></div>
+            <button class="btn" onclick="backToPackages()">Start another certification</button>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="adminScreen" class="screen">
+            <h2 style="margin-bottom: 20px;">Admin Dashboard</h2>
+            <div id="adminContent"></div>
+            <button class="btn btn-secondary" onclick="logout()">Sign out</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // CONFIG - PASTE YOUR APPS SCRIPT WEB APP URL
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyuwhn9Oy9oiVADVQXq-q1JUJjCU18uSVU3wMPvh-9s9HQ7bJ3XLQ6hYsDr9-FxrH4/exec';
+
+    // Change this in production
+    const ADMIN_PASSWORD = 'admin123';
+
+    // State
+    let currentUser = null;
+    let selectedPackage = null;
+    let currentSession = null;
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let userAnswers = {};
+    let timerInterval = null;
+    let isAdmin = false;
+
+    // API Helper (CORS safe)
+    async function apiCall(action, data = {}) {
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action, ...data })
             });
-        }
-        
-        function selectPackage(pkg, card) {
-            document.querySelectorAll('.package-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            selectedPackage = pkg;
-            document.getElementById('startExamBtn').disabled = false;
-        }
-        
-        // Start Exam
-        async function startExam() {
-            if (!selectedPackage) return;
-            
-            const result = await apiCall('startSession', {
-                email: currentUser,
-                package_id: selectedPackage.package_id
-            });
-            
-            if (result.error) {
-                alert(result.error);
-                return;
+
+            const text = await response.text();
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                return { error: "Invalid API response: " + text };
             }
-            
-            currentSession = result.session_id;
-            questions = result.questions;
-            currentQuestionIndex = 0;
-            userAnswers = {};
-            
-            showScreen('examScreen');
-            startTimer(new Date(result.end_date));
-            displayQuestion();
+        } catch (error) {
+            console.error('API Error:', error);
+            return { error: 'Unable to connect to the API (Failed to fetch)' };
         }
-        
-        // Timer
-        function startTimer(endDate) {
-            const timerEl = document.getElementById('timer');
-            
-            timerInterval = setInterval(() => {
-                const now = new Date();
-                const diff = endDate - now;
-                
-                if (diff <= 0) {
-                    clearInterval(timerInterval);
-                    alert('Temps écoulé ! Votre examen va être automatiquement terminé.');
-                    finishExam();
-                    return;
-                }
-                
-                const hours = Math.floor(diff / 3600000);
-                const minutes = Math.floor((diff % 3600000) / 60000);
-                const seconds = Math.floor((diff % 60000) / 1000);
-                
-                timerEl.textContent = `⏱️ Temps restant: ${hours}h ${minutes}m ${seconds}s`;
-                
-                if (diff < 600000) { // 10 minutes
-                    timerEl.classList.add('warning');
-                }
-            }, 1000);
+    }
+
+    // Login
+    async function login() {
+        const email = document.getElementById('emailInput').value.trim();
+
+        if (!email || !email.includes('@')) {
+            alert('Please enter a valid email address');
+            return;
         }
-        
-        // Display Question
-        function displayQuestion() {
-            const question = questions[currentQuestionIndex];
-            const container = document.getElementById('questionContainer');
-            
-            container.innerHTML = `
-                <div class="question-card">
-                    <div class="question-number">Question ${currentQuestionIndex + 1} sur ${questions.length}</div>
-                    <div class="question-text">${question.question}</div>
-                    <div class="option ${userAnswers[question.question_id] === 'a' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'a')">
-                        <span class="option-label">A</span>
-                        <span>${question.option_a}</span>
-                    </div>
-                    <div class="option ${userAnswers[question.question_id] === 'b' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'b')">
-                        <span class="option-label">B</span>
-                        <span>${question.option_b}</span>
-                    </div>
-                    <div class="option ${userAnswers[question.question_id] === 'c' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'c')">
-                        <span class="option-label">C</span>
-                        <span>${question.option_c}</span>
-                    </div>
-                    <div class="option ${userAnswers[question.question_id] === 'd' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'd')">
-                        <span class="option-label">D</span>
-                        <span>${question.option_d}</span>
-                    </div>
+
+        const result = await apiCall('login', { email });
+
+        if (result.error) {
+            alert(result.error);
+            return;
+        }
+
+        currentUser = email;
+        loadPackages();
+    }
+
+    // Admin Login
+    function showAdminLogin() {
+        showScreen('adminLoginScreen');
+    }
+
+    async function adminLogin() {
+        const password = document.getElementById('adminPassword').value;
+
+        if (password === ADMIN_PASSWORD) {
+            isAdmin = true;
+            loadAdminDashboard();
+        } else {
+            alert('Incorrect password');
+        }
+    }
+
+    // Load Packages
+    async function loadPackages() {
+        showScreen('packageScreen');
+
+        const result = await apiCall('getPackages');
+
+        if (result.error) {
+            alert(result.error);
+            return;
+        }
+
+        const packageList = document.getElementById('packageList');
+        packageList.innerHTML = '';
+
+        result.packages.forEach(pkg => {
+            const card = document.createElement('div');
+            card.className = 'package-card';
+
+            card.innerHTML = `
+                <h3>${pkg.name}</h3>
+                <div class="package-info">
+                    <p>📚 Topics: ${pkg.topics}</p>
+                    <p>📊 Levels: ${pkg.levels}</p>
+                    <p>❓ Questions: ${Math.ceil(pkg.total_questions * pkg.percentage / 100)} out of ${pkg.total_questions}</p>
                 </div>
             `;
-            
-            updateNavigationButtons();
-            updateProgressBar();
+
+            card.onclick = () => selectPackage(pkg, card);
+            packageList.appendChild(card);
+        });
+    }
+
+    function selectPackage(pkg, card) {
+        document.querySelectorAll('.package-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedPackage = pkg;
+        document.getElementById('startExamBtn').disabled = false;
+    }
+
+    // Start Exam
+    async function startExam() {
+        if (!selectedPackage) return;
+
+        const result = await apiCall('startSession', {
+            email: currentUser,
+            package_id: selectedPackage.package_id
+        });
+
+        if (result.error) {
+            alert(result.error);
+            return;
         }
-        
-        function selectAnswer(questionId, answer) {
-            userAnswers[questionId] = answer;
+
+        currentSession = result.session_id;
+        questions = result.questions;
+        currentQuestionIndex = 0;
+        userAnswers = {};
+
+        showScreen('examScreen');
+        startTimer(new Date(result.end_date));
+        displayQuestion();
+    }
+
+    // Timer
+    function startTimer(endDate) {
+        const timerEl = document.getElementById('timer');
+
+        timerInterval = setInterval(() => {
+            const now = new Date();
+            const diff = endDate - now;
+
+            if (diff <= 0) {
+                clearInterval(timerInterval);
+                alert('Time is up! Your exam will now be submitted.');
+                finishExam(true);
+                return;
+            }
+
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+
+            timerEl.textContent = `⏱️ Time remaining: ${hours}h ${minutes}m ${seconds}s`;
+
+            if (diff < 600000) {
+                timerEl.classList.add('warning');
+            }
+        }, 1000);
+    }
+
+    // Display Question
+    function displayQuestion() {
+        const question = questions[currentQuestionIndex];
+        const container = document.getElementById('questionContainer');
+
+        container.innerHTML = `
+            <div class="question-card">
+                <div class="question-number">Question ${currentQuestionIndex + 1} of ${questions.length}</div>
+                <div class="question-text">${question.question}</div>
+
+                <div class="option ${userAnswers[question.question_id] === 'a' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'a')">
+                    <span class="option-label">A</span>
+                    <span>${question.option_a}</span>
+                </div>
+
+                <div class="option ${userAnswers[question.question_id] === 'b' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'b')">
+                    <span class="option-label">B</span>
+                    <span>${question.option_b}</span>
+                </div>
+
+                <div class="option ${userAnswers[question.question_id] === 'c' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'c')">
+                    <span class="option-label">C</span>
+                    <span>${question.option_c}</span>
+                </div>
+
+                <div class="option ${userAnswers[question.question_id] === 'd' ? 'selected' : ''}" onclick="selectAnswer('${question.question_id}', 'd')">
+                    <span class="option-label">D</span>
+                    <span>${question.option_d}</span>
+                </div>
+            </div>
+        `;
+
+        updateNavigationButtons();
+        updateProgressBar();
+    }
+
+    function selectAnswer(questionId, answer) {
+        userAnswers[questionId] = answer;
+        displayQuestion();
+    }
+
+    function updateNavigationButtons() {
+        document.getElementById('prevBtn').style.display = currentQuestionIndex === 0 ? 'none' : 'block';
+        document.getElementById('nextBtn').style.display = currentQuestionIndex === questions.length - 1 ? 'none' : 'block';
+        document.getElementById('finishBtn').style.display = currentQuestionIndex === questions.length - 1 ? 'block' : 'none';
+    }
+
+    function updateProgressBar() {
+        const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+        document.getElementById('progressBar').style.width = progress + '%';
+    }
+
+    function previousQuestion() {
+        if (currentQuestionIndex > 0) {
+            currentQuestionIndex--;
             displayQuestion();
         }
-        
-        function updateNavigationButtons() {
-            document.getElementById('prevBtn').style.display = currentQuestionIndex === 0 ? 'none' : 'block';
-            document.getElementById('nextBtn').style.display = currentQuestionIndex === questions.length - 1 ? 'none' : 'block';
-            document.getElementById('finishBtn').style.display = currentQuestionIndex === questions.length - 1 ? 'block' : 'none';
+    }
+
+    function nextQuestion() {
+        if (currentQuestionIndex < questions.length - 1) {
+            currentQuestionIndex++;
+            displayQuestion();
         }
-        
-        function updateProgressBar() {
-            const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-            document.getElementById('progressBar').style.width = progress + '%';
+    }
+
+    // Finish Exam
+    async function finishExam(skipConfirm = false) {
+        if (!skipConfirm) {
+            if (!confirm("Are you sure you want to finish the exam?")) return;
         }
-        
-        function previousQuestion() {
-            if (currentQuestionIndex > 0) {
-                currentQuestionIndex--;
-                displayQuestion();
-            }
-        }
-        
-        function nextQuestion() {
-            if (currentQuestionIndex < questions.length - 1) {
-                currentQuestionIndex++;
-                displayQuestion();
-            }
-        }
-        
-        // Finish Exam
-        async function finishExam() {
-            if (!confirm('Êtes-vous sûr de vouloir terminer l\'examen ?')) {
-                return;
-            }
-            
-            clearInterval(timerInterval);
-            
-            // Save all answers
-            for (const questionId in userAnswers) {
-                await apiCall('saveAnswer', {
-                    session_id: currentSession,
-                    question_id: questionId,
-                    user_answer: userAnswers[questionId]
-                });
-            }
-            
-            // Finish session
-            const result = await apiCall('finishSession', {
-                session_id: currentSession
-            });
-            
-            if (result.error) {
-                alert(result.error);
-                return;
-            }
-            
-            // Display results
-            displayResults(result);
-        }
-        
-        // Display Results
-        async function displayResults(scoreData) {
-            showScreen('resultsScreen');
-            
-            document.getElementById('scorePercentage').textContent = scoreData.percentage + '%';
-            document.getElementById('scoreText').textContent = `${scoreData.score} / ${scoreData.total} réponses correctes`;
-            
-            const resultData = await apiCall('getResults', {
-                session_id: currentSession
-            });
-            
-            if (resultData.error) {
-                alert(resultData.error);
-                return;
-            }
-            
-            const container = document.getElementById('resultsContainer');
-            container.innerHTML = '';
-            
-            resultData.results.forEach((result, index) => {
-                const div = document.createElement('div');
-                div.className = `result-item ${result.is_correct ? 'correct' : 'incorrect'}`;
-                div.innerHTML = `
-                    <div class="result-question">Question ${index + 1}: ${result.question}</div>
-                    <div class="result-answer">Votre réponse: ${result.user_answer.toUpperCase()} - ${result.options[result.user_answer]}</div>
-                    ${!result.is_correct ? `<div class="result-answer" style="color: #28a745; font-weight: 600;">Bonne réponse: ${result.correct_answer.toUpperCase()} - ${result.options[result.correct_answer]}</div>` : ''}
-                `;
-                container.appendChild(div);
+
+        clearInterval(timerInterval);
+
+        // Save answers
+        for (const questionId in userAnswers) {
+            await apiCall('saveAnswer', {
+                session_id: currentSession,
+                question_id: questionId,
+                user_answer: userAnswers[questionId]
             });
         }
-        
-        // Admin Dashboard
-        async function loadAdminDashboard() {
-            showScreen('adminScreen');
-            document.getElementById('headerSubtitle').textContent = 'Administration Probance';
-            
-            const result = await apiCall('adminGetSessions');
-            
-            if (result.error) {
-                alert(result.error);
-                return;
-            }
-            
-            const content = document.getElementById('adminContent');
-            content.innerHTML = `
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Email</th>
-                            <th>Package</th>
-                            <th>Date</th>
-                            <th>Score</th>
-                            <th>Statut</th>
-                            <th>Certifié</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="adminTableBody"></tbody>
-                </table>
+
+        // Finish session
+        const result = await apiCall('finishSession', { session_id: currentSession });
+
+        if (result.error) {
+            alert(result.error);
+            return;
+        }
+
+        displayResults(result);
+    }
+
+    // Results
+    async function displayResults(scoreData) {
+        showScreen('resultsScreen');
+
+        document.getElementById('scorePercentage').textContent = scoreData.percentage + '%';
+        document.getElementById('scoreText').textContent = `${scoreData.score} / ${scoreData.total} correct answers`;
+
+        const resultData = await apiCall('getResults', { session_id: currentSession });
+
+        if (resultData.error) {
+            alert(resultData.error);
+            return;
+        }
+
+        const container = document.getElementById('resultsContainer');
+        container.innerHTML = '';
+
+        resultData.results.forEach((result, index) => {
+            const div = document.createElement('div');
+            div.className = `result-item ${result.is_correct ? 'correct' : 'incorrect'}`;
+
+            div.innerHTML = `
+                <div class="result-question">Question ${index + 1}: ${result.question}</div>
+                <div class="result-answer">Your answer: ${result.user_answer.toUpperCase()} - ${result.options[result.user_answer]}</div>
+                ${
+                    !result.is_correct
+                        ? `<div class="result-answer" style="color: #28a745; font-weight: 600;">
+                            Correct answer: ${result.correct_answer.toUpperCase()} - ${result.options[result.correct_answer]}
+                          </div>`
+                        : ''
+                }
             `;
-            
-            const tbody = document.getElementById('adminTableBody');
-            
-            result.sessions.forEach(session => {
-                const tr = document.createElement('tr');
-                const date = new Date(session.start_date).toLocaleDateString('fr-FR');
-                const statusBadge = session.status === 'completed' ? 'badge-success' : session.status === 'active' ? 'badge-warning' : 'badge-danger';
-                
-                tr.innerHTML = `
-                    <td>${session.email}</td>
-                    <td>${session.package_id}</td>
-                    <td>${date}</td>
-                    <td>${session.score || '-'} / ${session.total || '-'}</td>
-                    <td><span class="badge ${statusBadge}">${session.status}</span></td>
-                    <td>${session.certified ? '✅' : '❌'}</td>
-                    <td><button class="btn" style="width: auto; padding: 8px 16px; font-size: 14px;" onclick="viewSessionDetail('${session.session_id}')">Détails</button></td>
-                `;
-                tbody.appendChild(tr);
-            });
+
+            container.appendChild(div);
+        });
+    }
+
+    // Admin Dashboard
+    async function loadAdminDashboard() {
+        showScreen('adminScreen');
+        document.getElementById('headerSubtitle').textContent = 'Admin Panel';
+
+        const result = await apiCall('adminGetSessions');
+
+        if (result.error) {
+            alert(result.error);
+            return;
         }
-        
-        async function viewSessionDetail(sessionId) {
-            const result = await apiCall('adminGetSessionDetail', { session_id: sessionId });
-            
-            if (result.error) {
-                alert(result.error);
-                return;
-            }
-            
-            let html = '<h3>Détails de la session</h3>';
-            result.details.forEach((detail, index) => {
-                html += `
-                    <div class="result-item ${detail.is_correct ? 'correct' : 'incorrect'}">
-                        <div class="result-question">Q${index + 1}: ${detail.question}</div>
-                        <div class="result-answer">Réponse: ${detail.user_answer}</div>
-                        ${!detail.is_correct ? `<div class="result-answer" style="color: #28a745;">Correcte: ${detail.correct_answer}</div>` : ''}
-                    </div>
-                `;
-            });
-            
-            html += '<button class="btn" onclick="loadAdminDashboard()">Retour</button>';
-            
-            document.getElementById('adminContent').innerHTML = html;
+
+        const content = document.getElementById('adminContent');
+
+        content.innerHTML = `
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Package</th>
+                        <th>Date</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Certified</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="adminTableBody"></tbody>
+            </table>
+        `;
+
+        const tbody = document.getElementById('adminTableBody');
+
+        result.sessions.forEach(session => {
+            const tr = document.createElement('tr');
+            const date = new Date(session.start_date).toLocaleDateString('en-US');
+
+            const statusBadge =
+                session.status === 'completed'
+                    ? 'badge-success'
+                    : session.status === 'active'
+                        ? 'badge-warning'
+                        : 'badge-danger';
+
+            tr.innerHTML = `
+                <td>${session.email}</td>
+                <td>${session.package_id}</td>
+                <td>${date}</td>
+                <td>${session.score || '-'} / ${session.total || '-'}</td>
+                <td><span class="badge ${statusBadge}">${session.status}</span></td>
+                <td>${session.certified ? '✅' : '❌'}</td>
+                <td>
+                    <button class="btn" style="width:auto; padding:8px 16px; font-size:14px;"
+                        onclick="viewSessionDetail('${session.session_id}')">
+                        Details
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function viewSessionDetail(sessionId) {
+        const result = await apiCall('adminGetSessionDetail', { session_id: sessionId });
+
+        if (result.error) {
+            alert(result.error);
+            return;
         }
-        
-        // Utility Functions
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-        }
-        
-        function logout() {
-            currentUser = null;
-            isAdmin = false;
-            selectedPackage = null;
-            currentSession = null;
-            if (timerInterval) clearInterval(timerInterval);
-            document.getElementById('headerSubtitle').textContent = 'Testez vos compétences';
-            showScreen('loginScreen');
-        }
-        
-        function backToPackages() {
-            currentSession = null;
-            loadPackages();
-        }
-    </script>
+
+        let html = '<h3>Session details</h3>';
+
+        result.details.forEach((detail, index) => {
+            html += `
+                <div class="result-item ${detail.is_correct ? 'correct' : 'incorrect'}">
+                    <div class="result-question">Q${index + 1}: ${detail.question}</div>
+                    <div class="result-answer">Answer: ${detail.user_answer}</div>
+                    ${
+                        !detail.is_correct
+                            ? `<div class="result-answer" style="color:#28a745;">Correct: ${detail.correct_answer}</div>`
+                            : ''
+                    }
+                </div>
+            `;
+        });
+
+        html += `<button class="btn" onclick="loadAdminDashboard()">Back</button>`;
+
+        document.getElementById('adminContent').innerHTML = html;
+    }
+
+    // Utilities
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    function logout() {
+        currentUser = null;
+        isAdmin = false;
+        selectedPackage = null;
+        currentSession = null;
+        if (timerInterval) clearInterval(timerInterval);
+        document.getElementById('headerSubtitle').textContent = 'Test your skills';
+        showScreen('loginScreen');
+    }
+
+    function backToPackages() {
+        currentSession = null;
+        loadPackages();
+    }
+</script>
 </body>
 </html>
