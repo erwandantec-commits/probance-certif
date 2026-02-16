@@ -13,6 +13,8 @@ $question = [
   'id' => 0,
   'package_id' => $prefPkg ?: (int)($packages[0]['id'] ?? 1),
   'text' => '',
+  'need' => 'PONE',
+  'level' => 1,
   // RULE: default MULTI
   'question_type' => 'MULTI',
   'allow_skip' => 1,
@@ -21,19 +23,21 @@ $question = [
 $optionsByLabel = []; // 'A' => ['option_text'=>..., 'is_correct'=>..., 'score_value'=>...]
 
 if ($id > 0) {
-  $st = $pdo->prepare("SELECT id, package_id, text, question_type, allow_skip FROM questions WHERE id=?");
+  $st = $pdo->prepare("SELECT id, package_id, text, need, level, question_type, allow_skip FROM questions WHERE id=?");
   $st->execute([$id]);
   $q = $st->fetch();
   if (!$q) { http_response_code(404); echo "Question not found"; exit; }
 
   $question = [
-    'id' => (int)$q['id'],
-    'package_id' => (int)$q['package_id'],
-    'text' => (string)$q['text'],
-    // RULE: if legacy SINGLE exists, treat it as MULTI in admin
-    'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
-    'allow_skip' => (int)($q['allow_skip'] ?? 1),
-  ];
+  'id' => (int)$q['id'],
+  'package_id' => (int)$q['package_id'],
+  'text' => (string)$q['text'],
+  'need' => (string)($q['need'] ?? 'PONE'),
+  'level' => (int)($q['level'] ?? 1),
+  // RULE: if legacy SINGLE exists, treat it as MULTI in admin
+  'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
+  'allow_skip' => (int)($q['allow_skip'] ?? 1),
+];
 
   $os = $pdo->prepare("
     SELECT label, option_text, is_correct, score_value
@@ -53,12 +57,17 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $question['package_id'] = (int)($_POST['package_id'] ?? $question['package_id']);
   $question['text'] = trim((string)($_POST['text'] ?? ''));
+  $question['need'] = strtoupper(trim((string)($_POST['need'] ?? ($question['need'] ?? 'PONE'))));
+  $question['level'] = (int)($_POST['level'] ?? ($question['level'] ?? 1));
   $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
   $question['allow_skip'] = isset($_POST['allow_skip']) ? 1 : 0;
 
   if ($question['text'] === '') $errors[] = "Énoncé obligatoire.";
   // RULE: only MULTI or TRUE_FALSE
   if (!in_array($question['question_type'], ['MULTI','TRUE_FALSE'], true)) $errors[] = "Type invalide.";
+
+  if (!in_array($question['need'], ['PONE','PHM','PPM'], true)) $errors[] = "Need invalide.";
+  if ($question['level'] < 1 || $question['level'] > 3) $errors[] = "Level invalide (1..3).";
 
   $optText = $_POST['opt'] ?? [];
   $correct = $_POST['correct'] ?? [];
@@ -119,12 +128,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     try {
       if ($question['id'] > 0) {
-        $up = $pdo->prepare("UPDATE questions SET package_id=?, text=?, question_type=?, allow_skip=? WHERE id=?");
-        $up->execute([$question['package_id'], $question['text'], $question['question_type'], $question['allow_skip'], $question['id']]);
+        $up = $pdo->prepare("UPDATE questions SET package_id=?, text=?, need=?, level=?, question_type=?, allow_skip=? WHERE id=?");
+        $up->execute([
+          $question['package_id'],
+          $question['text'],
+          $question['need'],
+          $question['level'],
+          $question['question_type'],
+          $question['allow_skip'],
+          $question['id']
+        ]);
         $qid = $question['id'];
       } else {
-        $ins = $pdo->prepare("INSERT INTO questions(package_id, text, question_type, allow_skip) VALUES(?,?,?,?)");
-        $ins->execute([$question['package_id'], $question['text'], $question['question_type'], $question['allow_skip']]);
+        $ins = $pdo->prepare("INSERT INTO questions(package_id, text, need, level, question_type, allow_skip) VALUES(?,?,?,?,?,?)");
+        $ins->execute([
+          $question['package_id'],
+          $question['text'],
+          $question['need'],
+          $question['level'],
+          $question['question_type'],
+          $question['allow_skip']
+        ]);
         $qid = (int)$pdo->lastInsertId();
       }
 
@@ -185,6 +209,26 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
           </option>
         <?php endforeach; ?>
       </select>
+
+      <div style="height:10px;"></div>
+
+        <label>Need</label><br>
+        <select name="need" required>
+          <?php foreach (['PONE','PHM','PPM'] as $n): ?>
+            <option value="<?= h($n) ?>" <?= (($question['need'] ?? 'PONE') === $n) ? 'selected' : '' ?>>
+              <?= h($n) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+
+        <label style="margin-left:12px;">Level</label>
+        <select name="level" required>
+          <?php for ($i=1; $i<=3; $i++): ?>
+            <option value="<?= $i ?>" <?= ((int)($question['level'] ?? 1) === $i) ? 'selected' : '' ?>>
+              <?= $i ?>
+            </option>
+          <?php endfor; ?>
+        </select>
 
       <div style="height:10px;"></div>
 

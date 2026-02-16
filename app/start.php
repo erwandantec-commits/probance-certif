@@ -33,26 +33,118 @@ if (!$pkg) {
 $limit = (int)$pkg['selection_count'];
 if ($limit < 1) $limit = 1;
 
-// Pick eligible questions (>=2 options)
-$q = $pdo->prepare("
-  SELECT q.id
-  FROM questions q
-  JOIN question_options qo ON qo.question_id = q.id
-  WHERE q.package_id=?
-  GROUP BY q.id
-  HAVING COUNT(qo.id) >= 2
-  ORDER BY RAND()
-  LIMIT $limit
-");
-$q->execute([$package_id]);
-$qids = $q->fetchAll();
-
-if (count($qids) < $limit) {
-  header("Location: /dashboard.php?err=" . urlencode("Pas assez de questions pour ce package"));
-  exit;
+$rules = null;
+$rulesRaw = $pkg['selection_rules_json'] ?? null;
+if (is_string($rulesRaw) && trim($rulesRaw) !== '') {
+  $tmp = json_decode($rulesRaw, true);
+  if (is_array($tmp)) $rules = $tmp;
 }
 
+// --------------------------
+// Select questions (2 modes)
+// --------------------------
+
+$qids = []; // array of question ids (ints)
+
+// Helper: fetch random question ids by filters, excluding already selected
+$pickByNeedLevel = function(string $need, array $levels, int $take, array $excludeIds) use ($pdo) : array {
+  if ($take <= 0) return [];
+
+  // sanitize levels -> ints
+  $levels = array_values(array_unique(array_map('intval', $levels)));
+  $levels = array_filter($levels, fn($x) => $x >= 1 && $x <= 9);
+  if (!$levels) return [];
+
+  $placeLevels = implode(',', array_fill(0, count($levels), '?'));
+
+  $sql = "
+    SELECT q.id
+    FROM questions q
+    JOIN question_options qo ON qo.question_id = q.id
+    WHERE q.need = ?
+      AND q.level IN ($placeLevels)
+    GROUP BY q.id
+    HAVING COUNT(qo.id) >= 2
+  ";
+
+  $params = array_merge([$need], $levels);
+
+  if (!empty($excludeIds)) {
+    $placeEx = implode(',', array_fill(0, count($excludeIds), '?'));
+    $sql .= " AND q.id NOT IN ($placeEx) ";
+    $params = array_merge($params, array_map('intval', $excludeIds));
+  }
+
+  $sql .= " ORDER BY RAND() LIMIT " . (int)$take;
+
+  $st = $pdo->prepare($sql);
+  $st->execute($params);
+  $rows = $st->fetchAll();
+  return array_map(fn($r) => (int)$r['id'], $rows ?: []);
+};
+
+if ($rules && !empty($rules['buckets']) && is_array($rules['buckets'])) {
+  // New mode: use recipe (need/level buckets)
+  $max = isset($rules['max']) ? (int)$rules['max'] : $limit;
+  if ($max < 1) $max = $limit;
+
+  foreach ($rules['buckets'] as $b) {
+    if (count($qids) >= $max) break;
+
+    $need = strtoupper(trim((string)($b['need'] ?? '')));
+    $levels = $b['levels'] ?? [];
+    $take = (int)($b['take'] ?? 0);
+
+    if (!in_array($need, ['PONE','PHM','PPM'], true)) continue;
+    if (!is_array($levels)) $levels = [];
+    if ($take <= 0) continue;
+
+    $remaining = $max - count($qids);
+    if ($take > $remaining) $take = $remaining;
+
+    $picked = $pickByNeedLevel($need, $levels, $take, $qids);
+    foreach ($picked as $id) {
+      $qids[] = $id;
+    }
+  }
+
+  // If recipe didn't reach max, fail with clear error
+  if (count($qids) < $max) {
+    header("Location: /dashboard.php?err=" . urlencode("Pas assez de questions taguées (need/level) pour générer cette certification"));
+    exit;
+  }
+
+  // Ensure we use $max count
+  if (count($qids) > $max) {
+    $qids = array_slice($qids, 0, $max);
+  }
+
+  $limit = $max; // for downstream checks
+} else {
+  // Legacy mode: questions attached to package_id (your current behavior)
+  $q = $pdo->prepare("
+    SELECT q.id
+    FROM questions q
+    JOIN question_options qo ON qo.question_id = q.id
+    WHERE q.package_id=?
+    GROUP BY q.id
+    HAVING COUNT(qo.id) >= 2
+    ORDER BY RAND()
+    LIMIT $limit
+  ");
+  $q->execute([$package_id]);
+  $rows = $q->fetchAll();
+  $qids = array_map(fn($r) => (int)$r['id'], $rows ?: []);
+
+  if (count($qids) < $limit) {
+    header("Location: /dashboard.php?err=" . urlencode("Pas assez de questions pour ce package"));
+    exit;
+  }
+}
+
+// --------------------------
 // Create session
+// --------------------------
 $pdo->beginTransaction();
 try {
   // upsert contact by user email
@@ -78,8 +170,8 @@ try {
 
   $pos = 1;
   $insq = $pdo->prepare("INSERT INTO session_questions(session_id, question_id, position) VALUES(?,?,?)");
-  foreach ($qids as $row) {
-    $insq->execute([$session_id, (int)$row['id'], $pos++]);
+  foreach ($qids as $qid) {
+    $insq->execute([$session_id, (int)$qid, $pos++]);
   }
 
   $pdo->commit();

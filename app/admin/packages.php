@@ -7,6 +7,82 @@ require_once __DIR__ . '/../utils.php';
 $pdo = db();
 
 $packages = $pdo->query("SELECT * FROM packages ORDER BY id")->fetchAll();
+
+// counts by need/level for "recipe" packages
+$cntStmt = $pdo->query("
+  SELECT need, level, COUNT(*) c
+  FROM questions
+  GROUP BY need, level
+");
+$counts = [];
+foreach ($cntStmt->fetchAll() as $r) {
+  $counts[strtoupper($r['need'])][(int)$r['level']] = (int)$r['c'];
+}
+
+// legacy counts per package (questions.package_id)
+$legacyStmt = $pdo->query("
+  SELECT package_id, COUNT(*) c
+  FROM questions
+  WHERE package_id IS NOT NULL
+  GROUP BY package_id
+");
+$legacyCounts = [];
+foreach ($legacyStmt->fetchAll() as $r) {
+  $legacyCounts[(int)$r['package_id']] = (int)$r['c'];
+}
+
+function compute_availability(array $pk, array $counts, array $legacyCounts): array {
+  // returns [available, required, ok_bool, detail_string]
+  $required = 0;
+  $available = 0;
+  $detail = '';
+
+  $raw = $pk['selection_rules_json'] ?? '';
+  $raw = is_string($raw) ? trim($raw) : '';
+  if ($raw !== '') {
+    $rules = json_decode($raw, true);
+    if (is_array($rules) && !empty($rules['buckets']) && is_array($rules['buckets'])) {
+      $required = isset($rules['max']) ? (int)$rules['max'] : (int)($pk['selection_count'] ?? 0);
+      if ($required < 1) $required = (int)($pk['selection_count'] ?? 0);
+
+      $missingParts = [];
+      $sumAvail = 0;
+
+      foreach ($rules['buckets'] as $b) {
+        $need = strtoupper((string)($b['need'] ?? ''));
+        $take = (int)($b['take'] ?? 0);
+        $levels = $b['levels'] ?? [];
+        if ($take <= 0 || !in_array($need, ['PONE','PHM','PPM'], true) || !is_array($levels)) continue;
+
+        $bucketAvail = 0;
+        foreach ($levels as $lv) {
+          $lv = (int)$lv;
+          $bucketAvail += (int)($counts[$need][$lv] ?? 0);
+        }
+
+        $canTake = min($take, $bucketAvail);
+        $sumAvail += $canTake;
+
+        if ($bucketAvail < $take) {
+          $missingParts[] = "$need L" . implode(',', array_map('intval', $levels)) . " (-" . ($take - $bucketAvail) . ")";
+        }
+      }
+
+      $available = $sumAvail;
+      $detail = $missingParts ? ("Manque: " . implode(' · ', $missingParts)) : "OK";
+      $ok = ($available >= $required);
+      return [$available, $required, $ok, $detail];
+    }
+  }
+
+  // Legacy mode: questions attached to package_id
+  $required = (int)($pk['selection_count'] ?? 0);
+  $available = (int)($legacyCounts[(int)$pk['id']] ?? 0);
+  $ok = ($available >= $required);
+  $detail = $ok ? "OK" : ("Manque " . ($required - $available));
+  return [$available, $required, $ok, $detail];
+}
+
 ?>
 <!doctype html>
 <html>
@@ -33,16 +109,29 @@ $packages = $pdo->query("SELECT * FROM packages ORDER BY id")->fetchAll();
           <th>Nom</th>
           <th>Seuil (%)</th>
           <th>Durée (min)</th>
-          <th>#Questions</th>
+          <th>Questions</th>
+          <th>Disponibilité</th>
           <th></th>
         </tr>
 
         <?php foreach ($packages as $pk): ?>
+          <?php [$avail, $req, $ok, $detail] = compute_availability($pk, $counts, $legacyCounts); ?>
           <tr>
             <td><?= h($pk['name']) ?></td>
             <td><?= (int)$pk['pass_threshold_percent'] ?></td>
             <td><?= (int)$pk['duration_limit_minutes'] ?></td>
             <td><?= (int)$pk['selection_count'] ?></td>
+
+            <td>
+              <span class="pill <?= $ok ? 'success' : 'warning' ?>">
+                <?= $ok ? 'OK' : 'Incomplet' ?>
+              </span>
+              <span class="small" style="margin-left:8px;">
+                <?= (int)$avail ?> / <?= (int)$req ?>
+                <?php if (!$ok): ?> — <?= h($detail) ?><?php endif; ?>
+              </span>
+            </td>
+
             <td>
               <a class="btn ghost" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>">
                 Modifier

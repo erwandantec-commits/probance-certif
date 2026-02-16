@@ -21,6 +21,12 @@ $report = [
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $bulk = trim((string)($_POST['bulk'] ?? ''));
 
+  $needDefault = strtoupper(trim((string)($_POST['need_default'] ?? 'PONE')));
+  $levelDefault = (int)($_POST['level_default'] ?? 1);
+
+  if (!in_array($needDefault, ['PONE','PHM','PPM'], true)) $needDefault = 'PONE';
+  if ($levelDefault < 1 || $levelDefault > 3) $levelDefault = 1;
+
   if ($bulk === '') {
     $report['errors'][] = "Aucun contenu collé.";
   } else {
@@ -39,8 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dupStmt = $pdo->prepare("SELECT id FROM questions WHERE package_id=? AND text=? LIMIT 1");
 
     $insertQ = $pdo->prepare("
-      INSERT INTO questions(package_id, text, question_type, allow_skip)
-      VALUES(?,?,?,?)
+      INSERT INTO questions(package_id, text, need, level, question_type, allow_skip)
+      VALUES(?,?,?,?,?,?)
     ");
 
     $deleteOpts = $pdo->prepare("DELETE FROM question_options WHERE question_id=?");
@@ -83,12 +89,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           continue;
         }
 
-        // last column: "Bonnes réponses" can be in col[7] (index 7) if exactly 8 columns,
-        // but depending on trailing tabs, it might be later; take last non-empty col after options zone.
-        $rawCorrect = '';
-        for ($j = count($cols) - 1; $j >= 0; $j--) {
-          $cand = trim((string)$cols[$j]);
-          if ($cand !== '') { $rawCorrect = $cand; break; }
+        // Expected columns:
+        // 0=Question, 1..6=Options, 7=Bonnes réponses, 8=Need (optional), 9=Level (optional)
+        $rawCorrect = trim((string)($cols[7] ?? ''));
+        $rawNeed = strtoupper(trim((string)($cols[8] ?? '')));
+        $rawLevel = trim((string)($cols[9] ?? ''));
+
+        $need = in_array($rawNeed, ['PONE','PHM','PPM'], true) ? $rawNeed : $needDefault;
+
+        $level = (int)$rawLevel;
+        if ($level < 1 || $level > 3) $level = $levelDefault;
+
+        if ($rawCorrect === '') {
+          $report['errors'][] = "Ligne $lineNo : colonne 'Bonnes réponses' manquante (après les 6 réponses).";
+          continue;
         }
 
         // Parse correct indices like "2;3" or "3"
@@ -144,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($isTF && $nbCorrect === 1) $questionType = 'TRUE_FALSE';
 
         // Insert question
-        $insertQ->execute([$packageId, $questionText, $questionType, 1]);
+        $insertQ->execute([$packageId, $questionText, $need, $level, $questionType, 1]);
         $qid = (int)$pdo->lastInsertId();
 
         // Insert options A..F for the non-empty options in order
@@ -192,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
       <div>
         <h2 class="h1" style="margin:0;">Importer des questions</h2>
-        <p class="sub" style="margin:6px 0 0;">Colle depuis Excel (TSV). Dernière colonne: “Bonnes réponses” (ex: 3 ou 2;3).</p>
+        <p class="sub" style="margin:6px 0 0;">Colle depuis Excel (TSV)</p>
       </div>
       <a class="btn ghost" href="/admin/questions.php<?= $packageId ? '?package_id='.(int)$packageId : '' ?>">← Retour</a>
     </div>
@@ -232,8 +246,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <div style="height:10px;"></div>
 
+      <label>Need (défaut)</label><br>
+      <select name="need_default" required>
+        <?php foreach (['PONE','PHM','PPM'] as $n): ?>
+          <option value="<?= h($n) ?>"><?= h($n) ?></option>
+        <?php endforeach; ?>
+      </select>
+
+      <label style="margin-left:12px;">Level (défaut)</label>
+      <select name="level_default" required>
+        <?php for ($i=1; $i<=3; $i++): ?>
+          <option value="<?= $i ?>"><?= $i ?></option>
+        <?php endfor; ?>
+      </select>
+
+      <div style="height:10px;"></div>
+
       <label>Contenu (copier/coller depuis Excel)</label>
-      <textarea name="bulk" rows="16" style="width:100%;" placeholder="Questions[TAB]Réponse 1[TAB]... [TAB]Bonnes réponses&#10;..."></textarea>
+      <textarea name="bulk" rows="16" style="width:100%;" placeholder="Questions,Réponses,etc&#10;..."></textarea>
 
       <div style="margin-top:12px; display:flex; gap:10px;">
         <button class="btn" type="submit">Importer</button>
@@ -244,8 +274,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p class="small" style="margin-top:12px;">
       Notes :<br>
       • Bonnes réponses accepte <code>1</code> ou <code>2;3</code> (séparateur <code>;</code>, <code>,</code> ou espace).<br>
-      • “NSP” est automatiquement score 0 et jamais correct.<br>
-      • Type auto : 1 bonne → SINGLE, plusieurs → MULTI, et Vrai/Faux/NSP → TRUE_FALSE.
+      • Type auto : 1 bonne réponse ou plusieurs → question choix multiple, Vrai/Faux → question vrai ou faux.
     </p>
   </div>
 </div>
