@@ -484,6 +484,13 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.package-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
 .btn.ghost.admin-tab-candidate {
   margin-right: auto;
   background: #eef6ff;
@@ -1112,7 +1119,8 @@ button:disabled {
 
   .import-help-grid,
   .import-fields,
-  .question-fields {
+  .question-fields,
+  .package-edit-grid {
     grid-template-columns: 1fr;
   }
 

@@ -119,26 +119,10 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
 
     <hr class="separator">
 
-    <form method="get" class="filters-grid">
-      <div>
-        <label class="label" for="package_id">Package</label>
-        <select id="package_id" name="package_id">
-          <option value="0">Tous</option>
-	          <?php foreach ($packages as $p): ?>
-	            <option value="<?= (int)$p['id'] ?>" <?= $pkg === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style_local((string)$p['name'])) ?>">
-	              <?= h($p['name']) ?>
-	            </option>
-	          <?php endforeach; ?>
-        </select>
-      </div>
-
-      <div class="filters-actions">
-        <button class="btn" type="submit">Filtrer</button>
-        <a class="btn ghost" href="/admin/questions.php">Reset</a>
-        <a class="btn ghost" href="/admin/question_edit.php?new=1<?= $pkg ? '&package_id=' . $pkg : '' ?>">+ Ajouter</a>
-        <a class="btn ghost" href="/admin/import_questions.php<?= $pkg ? '?package_id=' . $pkg : '' ?>">&uarr; Importer</a>
-      </div>
-    </form>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 8px;">
+      <a class="btn ghost" href="/admin/question_edit.php?new=1<?= $pkg ? '&package_id=' . $pkg : '' ?>">+ Ajouter</a>
+      <a class="btn ghost" href="/admin/import_questions.php<?= $pkg ? '?package_id=' . $pkg : '' ?>">&uarr; Importer</a>
+    </div>
 
     <div class="distribution-wrap">
       <p class="distribution-title">R&eacute;partition actuelle</p>
@@ -169,6 +153,22 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
         <?php endforeach; ?>
       </div>
     </div>
+
+    <form method="get" style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+      <div style="min-width:260px; flex:0 0 450px;">
+        <label class="label" for="package_id">Package</label>
+        <select id="package_id" name="package_id">
+          <option value="0">Tous</option>
+          <?php foreach ($packages as $p): ?>
+            <option value="<?= (int)$p['id'] ?>" <?= $pkg === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style_local((string)$p['name'])) ?>">
+              <?= h($p['name']) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <button class="btn" type="submit">Filtrer</button>
+      <a class="btn ghost" href="/admin/questions.php">Reset</a>
+    </form>
 
     <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
 

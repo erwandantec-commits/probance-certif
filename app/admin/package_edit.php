@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="utf-8">
   <title>Admin &middot; Modifier package</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
 </head>
 <body>
   <div class="container admin-container">
@@ -167,58 +167,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php endif; ?>
 
       <form method="post">
-        <label class="label">Seuil de reussite (%)</label>
-        <input
-          class="input"
-          type="number"
-          name="pass_threshold_percent"
-          min="0"
-          max="100"
-          value="<?= (int)$pk['pass_threshold_percent'] ?>"
-          required
-        >
+        <div class="package-edit-grid">
+          <div>
+            <label class="label">Seuil de réussite (%)</label>
+            <input
+              class="input"
+              type="number"
+              name="pass_threshold_percent"
+              min="0"
+              max="100"
+              value="<?= (int)$pk['pass_threshold_percent'] ?>"
+              required
+            >
+          </div>
 
-        <br><br>
+          <div>
+            <label class="label">Durée max (minutes)</label>
+            <input
+              class="input"
+              type="number"
+              name="duration_limit_minutes"
+              min="1"
+              max="600"
+              value="<?= (int)$pk['duration_limit_minutes'] ?>"
+              required
+            >
+          </div>
 
-        <label class="label">Duree max (minutes)</label>
-        <input
-          class="input"
-          type="number"
-          name="duration_limit_minutes"
-          min="1"
-          max="600"
-          value="<?= (int)$pk['duration_limit_minutes'] ?>"
-          required
-        >
-
-        <br><br>
-
-        <label class="label">Nombre de questions tirees</label>
-        <input
-          class="input"
-          type="number"
-          name="selection_count"
-          min="1"
-          max="200"
-          value="<?= (int)$pk['selection_count'] ?>"
-          required
-        >
-
-        <br><br>
+          <div>
+            <label class="label">Nombre de questions tirées</label>
+            <input
+              class="input"
+              type="number"
+              name="selection_count"
+              min="1"
+              max="200"
+              value="<?= (int)$pk['selection_count'] ?>"
+              required
+            >
+          </div>
+        </div>
 
         <div style="margin-top:14px; display:flex; gap:10px;">
           <button class="btn" type="submit">Enregistrer</button>
           <a class="btn ghost" href="/admin/packages.php">Annuler</a>
-          <a class="btn ghost" href="/admin/question_edit.php?package_id=<?= (int)$id ?>">Ajouter une question</a>
-          <a class="btn ghost" href="/admin/import_questions.php?package_id=<?= (int)$id ?>">Importer questions</a>
         </div>
       </form>
 
       <hr class="separator">
 
       <h3 class="distribution-title">Questions du package</h3>
+      <div style="margin: 0 0 10px; display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn ghost" href="/admin/question_edit.php?package_id=<?= (int)$id ?>">Ajouter une question</a>
+        <a class="btn ghost" href="/admin/import_questions.php?package_id=<?= (int)$id ?>">Importer questions</a>
+      </div>
       <p class="small">
-        Repartition par need et level pour ce package uniquement.
+        Répartition par need et level pour ce package uniquement.
         <?php if ($filterNeed !== '' || $filterLevel > 0): ?>
           <span class="small" style="margin-left:8px;">
             Filtre: <b><?= h($filterNeed ?: 'Tous') ?></b><?= $filterLevel > 0 ? ' - L' . (int)$filterLevel : '' ?>
@@ -262,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Enonce</th>
+                <th>Énoncé</th>
                 <th>Need</th>
                 <th>Level</th>
                 <th>Type</th>
