@@ -11,7 +11,7 @@ $pdo = db();
 $email = trim((string)($_GET['email'] ?? ''));
 $packageId = (int)($_GET['package_id'] ?? 0);
 $certStatus = strtoupper(trim((string)($_GET['cert_status'] ?? 'ALL')));
-if (!in_array($certStatus, ['ALL', 'CERTIFIED', 'SOON', 'EXPIRED'], true)) {
+if (!in_array($certStatus, ['ALL', 'CERTIFIED', 'SOON', 'EXPIRED', 'REVOKED'], true)) {
   $certStatus = 'ALL';
 }
 
@@ -38,6 +38,7 @@ if ($packageId > 0) {
 
 $sql = "
   SELECT
+    c.id AS contact_id,
     c.email,
     s.package_id,
     pk.name AS package_name,
@@ -46,7 +47,7 @@ $sql = "
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
   WHERE " . implode(' AND ', $where) . "
-  GROUP BY c.email, s.package_id, pk.name
+  GROUP BY c.id, c.email, s.package_id, pk.name
 ";
 
 $stmt = $pdo->prepare($sql);
@@ -57,15 +58,46 @@ $stats = [
   'CERTIFIED' => 0,
   'SOON' => 0,
   'EXPIRED' => 0,
+  'REVOKED' => 0,
 ];
 $rows = [];
 
+$revokedMap = [];
+$hasRevocationsTable = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'certification_revocations'
+")->fetchColumn();
+
+if ($hasRevocationsTable) {
+  $revokedRows = $pdo->query("
+    SELECT contact_id, package_id, revoked_at
+    FROM certification_revocations
+  ")->fetchAll();
+  foreach ($revokedRows as $rv) {
+    $k = (int)$rv['contact_id'] . ':' . (int)$rv['package_id'];
+    $revokedMap[$k] = (string)$rv['revoked_at'];
+  }
+}
+
 foreach ($rawRows as $r) {
+  $contactId = (int)$r['contact_id'];
+  $pkgId = (int)$r['package_id'];
+  $key = $contactId . ':' . $pkgId;
+
   $status = certification_status_from_last_success((string)$r['last_cert_date']);
   $statusKey = (string)$status['status_key'];
   $statusLabel = (string)$status['status_label'];
   $statusClass = (string)$status['status_class'];
   $expires = $status['expires_at'];
+
+  if (isset($revokedMap[$key])) {
+    $statusKey = 'REVOKED';
+    $statusLabel = 'Révoquée';
+    $statusClass = 'pill danger';
+    $expires = null;
+  }
 
   if (isset($stats[$statusKey])) {
     $stats[$statusKey]++;
@@ -76,6 +108,8 @@ foreach ($rawRows as $r) {
   }
 
   $rows[] = [
+    'contact_id' => $contactId,
+    'package_id' => $pkgId,
     'email' => (string)$r['email'],
     'package_name' => (string)$r['package_name'],
     'last_cert_date' => (string)$r['last_cert_date'],
@@ -123,7 +157,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Certifications</h2>
-          <p class="sub">Profils certifies EXAM et dates d'expiration</p>
+          <p class="sub">Profils certifiés EXAM et dates d'expiration</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('certifications'); ?>
@@ -140,23 +174,24 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 
         <div>
           <label class="label" for="package_id">Certification</label>
-          <select id="package_id" name="package_id">
-            <option value="0">Toutes</option>
-            <?php foreach ($packages as $p): ?>
-              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?>>
-                <?= h($p['name']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+	          <select id="package_id" name="package_id">
+	            <option value="0">Toutes</option>
+	            <?php foreach ($packages as $p): ?>
+	              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style((string)$p['name'])) ?>">
+	                <?= h($p['name']) ?>
+	              </option>
+	            <?php endforeach; ?>
+	          </select>
         </div>
 
         <div>
           <label class="label" for="cert_status">Statut</label>
           <select id="cert_status" name="cert_status">
             <option value="ALL" <?= $certStatus === 'ALL' ? 'selected' : '' ?>>Tous</option>
-            <option value="CERTIFIED" <?= $certStatus === 'CERTIFIED' ? 'selected' : '' ?>>Certifies</option>
-            <option value="SOON" <?= $certStatus === 'SOON' ? 'selected' : '' ?>>Expire bientot</option>
-            <option value="EXPIRED" <?= $certStatus === 'EXPIRED' ? 'selected' : '' ?>>Expires</option>
+            <option value="CERTIFIED" <?= $certStatus === 'CERTIFIED' ? 'selected' : '' ?>>Certifiés</option>
+            <option value="SOON" <?= $certStatus === 'SOON' ? 'selected' : '' ?>>Expire bientôt</option>
+            <option value="EXPIRED" <?= $certStatus === 'EXPIRED' ? 'selected' : '' ?>>Expirés</option>
+            <option value="REVOKED" <?= $certStatus === 'REVOKED' ? 'selected' : '' ?>>Révoquées</option>
           </select>
         </div>
 
@@ -168,25 +203,35 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       </form>
 
       <div class="row sessions-stats">
-        <span class="badge ok">Certifies: <?= (int)$stats['CERTIFIED'] ?></span>
-        <span class="badge">Expire bientot: <?= (int)$stats['SOON'] ?></span>
-        <span class="badge bad">Expires: <?= (int)$stats['EXPIRED'] ?></span>
+        <span class="badge ok">Certifiés: <?= (int)$stats['CERTIFIED'] ?></span>
+        <span class="badge">Expire bientôt: <?= (int)$stats['SOON'] ?></span>
+        <span class="badge bad">Expirés: <?= (int)$stats['EXPIRED'] ?></span>
+        <span class="badge muted-dark">Révoquées: <?= (int)$stats['REVOKED'] ?></span>
       </div>
 
-      <p class="sub sessions-meta"><?= count($rows) ?> resultat(s)</p>
+      <p class="sub sessions-meta"><?= count($rows) ?> résultat(s)</p>
 
       <div class="table-wrap">
         <?php if (!$rows): ?>
-          <p class="empty-state">Aucune certification trouvee.</p>
+          <p class="empty-state">Aucune certification trouvée.</p>
         <?php else: ?>
-          <table class="table questions-table">
+          <table class="table questions-table certifications-table">
+            <colgroup>
+              <col class="cert-col-email">
+              <col class="cert-col-name">
+              <col class="cert-col-last">
+              <col class="cert-col-expire">
+              <col class="cert-col-status">
+              <col class="cert-col-action">
+            </colgroup>
             <thead>
               <tr>
                 <th>Email</th>
                 <th>Certification</th>
-                <th>Derniere reussite</th>
+                <th>Dernière réussite</th>
                 <th>Expire le</th>
                 <th>Statut</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -197,10 +242,21 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                       <?= h($r['email']) ?>
                     </a>
                   </td>
-                  <td><?= h($r['package_name']) ?></td>
+	                  <td><span style="<?= h(package_label_style((string)$r['package_name'])) ?>"><?= h($r['package_name']) ?></span></td>
                   <td><?= h($r['last_cert_date']) ?></td>
                   <td><?= h($r['expires_at']) ?></td>
                   <td><span class="<?= h($r['status_class']) ?>"><?= h($r['status_label']) ?></span></td>
+                  <td class="actions-cell">
+                    <?php if (!$hasRevocationsTable): ?>
+                      -
+                    <?php elseif ($r['status_key'] === 'REVOKED'): ?>
+                      <a class="btn ghost" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
+                         onclick="return confirm('Retirer la révocation de cette certification ?');">Rétablir</a>
+                    <?php else: ?>
+                      <a class="btn ghost" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
+                         onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>
+                    <?php endif; ?>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -209,5 +265,6 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       </div>
     </div>
   </div>
+  <script src="/assets/package-colors.js"></script>
 </body>
 </html>

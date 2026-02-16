@@ -9,6 +9,23 @@ function uuidv4(): string {
 
 function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
+function package_color_hex(string $packageName): string {
+  $name = strtoupper(trim($packageName));
+  return match ($name) {
+    'GREEN' => '#16a34a',
+    'BLUE' => '#2563eb',
+    'RED' => '#dc2626',
+    'BLACK' => '#111827',
+    'SILVER' => '#64748b',
+    'VERMEIL' => '#b45309',
+    default => '#334155',
+  };
+}
+
+function package_label_style(string $packageName): string {
+  return 'color:' . package_color_hex($packageName) . ';font-weight:700;';
+}
+
 
 // ==========================
 // QCM ENGINE

@@ -33,7 +33,6 @@ foreach ($legacyStmt->fetchAll() as $r) {
 function compute_availability(array $pk, array $counts, array $legacyCounts): array {
   $required = 0;
   $available = 0;
-  $detail = '';
 
   $raw = $pk['selection_rules_json'] ?? '';
   $raw = is_string($raw) ? trim($raw) : '';
@@ -45,7 +44,6 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
         $required = (int)($pk['selection_count'] ?? 0);
       }
 
-      $missingParts = [];
       $sumAvail = 0;
 
       foreach ($rules['buckets'] as $b) {
@@ -64,24 +62,18 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
 
         $canTake = min($take, $bucketAvail);
         $sumAvail += $canTake;
-
-        if ($bucketAvail < $take) {
-          $missingParts[] = "$need L" . implode(',', array_map('intval', $levels)) . " (-" . ($take - $bucketAvail) . ")";
-        }
       }
 
       $available = $sumAvail;
-      $detail = $missingParts ? ('Manque: ' . implode(' - ', $missingParts)) : 'OK';
       $ok = ($available >= $required);
-      return [$available, $required, $ok, $detail];
+      return [$available, $required, $ok];
     }
   }
 
   $required = (int)($pk['selection_count'] ?? 0);
   $available = (int)($legacyCounts[(int)$pk['id']] ?? 0);
   $ok = ($available >= $required);
-  $detail = $ok ? 'OK' : ('Manque ' . ($required - $available));
-  return [$available, $required, $ok, $detail];
+  return [$available, $required, $ok];
 }
 ?>
 <!doctype html>
@@ -108,22 +100,23 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <hr class="separator">
 
       <div class="table-wrap">
-        <table class="table questions-table">
+        <table class="table questions-table packages-table">
           <thead>
             <tr>
               <th>Nom</th>
               <th>Seuil (%)</th>
               <th>Dur&eacute;e (min)</th>
               <th>Questions</th>
-              <th>Disponibilit&eacute;</th>
-              <th></th>
+              <th>Statut</th>
+              <th>Couverture</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
             <?php foreach ($packages as $pk): ?>
-              <?php [$avail, $req, $ok, $detail] = compute_availability($pk, $counts, $legacyCounts); ?>
+              <?php [$avail, $req, $ok] = compute_availability($pk, $counts, $legacyCounts); ?>
               <tr>
-                <td><?= h($pk['name']) ?></td>
+                <td><span style="<?= h(package_label_style((string)$pk['name'])) ?>"><?= h($pk['name']) ?></span></td>
                 <td><?= (int)$pk['pass_threshold_percent'] ?></td>
                 <td><?= (int)$pk['duration_limit_minutes'] ?></td>
                 <td><?= (int)$pk['selection_count'] ?></td>
@@ -131,11 +124,8 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                   <span class="pill <?= $ok ? 'success' : 'warning' ?>">
                     <?= $ok ? 'OK' : 'Incomplet' ?>
                   </span>
-                  <span class="small" style="margin-left:8px;">
-                    <?= (int)$avail ?> / <?= (int)$req ?>
-                    <?php if (!$ok): ?> - <?= h($detail) ?><?php endif; ?>
-                  </span>
                 </td>
+                <td><span class="small"><?= (int)$avail ?> / <?= (int)$req ?></span></td>
                 <td class="actions-cell">
                   <a class="btn ghost" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>">Modifier</a>
                 </td>

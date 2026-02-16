@@ -147,7 +147,7 @@ $hist = $histStmt->fetchAll();
                 $certStatus = certification_status_from_last_success((string)$c['last_cert_date']);
               ?>
                 <tr>
-                  <td><?= h($c['package_name']) ?></td>
+	                  <td><span style="<?= h(package_label_style((string)$c['package_name'])) ?>"><?= h($c['package_name']) ?></span></td>
                   <td><?= h($c['last_cert_date']) ?></td>
                   <td><span class="<?= h((string)$certStatus['status_class']) ?>"><?= h((string)$certStatus['status_label']) ?></span></td>
                 </tr>
@@ -232,7 +232,7 @@ $hist = $histStmt->fetchAll();
                 <tr>
                   <td><?= h($s['started_at']) ?></td>
                   <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
-                  <td><?= h($s['package_name']) ?></td>
+	                  <td><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></td>
                   <td>
                     <?php if ($s['status'] === 'TERMINATED'): ?>
                       <span class="badge ok">Termine</span>

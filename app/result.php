@@ -66,7 +66,7 @@ if (session_is_expired($s)) {
       <div class="header">
         <div>
           <h2 class="h1"><?= h(t('result.title', [], $lang)) ?></h2>
-          <p class="sub"><?= h(localize_text((string)$s['package_name'], $lang)) ?> - <?= h($s['email']) ?></p>
+          <p class="sub"><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span> - <?= h($s['email']) ?></p>
         </div>
 
         <?php if ($s['status'] === 'TERMINATED'): ?>

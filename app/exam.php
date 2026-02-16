@@ -172,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="header">
       <div>
-        <h2 class="h1"><?= h(localize_text((string)$sess['package_name'], $lang)) ?></h2>
+        <h2 class="h1"><span style="<?= h(package_label_style((string)$sess['package_name'])) ?>"><?= h(localize_text((string)$sess['package_name'], $lang)) ?></span></h2>
         <p class="sub"><?= h(t('exam.title', ['p' => (int)$p, 'total' => (int)$total], $lang)) ?></p>
       </div>
       <span class="badge" id="t"></span>

@@ -191,6 +191,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+
+function package_label_style_local(string $packageName): string {
+  $name = strtoupper(trim($packageName));
+  $color = match ($name) {
+    'GREEN' => '#16a34a',
+    'BLUE' => '#2563eb',
+    'RED' => '#dc2626',
+    'BLACK' => '#111827',
+    'SILVER' => '#64748b',
+    'VERMEIL' => '#b45309',
+    default => '#334155',
+  };
+  return 'color:' . $color . ';font-weight:700;';
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -215,94 +229,124 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     <hr class="separator">
 
     <?php if ($errors): ?>
-      <div class="card" style="box-shadow:none;border:1px solid #f3b; margin-top:14px;">
-        <b>Erreurs :</b>
-        <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+      <div class="import-report question-errors">
+        <div class="import-report-title">Erreurs</div>
+        <div class="import-report-errors">
+          <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+        </div>
       </div>
     <?php endif; ?>
 
-    <form method="post" style="margin-top:14px;">
-      <label>Package</label><br>
-      <select name="package_id" required>
-        <?php foreach ($packages as $p): ?>
-          <option value="<?= (int)$p['id'] ?>" <?= $question['package_id'] === (int)$p['id'] ? 'selected' : '' ?>>
-            <?= h($p['name']) ?>
-          </option>
-        <?php endforeach; ?>
-      </select>
-
-      <div style="height:10px;"></div>
-
-      <label>Need</label><br>
-      <select name="need" required>
-        <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
-          <option value="<?= h($n) ?>" <?= (($question['need'] ?? 'PONE') === $n) ? 'selected' : '' ?>>
-            <?= h($n) ?>
-          </option>
-        <?php endforeach; ?>
-      </select>
-
-      <label style="margin-left:12px;">Level</label>
-      <select name="level" required>
-        <?php for ($i = 1; $i <= 3; $i++): ?>
-          <option value="<?= $i ?>" <?= ((int)($question['level'] ?? 1) === $i) ? 'selected' : '' ?>>
-            <?= $i ?>
-          </option>
-        <?php endfor; ?>
-      </select>
-
-      <div style="height:10px;"></div>
-
-      <label>Type</label><br>
-      <select name="question_type">
-        <?php
-        $typeLabels = [
-          'MULTI' => 'Choix multiple',
-          'TRUE_FALSE' => 'Vrai / Faux',
-        ];
-        foreach ($typeLabels as $typeValue => $typeLabel):
-        ?>
-          <option value="<?= h($typeValue) ?>" <?= $question['question_type'] === $typeValue ? 'selected' : '' ?>><?= h($typeLabel) ?></option>
-        <?php endforeach; ?>
-      </select>
-
-      <label style="margin-left:12px;">
-        <input type="checkbox" name="allow_skip" <?= ((int)$question['allow_skip'] === 1) ? 'checked' : '' ?>>
-        Autoriser "ne pas repondre"
-      </label>
-
-      <div style="height:10px;"></div>
-
-      <label>Enonce</label><br>
-      <textarea name="text" rows="4" style="width:100%;" required><?= h($question['text']) ?></textarea>
-
-      <div style="height:14px;"></div>
-
-      <b>Options</b>
-      <p class="small" style="margin-top:6px;">Coche la/les bonnes. Laisse vide une option si tu n'en as pas besoin.</p>
-
-      <?php foreach ($labels as $label):
-        $cur = $optionsByLabel[$label] ?? null;
-        $text = $cur['option_text'] ?? '';
-        $isCorrect = (int)($cur['is_correct'] ?? 0) === 1;
-        $scoreValue = $cur['score_value'] ?? '';
-      ?>
-        <div style="display:flex; gap:10px; align-items:center; margin:8px 0;">
-          <b style="width:24px;"><?= h($label) ?>.</b>
-          <input type="text" name="opt[<?= h($label) ?>]" value="<?= h($text) ?>" style="flex:1;" placeholder="Texte option <?= h($label) ?>">
-          <label style="white-space:nowrap;">
-            <input type="checkbox" name="correct[<?= h($label) ?>]" <?= $isCorrect ? 'checked' : '' ?>> Correct
-          </label>
-          <input type="number" name="score[<?= h($label) ?>]" value="<?= h($scoreValue) ?>" style="width:90px;" placeholder="score">
+    <form method="post" class="question-form">
+      <div class="import-help">
+        <div class="import-help-head">
+          <span class="import-help-tag">Guide</span>
+          <strong>Configuration de la question</strong>
         </div>
-      <?php endforeach; ?>
+        <div class="import-help-grid">
+          <div class="import-help-block">
+            <div class="import-help-block-title">Utilise pour le tirage</div>
+            <p class="import-help-text"><code>Need</code> + <code>Level</code></p>
+          </div>
+          <div class="import-help-block">
+            <div class="import-help-block-title">Utilise pour organiser</div>
+            <p class="import-help-text"><code>Package</code> (vue admin)</p>
+          </div>
+        </div>
+      </div>
 
-      <div style="margin-top:14px; display:flex; gap:10px;">
+      <div class="question-fields">
+        <div class="question-field question-field-full">
+          <label class="label">Package</label>
+	          <select name="package_id" required>
+	            <?php foreach ($packages as $p): ?>
+	              <option value="<?= (int)$p['id'] ?>" <?= $question['package_id'] === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style_local((string)$p['name'])) ?>">
+	                <?= h($p['name']) ?>
+	              </option>
+	            <?php endforeach; ?>
+	          </select>
+        </div>
+
+        <div class="question-field">
+          <label class="label">Need</label>
+          <select name="need" required>
+            <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
+              <option value="<?= h($n) ?>" <?= (($question['need'] ?? 'PONE') === $n) ? 'selected' : '' ?>>
+                <?= h($n) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="question-field">
+          <label class="label">Level</label>
+          <select name="level" required>
+            <?php for ($i = 1; $i <= 3; $i++): ?>
+              <option value="<?= $i ?>" <?= ((int)($question['level'] ?? 1) === $i) ? 'selected' : '' ?>>
+                <?= $i ?>
+              </option>
+            <?php endfor; ?>
+          </select>
+        </div>
+
+        <div class="question-field">
+          <label class="label">Type</label>
+          <select name="question_type">
+            <?php
+            $typeLabels = [
+              'MULTI' => 'Choix multiple',
+              'TRUE_FALSE' => 'Vrai / Faux',
+            ];
+            foreach ($typeLabels as $typeValue => $typeLabel):
+            ?>
+              <option value="<?= h($typeValue) ?>" <?= $question['question_type'] === $typeValue ? 'selected' : '' ?>><?= h($typeLabel) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="question-field question-toggle-wrap">
+          <label class="question-toggle">
+            <input type="checkbox" name="allow_skip" <?= ((int)$question['allow_skip'] === 1) ? 'checked' : '' ?>>
+            Autoriser "ne pas repondre"
+          </label>
+        </div>
+      </div>
+
+      <div class="question-field">
+        <label class="label">Enonce</label>
+        <textarea name="text" rows="4" class="question-textarea" required><?= h($question['text']) ?></textarea>
+      </div>
+
+      <div class="question-options-head">
+        <b>Options</b>
+        <p class="small">Coche la/les bonnes. Laisse vide une option si tu n'en as pas besoin.</p>
+      </div>
+
+      <div class="question-options">
+        <?php foreach ($labels as $label):
+          $cur = $optionsByLabel[$label] ?? null;
+          $text = $cur['option_text'] ?? '';
+          $isCorrect = (int)($cur['is_correct'] ?? 0) === 1;
+          $scoreValue = $cur['score_value'] ?? '';
+        ?>
+          <div class="question-option-row">
+            <b class="question-option-label"><?= h($label) ?>.</b>
+            <input class="input question-option-input" type="text" name="opt[<?= h($label) ?>]" value="<?= h($text) ?>" placeholder="Texte option <?= h($label) ?>">
+            <label class="question-option-check">
+              <input type="checkbox" name="correct[<?= h($label) ?>]" <?= $isCorrect ? 'checked' : '' ?>> Correct
+            </label>
+            <input class="input question-option-score" type="number" name="score[<?= h($label) ?>]" value="<?= h($scoreValue) ?>" placeholder="score">
+          </div>
+        <?php endforeach; ?>
+      </div>
+
+      <div class="question-actions">
         <button class="btn" type="submit">Enregistrer</button>
         <a class="btn ghost" href="/admin/questions.php">Annuler</a>
       </div>
     </form>
   </div>
 </div>
+<script src="/assets/package-colors.js"></script>
 </body>
 </html>

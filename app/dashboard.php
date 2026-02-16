@@ -30,6 +30,25 @@ $stats = $statsStmt->fetch() ?: [
 $pkgStmt = $pdo->query("SELECT id,name,duration_limit_minutes FROM packages ORDER BY id DESC");
 $packages = $pkgStmt->fetchAll();
 
+$packageOrder = [
+  'GREEN' => 1,
+  'BLUE' => 2,
+  'RED' => 3,
+  'BLACK' => 4,
+  'SILVER' => 5,
+  'VERMEIL' => 6,
+];
+usort($packages, static function (array $a, array $b) use ($packageOrder): int {
+  $an = strtoupper(trim((string)($a['name'] ?? '')));
+  $bn = strtoupper(trim((string)($b['name'] ?? '')));
+  $ai = $packageOrder[$an] ?? 999;
+  $bi = $packageOrder[$bn] ?? 999;
+  if ($ai === $bi) {
+    return strcmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
+  }
+  return $ai <=> $bi;
+});
+
 $lastStmt = $pdo->prepare("
   SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name
   FROM sessions s
@@ -150,19 +169,45 @@ function dash_session_type_label(string $type, string $lang): string {
   <div class="card dashboard-card">
     <h3 class="dashboard-section-title"><?= h(t('dash.start_cert', [], $lang)) ?></h3>
 
-    <form method="post" action="/start.php" class="dashboard-start-form">
-      <input type="hidden" name="lang" value="<?= h($lang) ?>">
-      <div class="dashboard-start-grid">
-        <div class="dashboard-field dashboard-cert-field">
-          <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
-          <select name="package_id" required>
-            <?php foreach ($packages as $pk): ?>
-              <option value="<?= (int)$pk['id'] ?>">
-                <?= h(localize_text((string)$pk['name'], $lang)) ?> (<?= (int)$pk['duration_limit_minutes'] ?> min)
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
+	    <form method="post" action="/start.php" class="dashboard-start-form">
+	      <input type="hidden" name="lang" value="<?= h($lang) ?>">
+	      <div class="dashboard-start-grid">
+		        <div class="dashboard-field dashboard-cert-field">
+		          <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
+		          <?php if ($packages): ?>
+		            <?php $selectedPkg = $packages[0]; ?>
+		            <input id="dash-package-input" type="hidden" name="package_id" value="<?= (int)$selectedPkg['id'] ?>">
+		          <?php endif; ?>
+		          <?php if ($packages): ?>
+		            <?php
+		              $firstPkg = $packages[0];
+		            ?>
+		            <div class="dash-cert-grid" id="dash-cert-grid">
+		              <?php foreach ($packages as $pk): ?>
+		                <?php
+		                  $pkName = localize_text((string)$pk['name'], $lang);
+		                  $pkTone = package_color_hex((string)$pk['name']);
+	                  $pkDuration = (int)$pk['duration_limit_minutes'];
+	                  $isFirst = ((int)$pk['id'] === (int)$firstPkg['id']);
+	                ?>
+	                <button
+	                  type="button"
+	                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?>"
+	                  data-package-value="<?= (int)$pk['id'] ?>"
+	                  data-package-name="<?= h($pkName) ?>"
+	                  data-package-duration="<?= (int)$pkDuration ?>"
+	                  data-package-tone="<?= h($pkTone) ?>"
+	                  style="--cert-tone: <?= h($pkTone) ?>;"
+	                >
+	                  <span class="dash-cert-tile-name"><?= h($pkName) ?></span>
+	                  <span class="dash-cert-tile-time"><?= (int)$pkDuration ?> min</span>
+	                </button>
+		              <?php endforeach; ?>
+		            </div>
+		          <?php else: ?>
+		            <div class="dash-cert-empty"><?= h(t('dash.no_active_packages', [], $lang)) ?></div>
+		          <?php endif; ?>
+		        </div>
 
         <div class="dashboard-field dashboard-session-mode">
           <label class="label"><?= h(t('dash.session_type', [], $lang)) ?></label>
@@ -185,13 +230,12 @@ function dash_session_type_label(string $type, string $lang): string {
         </div>
       </div>
 
-      <div class="dashboard-start-foot">
-        <p class="small dashboard-start-note"><?= h(t('dash.session_type_hint', [], $lang)) ?></p>
-        <div class="dashboard-start-action">
-          <button class="btn" type="submit"><?= h(t('dash.start', [], $lang)) ?></button>
-        </div>
-      </div>
-    </form>
+	      <div class="dashboard-start-foot">
+	        <div class="dashboard-start-action">
+	          <button class="btn" type="submit" <?= $packages ? '' : 'disabled' ?>><?= h(t('dash.start', [], $lang)) ?></button>
+	        </div>
+	      </div>
+	    </form>
   </div>
 
   <div class="card dashboard-card">
@@ -216,7 +260,7 @@ function dash_session_type_label(string $type, string $lang): string {
         <tbody>
         <?php foreach ($last as $s): ?>
           <tr>
-            <td><?= h(localize_text((string)$s['package_name'], $lang)) ?></td>
+	            <td><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span></td>
             <td><?= h(dash_session_type_label((string)$s['session_type'], $lang)) ?></td>
             <td><?= date('d/m/Y H:i', strtotime($s['started_at'])) ?></td>
             <td>
@@ -245,5 +289,31 @@ function dash_session_type_label(string $type, string $lang): string {
     <?php endif; ?>
   </div>
 </div>
+<script src="/assets/package-colors.js"></script>
+<script>
+  (function () {
+    var input = document.getElementById('dash-package-input');
+    var tiles = document.querySelectorAll('.dash-cert-tile');
+    if (!input || !tiles.length) return;
+
+    function setActive(value) {
+      tiles.forEach(function (tile) {
+        var active = (tile.getAttribute('data-package-value') === value);
+        tile.classList.toggle('is-active', active);
+      });
+    }
+
+    tiles.forEach(function (tile) {
+      tile.addEventListener('click', function () {
+        var value = tile.getAttribute('data-package-value');
+        if (!value) return;
+        input.value = value;
+        setActive(value);
+      });
+    });
+
+    setActive(input.value);
+  })();
+</script>
 </body>
 </html>

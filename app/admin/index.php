@@ -284,7 +284,7 @@ $stats = $pdo->query("
                   </a>
                 </th>
                 <th>R&eacute;sultat</th>
-                <th></th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -297,7 +297,7 @@ $stats = $pdo->query("
                     </a>
                   </td>
                   <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
-                  <td><?= h($s['package_name']) ?></td>
+	                  <td><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></td>
                   <td>
                     <?php if ($s['status'] === 'TERMINATED'): ?>
                       <span class="badge ok">Termin&eacute;</span>

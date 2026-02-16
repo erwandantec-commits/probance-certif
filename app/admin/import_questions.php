@@ -7,6 +7,20 @@ $pdo = db();
 
 function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
+function package_label_style_local(string $packageName): string {
+  $name = strtoupper(trim($packageName));
+  $color = match ($name) {
+    'GREEN' => '#16a34a',
+    'BLUE' => '#2563eb',
+    'RED' => '#dc2626',
+    'BLACK' => '#111827',
+    'SILVER' => '#64748b',
+    'VERMEIL' => '#b45309',
+    default => '#334155',
+  };
+  return 'color:' . $color . ';font-weight:700;';
+}
+
 $packages = $pdo->query("SELECT id, name FROM packages ORDER BY id DESC")->fetchAll();
 $defaultPkg = (int)($packages[0]['id'] ?? 1);
 
@@ -214,16 +228,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <hr class="separator">
 
     <?php if ($_SERVER['REQUEST_METHOD'] === 'POST'): ?>
-      <div class="card" style="box-shadow:none;border:1px solid var(--border);">
-        <b>Rapport</b>
-        <ul style="margin:8px 0 0;">
-          <li>Inserees : <?= (int)$report['inserted'] ?></li>
-          <li>Doublons ignores : <?= (int)$report['skipped_duplicates'] ?></li>
-          <li>Lignes vides ignorees : <?= (int)$report['skipped_empty'] ?></li>
-        </ul>
+      <div class="import-report">
+        <div class="import-report-title">Rapport d'import</div>
+        <div class="import-report-stats">
+          <span class="pill info">Inserees: <?= (int)$report['inserted'] ?></span>
+          <span class="pill">Doublons ignores: <?= (int)$report['skipped_duplicates'] ?></span>
+          <span class="pill">Lignes vides: <?= (int)$report['skipped_empty'] ?></span>
+        </div>
         <?php if ($report['errors']): ?>
-          <div style="margin-top:10px;">
-            <b>Erreurs (les lignes concernees n'ont pas ete importees)</b>
+          <div class="import-report-errors">
+            <b>Erreurs (lignes non importees)</b>
             <ul>
               <?php foreach ($report['errors'] as $e): ?>
                 <li><?= h($e) ?></li>
@@ -234,49 +248,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     <?php endif; ?>
 
-    <form method="post" style="margin-top:14px;">
-      <label>Package :</label><br>
-      <select name="package_id" required>
-        <?php foreach ($packages as $p): ?>
-          <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?>>
-            <?= h($p['name']) ?>
-          </option>
-        <?php endforeach; ?>
-      </select>
+    <form method="post" class="import-form">
+      <div class="import-help">
+        <div class="import-help-head">
+          <span class="import-help-tag">Guide</span>
+          <strong>Comment les questions sont utilisees</strong>
+        </div>
+        <div class="import-help-grid">
+          <div class="import-help-block">
+            <div class="import-help-block-title">Utilise pour le tirage</div>
+            <p class="import-help-text"><code>Need</code> + <code>Level</code></p>
+          </div>
+          <div class="import-help-block">
+            <div class="import-help-block-title">Utilise pour organiser</div>
+            <p class="import-help-text"><code>Package</code> (admin + detection de doublons)</p>
+          </div>
+        </div>
+      </div>
 
-      <div style="height:10px;"></div>
+      <div class="import-fields">
+        <div class="import-field import-field-full">
+          <label class="label">Package (organisation admin)</label>
+	          <select name="package_id" required>
+	            <?php foreach ($packages as $p): ?>
+	              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style_local((string)$p['name'])) ?>">
+	                <?= h($p['name']) ?>
+	              </option>
+	            <?php endforeach; ?>
+	          </select>
+        </div>
 
-      <label>Need (defaut)</label><br>
-      <select name="need_default" required>
-        <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
-          <option value="<?= h($n) ?>"><?= h($n) ?></option>
-        <?php endforeach; ?>
-      </select>
+        <div class="import-field">
+          <label class="label">Need par defaut (tirage)</label>
+          <select name="need_default" required>
+            <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
+              <option value="<?= h($n) ?>"><?= h($n) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
 
-      <label style="margin-left:12px;">Level (defaut)</label>
-      <select name="level_default" required>
-        <?php for ($i = 1; $i <= 3; $i++): ?>
-          <option value="<?= $i ?>"><?= $i ?></option>
-        <?php endfor; ?>
-      </select>
+        <div class="import-field">
+          <label class="label">Level par defaut (tirage)</label>
+          <select name="level_default" required>
+            <?php for ($i = 1; $i <= 3; $i++): ?>
+              <option value="<?= $i ?>"><?= $i ?></option>
+            <?php endfor; ?>
+          </select>
+        </div>
+      </div>
 
-      <div style="height:10px;"></div>
+      <div class="import-field">
+        <label class="label">Contenu (copier/coller depuis Excel)</label>
+        <textarea name="bulk" rows="16" class="import-bulk" placeholder="Questions,Reponses,etc&#10;..."></textarea>
+      </div>
 
-      <label>Contenu (copier/coller depuis Excel)</label>
-      <textarea name="bulk" rows="16" style="width:100%;" placeholder="Questions,Reponses,etc&#10;..."></textarea>
-
-      <div style="margin-top:12px; display:flex; gap:10px;">
+      <div class="import-actions">
         <button class="btn" type="submit">Importer</button>
         <a class="btn ghost" href="/admin/questions.php<?= $packageId ? '?package_id=' . (int)$packageId : '' ?>">Annuler</a>
       </div>
     </form>
 
-    <p class="small" style="margin-top:12px;">
+    <p class="small import-note">
       Notes :<br>
       - Bonnes reponses accepte <code>1</code> ou <code>2;3</code> (separateur <code>;</code>, <code>,</code> ou espace).<br>
       - Type auto : 1 bonne reponse ou plusieurs -> question choix multiple, Vrai/Faux -> question vrai ou faux.
     </p>
   </div>
 </div>
+<script src="/assets/package-colors.js"></script>
 </body>
 </html>
