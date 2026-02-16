@@ -63,7 +63,7 @@ $q = $qstmt->fetch();
 if (!$q) { http_response_code(404); echo "Question not found"; exit; }
 
 $qid = (int)$q['id'];
-$qType = $q['question_type'] ?? 'SINGLE';
+$qType = $q['question_type'] ?? 'MULTI';
 $allowSkip = (int)($q['allow_skip'] ?? 1) === 1;
 
 // Load options A..F
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="header">
       <div>
         <h2 class="h1"><?= h($sess['package_name']) ?></h2>
-        <p class="sub">Question <?= (int)$p ?> / <?= (int)$total ?> · <?= h($qType) ?></p>
+        <p class="sub">Question <?= (int)$p ?> / <?= (int)$total ?></p>
       </div>
       <span class="badge" id="t">⏱</span>
     </div>
@@ -170,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $checked = isset($selectedMap[$oid]);
           $label = $o['label'];
           $text = $o['option_text'];
-          $isMulti = ($qType === 'MULTI');
+          $isMulti = ($qType !== 'TRUE_FALSE');
         ?>
           <label style="display:block; padding:10px 10px; border:1px solid var(--border); border-radius:10px; margin:10px 0; cursor:pointer;">
             <input
