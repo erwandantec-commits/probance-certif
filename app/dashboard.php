@@ -31,7 +31,7 @@ $pkgStmt = $pdo->query("SELECT id,name,duration_limit_minutes FROM packages ORDE
 $packages = $pkgStmt->fetchAll();
 
 $lastStmt = $pdo->prepare("
-  SELECT s.id, s.status, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name
+  SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.user_id=?
@@ -78,6 +78,14 @@ function dash_result_badge_class(array $s): string {
     return 'pill';
   }
   return ((int)$s['passed'] === 1) ? 'pill success' : 'pill danger';
+}
+
+function dash_session_type_label(string $type, string $lang): string {
+  return match ($type) {
+    'EXAM' => t('dash.session_type.exam', [], $lang),
+    'TRAINING' => t('dash.session_type.training', [], $lang),
+    default => $type,
+  };
 }
 ?>
 <!doctype html>
@@ -144,24 +152,44 @@ function dash_result_badge_class(array $s): string {
 
     <form method="post" action="/start.php" class="dashboard-start-form">
       <input type="hidden" name="lang" value="<?= h($lang) ?>">
-      <div class="dashboard-field dashboard-cert-field">
-        <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
-        <select name="package_id" required>
-          <?php foreach ($packages as $pk): ?>
-            <option value="<?= (int)$pk['id'] ?>">
-              <?= h(localize_text((string)$pk['name'], $lang)) ?> (<?= (int)$pk['duration_limit_minutes'] ?> min)
-            </option>
-          <?php endforeach; ?>
-        </select>
+      <div class="dashboard-start-grid">
+        <div class="dashboard-field dashboard-cert-field">
+          <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
+          <select name="package_id" required>
+            <?php foreach ($packages as $pk): ?>
+              <option value="<?= (int)$pk['id'] ?>">
+                <?= h(localize_text((string)$pk['name'], $lang)) ?> (<?= (int)$pk['duration_limit_minutes'] ?> min)
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="dashboard-field dashboard-session-mode">
+          <label class="label"><?= h(t('dash.session_type', [], $lang)) ?></label>
+          <div class="dashboard-mode-group" role="radiogroup" aria-label="<?= h(t('dash.session_type', [], $lang)) ?>">
+            <label class="dashboard-mode-option">
+              <input type="radio" name="session_type" value="EXAM" checked>
+              <span class="dashboard-mode-content">
+                <span class="dashboard-mode-title"><?= h(t('dash.session_type.exam', [], $lang)) ?></span>
+                <span class="dashboard-mode-hint"><?= h(t('dash.session_type.exam_hint', [], $lang)) ?></span>
+              </span>
+            </label>
+            <label class="dashboard-mode-option">
+              <input type="radio" name="session_type" value="TRAINING">
+              <span class="dashboard-mode-content">
+                <span class="dashboard-mode-title"><?= h(t('dash.session_type.training', [], $lang)) ?></span>
+                <span class="dashboard-mode-hint"><?= h(t('dash.session_type.training_hint', [], $lang)) ?></span>
+              </span>
+            </label>
+          </div>
+        </div>
       </div>
 
-      <div class="dashboard-field">
-        <label class="label"><?= h(t('login.email', [], $lang)) ?></label>
-        <input class="input" name="email" type="email" value="<?= h($user['email']) ?>" readonly>
-      </div>
-
-      <div class="dashboard-start-action">
-        <button class="btn" type="submit"><?= h(t('dash.start', [], $lang)) ?></button>
+      <div class="dashboard-start-foot">
+        <p class="small dashboard-start-note"><?= h(t('dash.session_type_hint', [], $lang)) ?></p>
+        <div class="dashboard-start-action">
+          <button class="btn" type="submit"><?= h(t('dash.start', [], $lang)) ?></button>
+        </div>
       </div>
     </form>
   </div>
@@ -177,6 +205,7 @@ function dash_result_badge_class(array $s): string {
         <thead>
           <tr>
             <th><?= h(t('dash.col.cert', [], $lang)) ?></th>
+            <th><?= h(t('dash.col.type', [], $lang)) ?></th>
             <th><?= h(t('dash.col.started', [], $lang)) ?></th>
             <th><?= h(t('dash.col.status', [], $lang)) ?></th>
             <th><?= h(t('dash.col.score', [], $lang)) ?></th>
@@ -188,6 +217,7 @@ function dash_result_badge_class(array $s): string {
         <?php foreach ($last as $s): ?>
           <tr>
             <td><?= h(localize_text((string)$s['package_name'], $lang)) ?></td>
+            <td><?= h(dash_session_type_label((string)$s['session_type'], $lang)) ?></td>
             <td><?= date('d/m/Y H:i', strtotime($s['started_at'])) ?></td>
             <td>
               <span class="<?= h(dash_status_badge_class($s['status'])) ?>">

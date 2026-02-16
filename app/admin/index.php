@@ -31,6 +31,14 @@ $allowedStatus = ['ALL', 'ACTIVE', 'TERMINATED', 'EXPIRED'];
 if (!in_array($type, $allowedTypes, true)) $type = 'ALL';
 if (!in_array($status, $allowedStatus, true)) $status = 'ALL';
 
+function admin_session_type_label(string $type): string {
+  return match ($type) {
+    'EXAM' => 'Certification',
+    'TRAINING' => 'Test',
+    default => $type,
+  };
+}
+
 // Construction WHERE + params
 $where = [];
 $params = [];
@@ -177,8 +185,8 @@ $stats = $pdo->query("
           <label class="label" for="type">Type</label>
           <select class="input" id="type" name="type">
             <option value="ALL" <?= $type==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>EXAM</option>
-            <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>>TRAINING</option>
+            <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>Certification</option>
+            <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>>Test</option>
           </select>
         </div>
 
@@ -186,9 +194,9 @@ $stats = $pdo->query("
           <label class="label" for="status">Statut</label>
           <select class="input" id="status" name="status">
             <option value="ALL" <?= $status==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="ACTIVE" <?= $status==='ACTIVE'?'selected':'' ?>>ACTIVE</option>
-            <option value="TERMINATED" <?= $status==='TERMINATED'?'selected':'' ?>>TERMINATED</option>
-            <option value="EXPIRED" <?= $status==='EXPIRED'?'selected':'' ?>>EXPIRED</option>
+            <option value="ACTIVE" <?= $status==='ACTIVE'?'selected':'' ?>>En cours</option>
+            <option value="TERMINATED" <?= $status==='TERMINATED'?'selected':'' ?>>Termin&eacute;</option>
+            <option value="EXPIRED" <?= $status==='EXPIRED'?'selected':'' ?>>Expir&eacute;</option>
           </select>
         </div>
 
@@ -288,7 +296,7 @@ $stats = $pdo->query("
                       <?= h($s['email']) ?>
                     </a>
                   </td>
-                  <td><?= h($s['session_type']) ?></td>
+                  <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
                   <td><?= h($s['package_name']) ?></td>
                   <td>
                     <?php if ($s['status'] === 'TERMINATED'): ?>
@@ -296,7 +304,7 @@ $stats = $pdo->query("
                     <?php elseif ($s['status'] === 'EXPIRED'): ?>
                       <span class="badge bad">Expir&eacute;</span>
                     <?php else: ?>
-                      <span class="badge">Actif</span>
+                      <span class="badge">En cours</span>
                     <?php endif; ?>
                   </td>
                   <td><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></td>

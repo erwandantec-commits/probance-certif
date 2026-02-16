@@ -27,6 +27,14 @@ $hresult = strtoupper(trim($_GET['hresult'] ?? 'ALL'));
 $allowedResults = ['ALL', 'PASSED', 'FAILED'];
 if (!in_array($hresult, $allowedResults, true)) $hresult = 'ALL';
 
+function admin_session_type_label(string $type): string {
+  return match ($type) {
+    'EXAM' => 'Certification',
+    'TRAINING' => 'Test',
+    default => $type,
+  };
+}
+
 $stmt = $pdo->prepare("SELECT * FROM contacts WHERE email = ? LIMIT 1");
 $stmt->execute([$email]);
 $contact = $stmt->fetch();
@@ -111,8 +119,8 @@ $hist = $histStmt->fetchAll();
       <div class="row sessions-stats">
         <span class="badge">Sessions: <?= (int)$summary['total_sessions'] ?></span>
         <span class="badge">Derniere activite: <?= h($summary['last_activity'] ?: '-') ?></span>
-        <span class="badge ok">EXAM reussis: <?= (int)$summary['passed_exam_count'] ?></span>
-        <span class="badge">Score moyen EXAM: <?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></span>
+        <span class="badge ok">Certifications reussies: <?= (int)$summary['passed_exam_count'] ?></span>
+        <span class="badge">Score moyen certification: <?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></span>
       </div>
 
       <div class="section-head">
@@ -223,7 +231,7 @@ $hist = $histStmt->fetchAll();
               <?php foreach ($hist as $s): ?>
                 <tr>
                   <td><?= h($s['started_at']) ?></td>
-                  <td><?= h($s['session_type']) ?></td>
+                  <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
                   <td><?= h($s['package_name']) ?></td>
                   <td>
                     <?php if ($s['status'] === 'TERMINATED'): ?>

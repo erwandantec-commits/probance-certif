@@ -45,9 +45,9 @@ $rows->execute([$sid]);
 $items = $rows->fetchAll();
 
 $statusLabel = match ((string)$s['status']) {
-  'TERMINATED' => 'Termine',
+  'TERMINATED' => 'Termin&eacute;',
   'ACTIVE' => 'En cours',
-  'EXPIRED' => 'Expire',
+  'EXPIRED' => 'Expir&eacute;',
   default => (string)$s['status'],
 };
 

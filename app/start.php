@@ -17,6 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $pdo = db();
 $package_id = (int)($_POST['package_id'] ?? 0);
+$session_type = strtoupper(trim((string)($_POST['session_type'] ?? 'EXAM')));
+if (!in_array($session_type, ['EXAM', 'TRAINING'], true)) {
+  $session_type = 'EXAM';
+}
 
 if ($package_id <= 0) {
   header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.invalid_package'));
@@ -55,7 +59,7 @@ try {
 
   $session_id = uuidv4();
 
-  create_session_record($pdo, $session_id, $contact_id, $uid, $package_id, 'EXAM', $lang);
+  create_session_record($pdo, $session_id, $contact_id, $uid, $package_id, $session_type, $lang);
 
   $pos = 1;
   $insq = $pdo->prepare("INSERT INTO session_questions(session_id, question_id, position) VALUES(?,?,?)");
