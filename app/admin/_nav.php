@@ -6,9 +6,9 @@ function render_admin_tabs(string $active = ''): void
   $logoutTab = ['key' => 'logout', 'href' => '/logout.php', 'label' => 'D&eacute;connexion', 'extra_class' => 'admin-logout-btn'];
   $tabs = [
     ['key' => 'sessions', 'href' => '/admin/index.php', 'label' => 'Sessions'],
+    ['key' => 'certifications', 'href' => '/admin/certifications.php', 'label' => 'Certifications'],
     ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => 'Packages'],
     ['key' => 'questions', 'href' => '/admin/questions.php', 'label' => 'Questions'],
-    ['key' => 'certifications', 'href' => '/admin/certifications.php', 'label' => 'Certifications'],
   ];
 
   echo '<nav class="admin-tabs" aria-label="Navigation administration">';

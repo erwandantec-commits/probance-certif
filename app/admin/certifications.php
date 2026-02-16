@@ -157,7 +157,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Certifications</h2>
-          <p class="sub">Profils certifiés EXAM et dates d'expiration</p>
+          <p class="sub">Vue des certifications et de leurs échéances</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('certifications'); ?>

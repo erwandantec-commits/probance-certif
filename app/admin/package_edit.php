@@ -16,6 +16,7 @@ if (!in_array($filterNeed, ['PONE', 'PHM', 'PPM'], true)) {
 if ($filterLevel < 1 || $filterLevel > 3) {
   $filterLevel = 0;
 }
+$page = max(1, (int)($_GET['page'] ?? 1));
 
 $stmt = $pdo->prepare("SELECT * FROM packages WHERE id=?");
 $stmt->execute([$id]);
@@ -49,6 +50,30 @@ foreach ($distStmt->fetchAll() as $r) {
   $dist[$need][$level] = (int)$r['c'];
 }
 
+$qCountSql = "
+  SELECT COUNT(*)
+  FROM questions q
+  WHERE q.package_id = ?
+";
+$qCountParams = [$id];
+if ($filterNeed !== '') {
+  $qCountSql .= " AND q.need = ? ";
+  $qCountParams[] = $filterNeed;
+}
+if ($filterLevel > 0) {
+  $qCountSql .= " AND q.level = ? ";
+  $qCountParams[] = $filterLevel;
+}
+$qCountStmt = $pdo->prepare($qCountSql);
+$qCountStmt->execute($qCountParams);
+$totalQuestions = (int)$qCountStmt->fetchColumn();
+$limit = 20;
+$totalPages = max(1, (int)ceil($totalQuestions / $limit));
+if ($page > $totalPages) {
+  $page = $totalPages;
+}
+$offset = ($page - 1) * $limit;
+
 $qSql = "
   SELECT
     q.id,
@@ -74,9 +99,16 @@ if ($filterLevel > 0) {
 $qSql .= "
   GROUP BY q.id, q.text, q.need, q.level, q.question_type, q.allow_skip
   ORDER BY q.id DESC
+  LIMIT ? OFFSET ?
 ";
 $qStmt = $pdo->prepare($qSql);
-$qStmt->execute($qParams);
+$i = 1;
+foreach ($qParams as $v) {
+  $qStmt->bindValue($i++, $v);
+}
+$qStmt->bindValue($i++, (int)$limit, PDO::PARAM_INT);
+$qStmt->bindValue($i++, (int)$offset, PDO::PARAM_INT);
+$qStmt->execute();
 $questions = $qStmt->fetchAll();
 
 $error = '';
@@ -220,6 +252,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endforeach; ?>
       </div>
 
+      <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
+
       <div class="table-wrap" style="margin-top:14px;">
         <?php if (!$questions): ?>
           <p class="empty-state">Aucune question dans ce package.</p>
@@ -258,11 +292,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <td><?= (int)($q['option_count'] ?? 0) ?></td>
                   <td class="actions-cell">
                     <a class="btn ghost" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?>">Modifier</a>
+                    <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?>"
+                       aria-label="Supprimer cette question"
+                       title="Supprimer"
+                       onclick="return confirm('Supprimer cette question ?');">
+                      <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                      </svg>
+                    </a>
                   </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
+        <?php endif; ?>
+      </div>
+
+      <?php
+        $qs = $_GET;
+        unset($qs['page']);
+        $qs['id'] = (int)$id;
+        $base = '/admin/package_edit.php';
+        $common = '?' . http_build_query($qs);
+      ?>
+      <div class="sessions-pagination">
+        <?php if ($page > 1): ?>
+          <a class="btn ghost" href="<?= h($base . $common . '&page=' . ($page - 1)) ?>">&larr; Précédent</a>
+        <?php else: ?>
+          <button class="btn ghost" disabled>&larr; Précédent</button>
+        <?php endif; ?>
+
+        <?php if ($page < $totalPages): ?>
+          <a class="btn ghost" href="<?= h($base . $common . '&page=' . ($page + 1)) ?>">Suivant &rarr;</a>
+        <?php else: ?>
+          <button class="btn ghost" disabled>Suivant &rarr;</button>
         <?php endif; ?>
       </div>
     </div>
