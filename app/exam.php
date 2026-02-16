@@ -50,6 +50,7 @@ if ($total <= 0) {
 
 if ($p < 1) $p = 1;
 if ($p > $total) $p = $total;
+$isLast = ($p >= $total);
 
 // Load question at position
 $qstmt = $pdo->prepare("
@@ -132,8 +133,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     throw $e;
   }
 
-  if (isset($_POST['prev'])) $p--;
-  if (isset($_POST['next'])) $p++;
+  if (isset($_POST['prev']) && $p > 1) $p--;
+
+  if (isset($_POST['next']) && $p < $total) $p++;
+
   if (isset($_POST['finish'])) {
     header("Location: /submit.php?sid=" . urlencode($sid));
     exit;
@@ -148,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="utf-8">
   <title>Exam</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
 </head>
 <body>
 <div class="container">
@@ -192,7 +195,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <div style="margin-top: 14px; display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn ghost" name="prev" <?= $p<=1?'disabled':'' ?>>← Précédent</button>
-        <button class="btn ghost" name="next" <?= $p>=$total?'disabled':'' ?>>Suivant →</button>
+        <button
+          type="submit"
+          class="btn ghost"
+          name="next"
+          value="1"
+          <?= ((int)$p === (int)$total) ? 'disabled="disabled"' : '' ?>
+        >
+          Suivant →
+        </button>
         <button class="btn" name="finish" style="margin-left:auto;">Terminer</button>
       </div>
 
