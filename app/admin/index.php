@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/_auth.php';
 require_admin();
+require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
@@ -165,11 +166,7 @@ $stats = $pdo->query("
           <p class="sub">Pilotage des sessions et certifications</p>
         </div>
         <div class="admin-head-actions">
-          <a class="btn ghost" href="/dashboard.php">Espace candidat</a>
-          <a class="btn ghost" href="/admin/packages.php">Packages</a>
-          <a class="btn ghost" href="/admin/questions.php">Questions</a>
-          <a class="btn ghost" href="/admin/certifications.php">Certifications</a>
-          <a class="btn ghost admin-logout-btn" href="/logout.php">D&eacute;connexion</a>
+          <?php render_admin_tabs('sessions'); ?>
         </div>
       </div>
 

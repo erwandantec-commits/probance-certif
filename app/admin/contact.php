@@ -5,6 +5,7 @@ require_admin();
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
+require_once __DIR__ . '/_nav.php';
 $pdo = db();
 
 $email = trim($_GET['email'] ?? '');
@@ -101,8 +102,7 @@ $hist = $histStmt->fetchAll();
           <p class="sub"><?= h($contact['email']) ?></p>
         </div>
         <div class="admin-head-actions">
-          <a class="btn ghost" href="/admin/index.php">&larr; Retour</a>
-          <a class="btn ghost admin-logout-btn" href="/logout.php">Deconnexion</a>
+          <?php render_admin_tabs(); ?>
         </div>
       </div>
 

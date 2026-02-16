@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/_auth.php';
 require_admin();
+require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
@@ -73,8 +74,7 @@ $statusClass = match ((string)$s['status']) {
           <p class="sub">Analyse complete de la session</p>
         </div>
         <div class="admin-head-actions">
-          <a class="btn ghost" href="/admin/index.php">&larr; Retour</a>
-          <a class="btn ghost admin-logout-btn" href="/logout.php">Deconnexion</a>
+          <?php render_admin_tabs('sessions'); ?>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/_nav.php';
 
 $pdo = db();
 
@@ -15,29 +16,31 @@ $question = [
   'text' => '',
   'need' => 'PONE',
   'level' => 1,
-  // RULE: default MULTI
   'question_type' => 'MULTI',
   'allow_skip' => 1,
 ];
 
-$optionsByLabel = []; // 'A' => ['option_text'=>..., 'is_correct'=>..., 'score_value'=>...]
+$optionsByLabel = [];
 
 if ($id > 0) {
   $st = $pdo->prepare("SELECT id, package_id, text, need, level, question_type, allow_skip FROM questions WHERE id=?");
   $st->execute([$id]);
   $q = $st->fetch();
-  if (!$q) { http_response_code(404); echo "Question not found"; exit; }
+  if (!$q) {
+    http_response_code(404);
+    echo "Question not found";
+    exit;
+  }
 
   $question = [
-  'id' => (int)$q['id'],
-  'package_id' => (int)$q['package_id'],
-  'text' => (string)$q['text'],
-  'need' => (string)($q['need'] ?? 'PONE'),
-  'level' => (int)($q['level'] ?? 1),
-  // RULE: if legacy SINGLE exists, treat it as MULTI in admin
-  'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
-  'allow_skip' => (int)($q['allow_skip'] ?? 1),
-];
+    'id' => (int)$q['id'],
+    'package_id' => (int)$q['package_id'],
+    'text' => (string)$q['text'],
+    'need' => (string)($q['need'] ?? 'PONE'),
+    'level' => (int)($q['level'] ?? 1),
+    'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
+    'allow_skip' => (int)($q['allow_skip'] ?? 1),
+  ];
 
   $os = $pdo->prepare("
     SELECT label, option_text, is_correct, score_value
@@ -51,7 +54,7 @@ if ($id > 0) {
   }
 }
 
-$labels = ['A','B','C','D','E','F'];
+$labels = ['A', 'B', 'C', 'D', 'E', 'F'];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -62,63 +65,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
   $question['allow_skip'] = isset($_POST['allow_skip']) ? 1 : 0;
 
-  if ($question['text'] === '') $errors[] = "Énoncé obligatoire.";
-  // RULE: only MULTI or TRUE_FALSE
-  if (!in_array($question['question_type'], ['MULTI','TRUE_FALSE'], true)) $errors[] = "Type invalide.";
-
-  if (!in_array($question['need'], ['PONE','PHM','PPM'], true)) $errors[] = "Need invalide.";
-  if ($question['level'] < 1 || $question['level'] > 3) $errors[] = "Level invalide (1..3).";
+  if ($question['text'] === '') {
+    $errors[] = "Enonce obligatoire.";
+  }
+  if (!in_array($question['question_type'], ['MULTI', 'TRUE_FALSE'], true)) {
+    $errors[] = "Type invalide.";
+  }
+  if (!in_array($question['need'], ['PONE', 'PHM', 'PPM'], true)) {
+    $errors[] = "Need invalide.";
+  }
+  if ($question['level'] < 1 || $question['level'] > 3) {
+    $errors[] = "Level invalide (1..3).";
+  }
 
   $optText = $_POST['opt'] ?? [];
   $correct = $_POST['correct'] ?? [];
   $score = $_POST['score'] ?? [];
 
   $rows = [];
-  foreach ($labels as $L) {
-    $t = trim((string)($optText[$L] ?? ''));
-    if ($t === '') continue;
+  foreach ($labels as $label) {
+    $text = trim((string)($optText[$label] ?? ''));
+    if ($text === '') {
+      continue;
+    }
 
-    $isCorrect = isset($correct[$L]) ? 1 : 0;
+    $isCorrect = isset($correct[$label]) ? 1 : 0;
+    $scoreValue = $isCorrect ? 1 : -1;
 
-    // default scoring: correct=+1, wrong=-1
-    $sv = $isCorrect ? 1 : -1;
-
-    // NSP convenience: score 0 and cannot be correct
-    if (mb_strtoupper($t, 'UTF-8') === 'NSP') {
-      $sv = 0;
+    if (mb_strtoupper($text, 'UTF-8') === 'NSP') {
+      $scoreValue = 0;
       $isCorrect = 0;
     }
 
-    // optional manual override
-    if (isset($score[$L]) && $score[$L] !== '') {
-      $maybe = filter_var($score[$L], FILTER_VALIDATE_INT);
-      if ($maybe !== false) $sv = (int)$maybe;
+    if (isset($score[$label]) && $score[$label] !== '') {
+      $manual = filter_var($score[$label], FILTER_VALIDATE_INT);
+      if ($manual !== false) {
+        $scoreValue = (int)$manual;
+      }
     }
 
-    $rows[] = ['label'=>$L, 'text'=>$t, 'is_correct'=>$isCorrect, 'score_value'=>$sv];
+    $rows[] = [
+      'label' => $label,
+      'text' => $text,
+      'is_correct' => $isCorrect,
+      'score_value' => $scoreValue,
+    ];
   }
 
-  if (count($rows) < 2) $errors[] = "Il faut au moins 2 options.";
-  if (count($rows) > 6) $errors[] = "Max 6 options.";
+  if (count($rows) < 2) {
+    $errors[] = "Il faut au moins 2 options.";
+  }
+  if (count($rows) > 6) {
+    $errors[] = "Max 6 options.";
+  }
 
-  $nbCorrect = array_sum(array_map(fn($r)=>$r['is_correct'], $rows));
+  $nbCorrect = array_sum(array_map(fn($r) => $r['is_correct'], $rows));
 
-  // RULE:
-  // - TRUE_FALSE => exactly 1 correct
-  // - MULTI => at least 1 correct (even if only one)
   if ($question['question_type'] === 'TRUE_FALSE') {
-    if ($nbCorrect !== 1) $errors[] = "TRUE_FALSE : exactement 1 bonne réponse.";
+    if ($nbCorrect !== 1) {
+      $errors[] = "TRUE_FALSE : exactement 1 bonne reponse.";
+    }
   } else {
-    if ($nbCorrect < 1) $errors[] = "MULTI : au moins 1 bonne réponse.";
+    if ($nbCorrect < 1) {
+      $errors[] = "MULTI : au moins 1 bonne reponse.";
+    }
   }
 
-  // Optional extra validation for TRUE_FALSE content (nice to have)
   if (!$errors && $question['question_type'] === 'TRUE_FALSE') {
-    $allowed = ['VRAI','FAUX','NSP'];
+    $allowed = ['VRAI', 'FAUX', 'NSP'];
     foreach ($rows as $r) {
-      $u = mb_strtoupper(trim($r['text']), 'UTF-8');
-      if (!in_array($u, $allowed, true)) {
-        $errors[] = "TRUE_FALSE : options attendues = Vrai / Faux / NSP (trouvé: {$r['text']}).";
+      $option = mb_strtoupper(trim($r['text']), 'UTF-8');
+      if (!in_array($option, $allowed, true)) {
+        $errors[] = "TRUE_FALSE : options attendues = Vrai / Faux / NSP (trouve: {$r['text']}).";
         break;
       }
     }
@@ -136,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $question['level'],
           $question['question_type'],
           $question['allow_skip'],
-          $question['id']
+          $question['id'],
         ]);
         $qid = $question['id'];
       } else {
@@ -147,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $question['need'],
           $question['level'],
           $question['question_type'],
-          $question['allow_skip']
+          $question['allow_skip'],
         ]);
         $qid = (int)$pdo->lastInsertId();
       }
@@ -183,15 +201,18 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-<div class="container">
-  <div class="card" style="margin-top:30px;">
-    <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
-      <div>
-        <h2 class="h1" style="margin:0;"><?= $question['id'] ? "Modifier question #".(int)$question['id'] : "Ajouter une question" ?></h2>
-        <p class="sub" style="margin:6px 0 0;">Par défaut : MULTI (checkbox) · TRUE_FALSE : radio · NSP = 0</p>
+<div class="container admin-container">
+  <div class="card admin-card">
+    <div class="admin-head">
+      <div class="admin-head-copy">
+        <h2 class="h1"><?= $question['id'] ? "Admin &middot; Modifier question #".(int)$question['id'] : "Admin &middot; Ajouter une question" ?></h2>
       </div>
-      <a class="btn ghost" href="/admin/questions.php">← Retour</a>
+      <div class="admin-head-actions">
+        <?php render_admin_tabs('questions'); ?>
+      </div>
     </div>
+
+    <hr class="separator">
 
     <?php if ($errors): ?>
       <div class="card" style="box-shadow:none;border:1px solid #f3b; margin-top:14px;">
@@ -204,7 +225,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
       <label>Package</label><br>
       <select name="package_id" required>
         <?php foreach ($packages as $p): ?>
-          <option value="<?= (int)$p['id'] ?>" <?= $question['package_id']===(int)$p['id']?'selected':'' ?>>
+          <option value="<?= (int)$p['id'] ?>" <?= $question['package_id'] === (int)$p['id'] ? 'selected' : '' ?>>
             <?= h($p['name']) ?>
           </option>
         <?php endforeach; ?>
@@ -212,61 +233,67 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
       <div style="height:10px;"></div>
 
-        <label>Need</label><br>
-        <select name="need" required>
-          <?php foreach (['PONE','PHM','PPM'] as $n): ?>
-            <option value="<?= h($n) ?>" <?= (($question['need'] ?? 'PONE') === $n) ? 'selected' : '' ?>>
-              <?= h($n) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
+      <label>Need</label><br>
+      <select name="need" required>
+        <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
+          <option value="<?= h($n) ?>" <?= (($question['need'] ?? 'PONE') === $n) ? 'selected' : '' ?>>
+            <?= h($n) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
 
-        <label style="margin-left:12px;">Level</label>
-        <select name="level" required>
-          <?php for ($i=1; $i<=3; $i++): ?>
-            <option value="<?= $i ?>" <?= ((int)($question['level'] ?? 1) === $i) ? 'selected' : '' ?>>
-              <?= $i ?>
-            </option>
-          <?php endfor; ?>
-        </select>
+      <label style="margin-left:12px;">Level</label>
+      <select name="level" required>
+        <?php for ($i = 1; $i <= 3; $i++): ?>
+          <option value="<?= $i ?>" <?= ((int)($question['level'] ?? 1) === $i) ? 'selected' : '' ?>>
+            <?= $i ?>
+          </option>
+        <?php endfor; ?>
+      </select>
 
       <div style="height:10px;"></div>
 
       <label>Type</label><br>
       <select name="question_type">
-        <?php foreach (['MULTI','TRUE_FALSE'] as $t): ?>
-          <option value="<?= h($t) ?>" <?= $question['question_type']===$t?'selected':'' ?>><?= h($t) ?></option>
+        <?php
+        $typeLabels = [
+          'MULTI' => 'Choix multiple',
+          'TRUE_FALSE' => 'Vrai / Faux',
+        ];
+        foreach ($typeLabels as $typeValue => $typeLabel):
+        ?>
+          <option value="<?= h($typeValue) ?>" <?= $question['question_type'] === $typeValue ? 'selected' : '' ?>><?= h($typeLabel) ?></option>
         <?php endforeach; ?>
       </select>
 
       <label style="margin-left:12px;">
-        <input type="checkbox" name="allow_skip" <?= ((int)$question['allow_skip']===1)?'checked':'' ?>>
-        Autoriser “ne pas répondre”
+        <input type="checkbox" name="allow_skip" <?= ((int)$question['allow_skip'] === 1) ? 'checked' : '' ?>>
+        Autoriser "ne pas repondre"
       </label>
 
       <div style="height:10px;"></div>
 
-      <label>Énoncé</label><br>
+      <label>Enonce</label><br>
       <textarea name="text" rows="4" style="width:100%;" required><?= h($question['text']) ?></textarea>
 
       <div style="height:14px;"></div>
 
       <b>Options</b>
-      <p class="small" style="margin-top:6px;">Coche la/les bonnes. Laisse vide une option si tu n’en as pas besoin.</p>
+      <p class="small" style="margin-top:6px;">Coche la/les bonnes. Laisse vide une option si tu n'en as pas besoin.</p>
 
-      <?php foreach ($labels as $L):
-        $cur = $optionsByLabel[$L] ?? null;
-        $t = $cur['option_text'] ?? '';
-        $c = (int)($cur['is_correct'] ?? 0) === 1;
-        $sv = $cur['score_value'] ?? '';
+      <?php foreach ($labels as $label):
+        $cur = $optionsByLabel[$label] ?? null;
+        $text = $cur['option_text'] ?? '';
+        $isCorrect = (int)($cur['is_correct'] ?? 0) === 1;
+        $scoreValue = $cur['score_value'] ?? '';
       ?>
         <div style="display:flex; gap:10px; align-items:center; margin:8px 0;">
-          <b style="width:24px;"><?= h($L) ?>.</b>
-          <input type="text" name="opt[<?= h($L) ?>]" value="<?= h($t) ?>" style="flex:1;" placeholder="Texte option <?= h($L) ?>">
+          <b style="width:24px;"><?= h($label) ?>.</b>
+          <input type="text" name="opt[<?= h($label) ?>]" value="<?= h($text) ?>" style="flex:1;" placeholder="Texte option <?= h($label) ?>">
           <label style="white-space:nowrap;">
-            <input type="checkbox" name="correct[<?= h($L) ?>]" <?= $c?'checked':'' ?>> Correct
+            <input type="checkbox" name="correct[<?= h($label) ?>]" <?= $isCorrect ? 'checked' : '' ?>> Correct
           </label>
-          <input type="number" name="score[<?= h($L) ?>]" value="<?= h($sv) ?>" style="width:90px;" placeholder="score">
+          <input type="number" name="score[<?= h($label) ?>]" value="<?= h($scoreValue) ?>" style="width:90px;" placeholder="score">
         </div>
       <?php endforeach; ?>
 

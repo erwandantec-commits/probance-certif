@@ -8,6 +8,7 @@
 -- DROP TABLE IF EXISTS session_questions;
 -- DROP TABLE IF EXISTS sessions;
 -- DROP TABLE IF EXISTS questions;
+-- DROP TABLE IF EXISTS package_rules;
 -- DROP TABLE IF EXISTS packages;
 -- DROP TABLE IF EXISTS contacts;
 -- SET FOREIGN_KEY_CHECKS=1;
@@ -35,7 +36,34 @@ CREATE TABLE packages (
   pass_threshold_percent INT NOT NULL DEFAULT 80,
   duration_limit_minutes INT NOT NULL DEFAULT 120,
   selection_count INT NOT NULL DEFAULT 10,
+  selection_mode ENUM('COUNT','PERCENT') NOT NULL DEFAULT 'COUNT',
+  selection_percent INT NULL,
+  CHECK (
+    (selection_mode = 'COUNT' AND selection_percent IS NULL) OR
+    (selection_mode = 'PERCENT' AND selection_percent BETWEEN 1 AND 100)
+  ),
   is_active TINYINT(1) NOT NULL DEFAULT 1
+);
+
+CREATE TABLE package_rules (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  package_id INT NOT NULL,
+  need ENUM('PONE','PHM','PPM') NOT NULL,
+  min_level TINYINT NOT NULL,
+  max_level TINYINT NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CHECK (min_level BETWEEN 1 AND 3),
+  CHECK (max_level BETWEEN 1 AND 3),
+  CHECK (min_level <= max_level),
+
+  INDEX idx_package_rules_package_active (package_id, is_active),
+  INDEX idx_package_rules_need_level (need, min_level, max_level),
+
+  CONSTRAINT fk_package_rules_package
+    FOREIGN KEY (package_id) REFERENCES packages(id)
+    ON DELETE CASCADE
 );
 
 -- Questions: uniquement l'énoncé + métadonnées

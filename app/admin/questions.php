@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/_nav.php';
 
 $pdo = db();
 
@@ -62,8 +63,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
         <p class="sub">Ajouter / modifier / supprimer</p>
       </div>
       <div class="admin-head-actions">
-        <a class="btn ghost" href="/admin/index.php">&larr; Retour</a>
-        <a class="btn ghost admin-logout-btn" href="/logout.php">D&eacute;connexion</a>
+        <?php render_admin_tabs('questions'); ?>
       </div>
     </div>
 

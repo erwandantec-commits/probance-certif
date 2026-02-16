@@ -5,6 +5,7 @@ require_admin();
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
+require_once __DIR__ . '/_nav.php';
 $pdo = db();
 
 $email = trim((string)($_GET['email'] ?? ''));
@@ -125,10 +126,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
           <p class="sub">Profils certifies EXAM et dates d'expiration</p>
         </div>
         <div class="admin-head-actions">
-          <a class="btn ghost" href="/dashboard.php">Espace candidat</a>
-          <a class="btn ghost" href="/admin/index.php">Sessions</a>
-          <a class="btn ghost" href="/admin/questions.php">Questions</a>
-          <a class="btn ghost admin-logout-btn" href="/logout.php">Deconnexion</a>
+          <?php render_admin_tabs('certifications'); ?>
         </div>
       </div>
 

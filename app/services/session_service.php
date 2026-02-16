@@ -19,6 +19,225 @@ function sessions_column_exists(PDO $pdo, string $column): bool {
   return $cache[$column];
 }
 
+function table_exists(PDO $pdo, string $table): bool {
+  static $cache = [];
+  if (isset($cache[$table])) {
+    return $cache[$table];
+  }
+
+  $sql = "
+    SELECT COUNT(*) AS c
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = ?
+  ";
+  $st = $pdo->prepare($sql);
+  $st->execute([$table]);
+  $cache[$table] = ((int)$st->fetchColumn() > 0);
+  return $cache[$table];
+}
+
+function table_column_exists(PDO $pdo, string $table, string $column): bool {
+  static $cache = [];
+  $cacheKey = $table . ':' . $column;
+  if (isset($cache[$cacheKey])) {
+    return $cache[$cacheKey];
+  }
+
+  $sql = "
+    SELECT COUNT(*) AS c
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = ?
+      AND COLUMN_NAME = ?
+  ";
+  $st = $pdo->prepare($sql);
+  $st->execute([$table, $column]);
+  $cache[$cacheKey] = ((int)$st->fetchColumn() > 0);
+  return $cache[$cacheKey];
+}
+
+function compute_package_selection_target(array $pkg, int $eligibleCount): int {
+  $mode = strtoupper(trim((string)($pkg['selection_mode'] ?? 'COUNT')));
+  if ($mode === 'PERCENT') {
+    $percent = (int)($pkg['selection_percent'] ?? 0);
+    if ($percent < 1) {
+      $percent = 1;
+    }
+    if ($percent > 100) {
+      $percent = 100;
+    }
+    $target = (int)ceil(($eligibleCount * $percent) / 100);
+    return max(1, $target);
+  }
+
+  $count = (int)($pkg['selection_count'] ?? 0);
+  if ($count < 1) {
+    $count = 1;
+  }
+  return $count;
+}
+
+function select_questions_for_package(PDO $pdo, array $pkg): array {
+  $packageId = (int)($pkg['id'] ?? 0);
+  if ($packageId <= 0) {
+    return ['ids' => [], 'error_key' => 'start.err.invalid_package'];
+  }
+
+  $limit = (int)($pkg['selection_count'] ?? 0);
+  if ($limit < 1) {
+    $limit = 1;
+  }
+
+  $hasNeed = table_column_exists($pdo, 'questions', 'need');
+  $hasLevel = table_column_exists($pdo, 'questions', 'level');
+
+  // Legacy behavior: selection_rules_json is authoritative when present.
+  $raw = $pkg['selection_rules_json'] ?? null;
+  if ($hasNeed && $hasLevel && is_string($raw) && trim($raw) !== '') {
+    $rules = json_decode($raw, true);
+    if (is_array($rules) && !empty($rules['buckets']) && is_array($rules['buckets'])) {
+      $max = isset($rules['max']) ? (int)$rules['max'] : $limit;
+      if ($max < 1) {
+        $max = $limit;
+      }
+
+      $qids = [];
+      foreach ($rules['buckets'] as $bucket) {
+        if (count($qids) >= $max) {
+          break;
+        }
+
+        $need = strtoupper(trim((string)($bucket['need'] ?? '')));
+        $levels = $bucket['levels'] ?? [];
+        $take = (int)($bucket['take'] ?? 0);
+
+        if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels) || $take <= 0) {
+          continue;
+        }
+
+        $levels = array_values(array_unique(array_map('intval', $levels)));
+        $levels = array_values(array_filter($levels, fn($x) => $x >= 1 && $x <= 9));
+        if (!$levels) {
+          continue;
+        }
+
+        $remaining = $max - count($qids);
+        if ($take > $remaining) {
+          $take = $remaining;
+        }
+
+        $inLevels = implode(',', array_fill(0, count($levels), '?'));
+        $sql = "
+          SELECT q.id
+          FROM questions q
+          JOIN question_options qo ON qo.question_id = q.id
+          WHERE q.need = ?
+            AND q.level IN ($inLevels)
+        ";
+        $params = array_merge([$need], $levels);
+
+        if (!empty($qids)) {
+          $inExclude = implode(',', array_fill(0, count($qids), '?'));
+          $sql .= " AND q.id NOT IN ($inExclude)";
+          $params = array_merge($params, array_map('intval', $qids));
+        }
+
+        $sql .= "
+          GROUP BY q.id
+          HAVING COUNT(qo.id) >= 2
+          ORDER BY RAND()
+          LIMIT " . (int)$take;
+
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        $rows = $st->fetchAll() ?: [];
+        foreach ($rows as $row) {
+          $qids[] = (int)$row['id'];
+        }
+      }
+
+      if (count($qids) < $max) {
+        return ['ids' => [], 'error_key' => 'start.err.not_enough_tagged'];
+      }
+
+      if (count($qids) > $max) {
+        $qids = array_slice($qids, 0, $max);
+      }
+
+      return ['ids' => $qids, 'error_key' => null];
+    }
+  }
+
+  // Legacy fallback: package-local random selection by selection_count.
+  $sql = "
+    SELECT q.id
+    FROM questions q
+    JOIN question_options qo ON qo.question_id = q.id
+    WHERE q.package_id = ?
+    GROUP BY q.id
+    HAVING COUNT(qo.id) >= 2
+    ORDER BY RAND()
+    LIMIT " . (int)$limit;
+  $st = $pdo->prepare($sql);
+  $st->execute([$packageId]);
+  $rows = $st->fetchAll() ?: [];
+  $qids = array_map(fn($r) => (int)$r['id'], $rows);
+
+  if (count($qids) < $limit) {
+    return ['ids' => [], 'error_key' => 'start.err.not_enough_package'];
+  }
+
+  return ['ids' => $qids, 'error_key' => null];
+}
+
+function compute_score_percent_from_raw(int $rawScore, int $maxPoints): float {
+  if ($maxPoints <= 0) {
+    return 0.0;
+  }
+
+  $ratio = $rawScore / $maxPoints;
+  if ($ratio < 0) {
+    $ratio = 0;
+  }
+  if ($ratio > 1) {
+    $ratio = 1;
+  }
+
+  return $ratio * 100.0;
+}
+
+function compute_session_score_snapshot(PDO $pdo, string $sessionId): array {
+  // Max is the sum of all correct options (+1 each).
+  $maxStmt = $pdo->prepare("
+    SELECT COALESCE(SUM(CASE WHEN qo.is_correct=1 THEN 1 ELSE 0 END), 0) AS max_points
+    FROM session_questions sq
+    JOIN question_options qo ON qo.question_id = sq.question_id
+    WHERE sq.session_id=?
+  ");
+  $maxStmt->execute([$sessionId]);
+  $maxPoints = (int)($maxStmt->fetch()['max_points'] ?? 0);
+
+  // Raw score follows business rules from option scores:
+  // correct = +1, wrong = -1, unanswered = 0 (no row in answer_options).
+  $rawStmt = $pdo->prepare("
+    SELECT COALESCE(SUM(qo.score_value), 0) AS raw_score
+    FROM answer_options ao
+    JOIN question_options qo ON qo.id = ao.option_id
+    WHERE ao.session_id=?
+  ");
+  $rawStmt->execute([$sessionId]);
+  $rawScore = (int)($rawStmt->fetch()['raw_score'] ?? 0);
+
+  $scorePercent = compute_score_percent_from_raw($rawScore, $maxPoints);
+
+  return [
+    'raw_score' => $rawScore,
+    'max_points' => $maxPoints,
+    'score_percent' => $scorePercent,
+  ];
+}
+
 function create_session_record(
   PDO $pdo,
   string $sessionId,

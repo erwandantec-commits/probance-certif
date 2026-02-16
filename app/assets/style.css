@@ -1,3 +1,7 @@
+html{
+  scrollbar-gutter: stable;
+}
+
 :root{
   --bg:#f6f7fb;
   --card:#ffffff;
@@ -230,6 +234,43 @@ button:disabled {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.admin-tabs-main {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn.ghost.admin-tab-candidate {
+  margin-right: auto;
+  background: #eef6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.12);
+  font-weight: 700;
+}
+
+.btn.ghost.admin-tab-candidate:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+
+.admin-tab.is-active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2);
 }
 
 .separator {
@@ -507,6 +548,18 @@ button:disabled {
   .admin-head {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .admin-tabs {
+    justify-content: flex-start;
+  }
+
+  .admin-tabs-main {
+    width: 100%;
+  }
+
+  .btn.ghost.admin-tab-candidate {
+    margin-right: 0;
   }
 
   .filters-grid {

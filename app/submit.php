@@ -32,36 +32,8 @@ if ($sess['status'] !== 'ACTIVE') {
   exit;
 }
 
-$maxStmt = $pdo->prepare("
-  SELECT COALESCE(SUM(CASE WHEN qo.is_correct=1 THEN 1 ELSE 0 END), 0) AS max_points
-  FROM session_questions sq
-  JOIN question_options qo ON qo.question_id = sq.question_id
-  WHERE sq.session_id=?
-");
-$maxStmt->execute([$sid]);
-$maxPoints = (int)$maxStmt->fetch()['max_points'];
-
-$rawStmt = $pdo->prepare("
-  SELECT COALESCE(SUM(qo.score_value), 0) AS raw_score
-  FROM answer_options ao
-  JOIN question_options qo ON qo.id = ao.option_id
-  WHERE ao.session_id=?
-");
-$rawStmt->execute([$sid]);
-$rawScore = (int)$rawStmt->fetch()['raw_score'];
-
-if ($maxPoints <= 0) {
-  $score = 0.0;
-} else {
-  $ratio = $rawScore / $maxPoints;
-  if ($ratio < 0) {
-    $ratio = 0;
-  }
-  if ($ratio > 1) {
-    $ratio = 1;
-  }
-  $score = $ratio * 100.0;
-}
+$scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
+$score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
 
 $threshold = (int)$sess['pass_threshold_percent'];
 $passed = ($score >= $threshold) ? 1 : 0;
