@@ -59,8 +59,8 @@ $items = $rows->fetchAll();
       <h2 class="h1" style="margin:0;">Détail session</h2>
     </div>
     <div style="display:flex; gap:10px;">
-      <a class="btn ghost" href="/admin/index.php">← Précédent</a>
-      <a class="btn ghost" href="/logout.php">Logout</a>
+      <a class="btn ghost" href="/admin/index.php">← Retour</a>
+      <a class="btn ghost" href="/logout.php">Déconnexion</a>
     </div>
   </div>
 
@@ -73,7 +73,7 @@ $items = $rows->fetchAll();
   <?php foreach ($items as $it): ?>
     <div style="padding: 12px; border:1px solid #ddd; border-radius:8px; margin-bottom:10px;">
       <p><b>#<?= (int)$it['position'] ?>.</b> <?= h($it['text']) ?></p>
-      <p><b>Réponse candidat :</b> <?= h($it['answer'] ?? '-') ?> | <b>Correct :</b> <?= h($it['correct_option']) ?></p>
+      <p><b>Réponse candidat :</b> <?= h($it['picked_labels'] ?: '-') ?> | <b>Correct :</b> <?= h($it['correct_labels'] ?: '-') ?></p>
     </div>
   <?php endforeach; ?>
 </body>

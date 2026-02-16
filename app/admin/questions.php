@@ -38,10 +38,10 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
       <div>
         <h2 class="h1" style="margin:0;">Admin · Questions</h2>
-        <p class="sub" style="margin:6px 0 0;">Ajouter / modifier / supprimer (A..F, multi, -1, NSP)</p>
+        <p class="sub" style="margin:6px 0 0;">Ajouter / modifier / supprimer</p>
       </div>
       <div style="display:flex; gap:10px;">
-        <a class="btn ghost" href="javascript:history.back()">← Précédent</a>
+        <a class="btn ghost" href="/admin/index.php">← Retour</a>
         <a class="btn ghost" href="/logout.php">Déconnexion</a>
       </div>
     </div>

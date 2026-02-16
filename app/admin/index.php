@@ -186,7 +186,7 @@ $stats = $pdo->query("
           <a class="btn ghost" href="/dashboard.php">Espace candidat</a>
           <a class="btn ghost" href="/admin/packages.php">Packages</a>
           <a class="btn ghost" href="/admin/questions.php">Questions</a>
-          <a class="btn ghost" href="/logout.php">Logout</a>
+          <a class="btn ghost" href="/logout.php">Déconnexion</a>
         </div>
       </div>
 

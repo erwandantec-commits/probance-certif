@@ -24,7 +24,7 @@ $packages = $pdo->query("SELECT * FROM packages ORDER BY id")->fetchAll();
         <p class="sub" style="margin:6px 0 0;">Paramètres de certification</p>
       </div>
       <div style="display:flex; gap:10px;">
-        <a class="btn ghost" href="/admin/index.php">← Précédent</a>
+        <a class="btn ghost" href="/admin/index.php">← Retour</a>
         <a class="btn ghost" href="/logout.php">Déconnexion</a>
       </div>
     </div>

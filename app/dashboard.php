@@ -12,11 +12,18 @@ $uid = (int)$user['id'];
 $statsStmt = $pdo->prepare("
   SELECT
     COUNT(*) as total_attempts,
-    SUM(CASE WHEN status='SUBMITTED' THEN 1 ELSE 0 END) as completed,
-    SUM(CASE WHEN status IN ('ACTIVE') THEN 1 ELSE 0 END) as in_progress
+    SUM(CASE WHEN status='TERMINATED' THEN 1 ELSE 0 END) as completed,
+    SUM(CASE WHEN status='TERMINATED' AND passed=1 THEN 1 ELSE 0 END) as passed_count
   FROM sessions
   WHERE user_id=?
 ");
+$statsStmt->execute([$uid]);
+$stats = $statsStmt->fetch() ?: [
+  'total_attempts'=>0,
+  'completed'=>0,
+  'passed_count'=>0
+];
+
 $statsStmt->execute([$uid]);
 $stats = $statsStmt->fetch() ?: ['total_attempts'=>0,'completed'=>0,'in_progress'=>0];
 
@@ -26,7 +33,9 @@ $packages = $pkgStmt->fetchAll();
 
 // derniers résultats (si tu as score dans sessions, adapte)
 $lastStmt = $pdo->prepare("
-  SELECT s.id, s.status, s.started_at, pk.name as package_name
+  SELECT s.id, s.status, s.started_at, s.submitted_at,
+         s.score_percent, s.passed,
+         pk.name as package_name
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.user_id=?
@@ -35,6 +44,39 @@ $lastStmt = $pdo->prepare("
 ");
 $lastStmt->execute([$uid]);
 $last = $lastStmt->fetchAll();
+function status_label(string $status): string {
+  return match($status) {
+    'TERMINATED' => 'Terminé',
+    'ACTIVE' => 'En cours',
+    'EXPIRED' => 'Expiré',
+    default => $status
+  };
+}
+
+function status_badge_class(string $status): string {
+  return match($status) {
+    'TERMINATED' => 'pill success',
+    'ACTIVE' => 'pill info',
+    'EXPIRED' => 'pill warning',
+    default => 'pill'
+  };
+}
+
+function score_fmt($v): string {
+  if ($v === null || $v === '') return '—';
+  return number_format((float)$v, 2, '.', '') . '%';
+}
+
+function result_label(array $s): string {
+  if ($s['status'] !== 'TERMINATED') return '—';
+  if ($s['passed'] === null) return '—';
+  return ((int)$s['passed'] === 1) ? 'Réussi' : 'Échoué';
+}
+
+function result_badge_class(array $s): string {
+  if ($s['status'] !== 'TERMINATED' || $s['passed'] === null) return 'pill';
+  return ((int)$s['passed'] === 1) ? 'pill success' : 'pill danger';
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -68,15 +110,23 @@ $last = $lastStmt->fetchAll();
   <div class="row">
     <div class="card" style="flex:1; min-width:220px;">
       <div class="sub">Tentatives</div>
-      <div style="font-size:28px; font-weight:800;"><?= (int)$stats['total_attempts'] ?></div>
+      <div style="font-size:28px; font-weight:800;">
+        <?= (int)$stats['total_attempts'] ?>
+      </div>
     </div>
+
     <div class="card" style="flex:1; min-width:220px;">
       <div class="sub">Terminées</div>
-      <div style="font-size:28px; font-weight:800;"><?= (int)$stats['completed'] ?></div>
+      <div style="font-size:28px; font-weight:800;">
+        <?= (int)$stats['completed'] ?>
+      </div>
     </div>
+
     <div class="card" style="flex:1; min-width:220px;">
-      <div class="sub">En cours</div>
-      <div style="font-size:28px; font-weight:800;"><?= (int)$stats['in_progress'] ?></div>
+      <div class="sub">Réussies</div>
+      <div style="font-size:28px; font-weight:800;">
+        <?= (int)$stats['passed_count'] ?>
+      </div>
     </div>
   </div>
 
@@ -120,8 +170,10 @@ $last = $lastStmt->fetchAll();
         <thead>
           <tr>
             <th>Certification</th>
-            <th>Statut</th>
             <th>Démarrée</th>
+            <th>Statut</th>
+            <th>Score</th>
+            <th>Résultat</th>
             <th></th>
           </tr>
         </thead>
@@ -129,8 +181,25 @@ $last = $lastStmt->fetchAll();
         <?php foreach ($last as $s): ?>
           <tr>
             <td><?= h($s['package_name']) ?></td>
-            <td><?= h($s['status']) ?></td>
-            <td><?= h($s['started_at']) ?></td>
+
+            <td>
+              <?= date('d/m/Y H:i', strtotime($s['started_at'])) ?>
+            </td>
+
+            <td>
+              <span class="<?= h(status_badge_class($s['status'])) ?>">
+                <?= h(status_label($s['status'])) ?>
+              </span>
+            </td>
+
+            <td><?= h(score_fmt($s['score_percent'])) ?></td>
+
+            <td>
+              <span class="<?= h(result_badge_class($s)) ?>">
+                <?= h(result_label($s)) ?>
+              </span>
+            </td>
+
             <td>
               <?php if ($s['status'] === 'ACTIVE'): ?>
                 <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=1">Reprendre</a>

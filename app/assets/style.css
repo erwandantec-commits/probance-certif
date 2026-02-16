@@ -159,3 +159,31 @@ button:disabled {
 .btn.ghost[disabled]:hover{
   background: #f3f4f6 !important;
 }
+
+.pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.pill.success {
+  background: #e6f7ee;
+  color: #15803d;
+}
+
+.pill.danger {
+  background: #fdecec;
+  color: #dc2626;
+}
+
+.pill.info {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.pill.warning {
+  background: #fff7ed;
+  color: #c2410c;
+}

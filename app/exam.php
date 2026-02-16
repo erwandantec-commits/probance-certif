@@ -194,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div style="margin-top: 14px; display:flex; gap:10px; flex-wrap:wrap;">
-        <button class="btn ghost" name="prev" <?= $p<=1?'disabled':'' ?>>← Précédent</button>
+        <button class="btn ghost" name="prev" <?= $p<=1?'disabled':'' ?>>← Retour</button>
         <button
           type="submit"
           class="btn ghost"
