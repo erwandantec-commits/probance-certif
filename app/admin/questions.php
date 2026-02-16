@@ -83,8 +83,13 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
               <tr style="border-top:1px solid var(--border);">
                 <td><?= (int)$q['id'] ?></td>
                 <td><?= h($q['package_name']) ?></td>
-                <td><?= h($q['question_type']) ?><?= ((int)$q['allow_skip']===1) ? ' · skip' : '' ?></td>
-                <td><?= (int)$q['opt_count'] ?></td>
+                <td>
+                  <?= ($q['question_type']==='TRUE_FALSE') ? 'Vrai/Faux' : 'Choix multiple' ?>
+                  <?= ((int)$q['allow_skip']===1) ? ' · skip' : '' ?>
+                </td>
+                <td>
+                  <?= (int)$q['opt_count'] ?> option<?= ((int)$q['opt_count'] > 1) ? 's' : '' ?>
+                </td>
                 <td><?= h(mb_strimwidth((string)$q['text'], 0, 90, '…', 'UTF-8')) ?></td>
                 <td style="white-space:nowrap;">
                   <a class="btn ghost" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?>">Modifier</a>

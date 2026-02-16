@@ -20,6 +20,15 @@ CREATE TABLE contacts (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(190) NULL,
+  role ENUM('USER','ADMIN') NOT NULL DEFAULT 'USER',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE packages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -76,6 +85,7 @@ CREATE TABLE question_options (
 CREATE TABLE sessions (
   id CHAR(36) PRIMARY KEY,
   contact_id INT NOT NULL,
+  user_id INT NULL,
   package_id INT NOT NULL,
   session_type ENUM('EXAM','TRAINING') NOT NULL DEFAULT 'EXAM',
   started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -87,6 +97,10 @@ CREATE TABLE sessions (
   CONSTRAINT fk_sessions_contact
     FOREIGN KEY (contact_id) REFERENCES contacts(id)
     ON DELETE CASCADE,
+
+  CONSTRAINT fk_sessions_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL,
 
   CONSTRAINT fk_sessions_package
     FOREIGN KEY (package_id) REFERENCES packages(id)
@@ -151,5 +165,17 @@ CREATE TABLE answers (
 
   CONSTRAINT fk_answers_question
     FOREIGN KEY (question_id) REFERENCES questions(id)
+    ON DELETE CASCADE
+);
+
+CREATE TABLE password_resets (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  token_hash VARCHAR(255) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_pr_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE
 );
