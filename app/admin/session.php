@@ -21,13 +21,31 @@ $s = $stmt->fetch();
 if (!$s) { http_response_code(404); echo "Not found"; exit; }
 
 $rows = $pdo->prepare("
-  SELECT sq.position, q.text, q.correct_option, a.answer
+  SELECT
+    sq.position,
+    q.text,
+
+    -- bonnes réponses (ex: 'A' ou 'A,C')
+    (
+      SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
+      FROM question_options qo
+      WHERE qo.question_id = q.id AND qo.is_correct = 1
+    ) AS correct_labels,
+
+    -- réponses candidat (ex: 'B' ou 'A,D')
+    (
+      SELECT GROUP_CONCAT(qo2.label ORDER BY qo2.label SEPARATOR ',')
+      FROM answer_options ao
+      JOIN question_options qo2 ON qo2.id = ao.option_id
+      WHERE ao.session_id = sq.session_id AND ao.question_id = q.id
+    ) AS picked_labels
+
   FROM session_questions sq
   JOIN questions q ON q.id = sq.question_id
-  LEFT JOIN answers a ON a.session_id = sq.session_id AND a.question_id = q.id
   WHERE sq.session_id=?
   ORDER BY sq.position ASC
 ");
+
 $rows->execute([$sid]);
 $items = $rows->fetchAll();
 ?>
@@ -36,8 +54,15 @@ $items = $rows->fetchAll();
 <head><meta charset="utf-8"><title>Détail session</title><link rel="stylesheet" href="/assets/style.css">
 </head>
 <body style="font-family: Arial; max-width: 980px; margin: 40px auto;">
-  <h2>Détail session</h2>
-  <p><a href="/admin/index.php">← Liste</a></p>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+  <div>
+      <h2 class="h1" style="margin:0;">Détail session</h2>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <a class="btn ghost" href="/admin/index.php">← Précédent</a>
+      <a class="btn ghost" href="/logout.php">Logout</a>
+    </div>
+  </div>
 
   <p><b>Email :</b> <?= h($s['email']) ?></p>
   <p><b>Package :</b> <?= h($s['package_name']) ?></p>

@@ -23,7 +23,7 @@ function t(string $key, array $vars = []): string {
 
     $dict = [
       'fr' => [
-        'admin.sessions' => 'Admin — Sessions (démo)',
+        'admin.sessions' => 'Admin — Sessions',
         'filters.type' => 'Type',
         'filters.status' => 'Statut',
         'filters.result' => 'Résultat',
@@ -41,7 +41,7 @@ function t(string $key, array $vars = []): string {
         'th.result' => 'Résultat',
       ],
       'en' => [
-        'admin.sessions' => 'Admin — Sessions (demo)',
+        'admin.sessions' => 'Admin — Sessions',
         'filters.type' => 'Type',
         'filters.status' => 'Status',
         'filters.result' => 'Result',
@@ -59,7 +59,7 @@ function t(string $key, array $vars = []): string {
         'th.result' => 'Result',
       ],
       'ja' => [
-        'admin.sessions' => '管理 — セッション（デモ）',
+        'admin.sessions' => '管理 — セッション',
         'filters.type' => '種別',
         'filters.status' => 'ステータス',
         'filters.result' => '結果',

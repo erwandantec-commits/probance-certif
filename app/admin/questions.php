@@ -41,8 +41,8 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
         <p class="sub" style="margin:6px 0 0;">Ajouter / modifier / supprimer (A..F, multi, -1, NSP)</p>
       </div>
       <div style="display:flex; gap:10px;">
-        <a class="btn ghost" href="/admin/logout.php">Logout</a>
-        <a class="btn ghost" href="/start.php">App</a>
+        <a class="btn ghost" href="javascript:history.back()">← Précédent</a>
+        <a class="btn ghost" href="/logout.php">Déconnexion</a>
       </div>
     </div>
 

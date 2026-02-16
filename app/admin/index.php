@@ -178,14 +178,17 @@ $stats = $pdo->query("
 <body>
   <div class="container">
     <div class="card">
-      <h2><?= h(t('admin.sessions')) ?></h2>
-
-      <p>
-        <a href="/start.php">Start</a> |
-        <a href="/admin/packages.php">Packages</a> |
-        <a href="/admin/questions.php">Questions</a> |
-        <a href="/admin/logout.php">Déconnexion</a>
-      </p>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div>
+          <h2 class="h1" style="margin:0;"><?= h(t('admin.sessions')) ?></h2>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <a class="btn ghost" href="/dashboard.php">Espace candidat</a>
+          <a class="btn ghost" href="/admin/packages.php">Packages</a>
+          <a class="btn ghost" href="/admin/questions.php">Questions</a>
+          <a class="btn ghost" href="/logout.php">Logout</a>
+        </div>
+      </div>
 
       <?php $qs = $_GET; ?>
       <p class="sub" style="margin-top:6px;">

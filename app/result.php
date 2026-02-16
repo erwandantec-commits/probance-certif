@@ -91,7 +91,7 @@ if ($s['status'] === 'ACTIVE') {
         </div>
 
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/start.php">Recommencer</a>
+          <a class="btn" href="/start.php">Espace candidat</a>
           <a class="btn ghost" href="/admin/index.php">Voir dans l’admin</a>
         </div>
 
@@ -99,7 +99,7 @@ if ($s['status'] === 'ACTIVE') {
         <p class="error">⏱ La session a expiré (temps dépassé).</p>
 
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/start.php">Recommencer</a>
+          <a class="btn" href="/start.php">Espace candidat</a>
           <a class="btn ghost" href="/admin/index.php">Admin</a>
         </div>
 
@@ -113,7 +113,7 @@ if ($s['status'] === 'ACTIVE') {
 
     </div>
 
-    <p class="small" style="margin-top:14px;">Démo interne — les réponses ne sont visibles que côté admin.</p>
+    <p class="small" style="margin-top:14px;">les réponses ne sont visibles que côté admin.</p>
   </div>
 </body>
 </html>

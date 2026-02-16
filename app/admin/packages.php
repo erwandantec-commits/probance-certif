@@ -18,13 +18,16 @@ $packages = $pdo->query("SELECT * FROM packages ORDER BY id")->fetchAll();
 <body>
   <div class="container">
     <div class="card">
-      <h2>Admin — Packages</h2>
-      <p class="sub">Paramètres de certification</p>
-
-      <p>
-        <a href="/admin/index.php">← Sessions</a>
-      </p>
-
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <div>
+        <h2 class="h1" style="margin:0;">Admin — Packages</h2>
+        <p class="sub" style="margin:6px 0 0;">Paramètres de certification</p>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <a class="btn ghost" href="/admin/index.php">← Précédent</a>
+        <a class="btn ghost" href="/logout.php">Déconnexion</a>
+      </div>
+    </div>
       <table class="table">
         <tr>
           <th>Nom</th>
