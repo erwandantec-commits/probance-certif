@@ -5,7 +5,6 @@ require_once __DIR__ . '/_auth.php';
 $pdo = db();
 
 $id = (int)($_GET['id'] ?? 0);
-$isNew = isset($_GET['new']);
 $prefPkg = (int)($_GET['package_id'] ?? 0);
 
 $packages = $pdo->query("SELECT id, name FROM packages ORDER BY id DESC")->fetchAll();
@@ -14,7 +13,8 @@ $question = [
   'id' => 0,
   'package_id' => $prefPkg ?: (int)($packages[0]['id'] ?? 1),
   'text' => '',
-  'question_type' => 'SINGLE',
+  // RULE: default MULTI
+  'question_type' => 'MULTI',
   'allow_skip' => 1,
 ];
 
@@ -30,11 +30,17 @@ if ($id > 0) {
     'id' => (int)$q['id'],
     'package_id' => (int)$q['package_id'],
     'text' => (string)$q['text'],
-    'question_type' => (string)($q['question_type'] ?? 'SINGLE'),
+    // RULE: if legacy SINGLE exists, treat it as MULTI in admin
+    'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
     'allow_skip' => (int)($q['allow_skip'] ?? 1),
   ];
 
-  $os = $pdo->prepare("SELECT label, option_text, is_correct, score_value FROM question_options WHERE question_id=? ORDER BY label ASC");
+  $os = $pdo->prepare("
+    SELECT label, option_text, is_correct, score_value
+    FROM question_options
+    WHERE question_id=?
+    ORDER BY label ASC
+  ");
   $os->execute([$id]);
   foreach ($os->fetchAll() as $o) {
     $optionsByLabel[(string)$o['label']] = $o;
@@ -47,11 +53,12 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $question['package_id'] = (int)($_POST['package_id'] ?? $question['package_id']);
   $question['text'] = trim((string)($_POST['text'] ?? ''));
-  $question['question_type'] = (string)($_POST['question_type'] ?? 'SINGLE');
+  $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
   $question['allow_skip'] = isset($_POST['allow_skip']) ? 1 : 0;
 
   if ($question['text'] === '') $errors[] = "Énoncé obligatoire.";
-  if (!in_array($question['question_type'], ['SINGLE','MULTI','TRUE_FALSE'], true)) $errors[] = "Type invalide.";
+  // RULE: only MULTI or TRUE_FALSE
+  if (!in_array($question['question_type'], ['MULTI','TRUE_FALSE'], true)) $errors[] = "Type invalide.";
 
   $optText = $_POST['opt'] ?? [];
   $correct = $_POST['correct'] ?? [];
@@ -64,11 +71,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $isCorrect = isset($correct[$L]) ? 1 : 0;
 
-    // default scoring
+    // default scoring: correct=+1, wrong=-1
     $sv = $isCorrect ? 1 : -1;
 
-    // NSP convenience
-    if (mb_strtoupper($t, 'UTF-8') === 'NSP') $sv = 0;
+    // NSP convenience: score 0 and cannot be correct
+    if (mb_strtoupper($t, 'UTF-8') === 'NSP') {
+      $sv = 0;
+      $isCorrect = 0;
+    }
 
     // optional manual override
     if (isset($score[$L]) && $score[$L] !== '') {
@@ -83,10 +93,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (count($rows) > 6) $errors[] = "Max 6 options.";
 
   $nbCorrect = array_sum(array_map(fn($r)=>$r['is_correct'], $rows));
-  if ($question['question_type'] === 'SINGLE' || $question['question_type'] === 'TRUE_FALSE') {
-    if ($nbCorrect !== 1) $errors[] = "Type {$question['question_type']} : exactement 1 bonne réponse.";
+
+  // RULE:
+  // - TRUE_FALSE => exactly 1 correct
+  // - MULTI => at least 1 correct (even if only one)
+  if ($question['question_type'] === 'TRUE_FALSE') {
+    if ($nbCorrect !== 1) $errors[] = "TRUE_FALSE : exactement 1 bonne réponse.";
   } else {
-    if ($nbCorrect < 1) $errors[] = "Type MULTI : au moins 1 bonne réponse.";
+    if ($nbCorrect < 1) $errors[] = "MULTI : au moins 1 bonne réponse.";
+  }
+
+  // Optional extra validation for TRUE_FALSE content (nice to have)
+  if (!$errors && $question['question_type'] === 'TRUE_FALSE') {
+    $allowed = ['VRAI','FAUX','NSP'];
+    foreach ($rows as $r) {
+      $u = mb_strtoupper(trim($r['text']), 'UTF-8');
+      if (!in_array($u, $allowed, true)) {
+        $errors[] = "TRUE_FALSE : options attendues = Vrai / Faux / NSP (trouvé: {$r['text']}).";
+        break;
+      }
+    }
   }
 
   if (!$errors) {
@@ -104,7 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $pdo->prepare("DELETE FROM question_options WHERE question_id=?")->execute([$qid]);
 
-      $io = $pdo->prepare("INSERT INTO question_options(question_id,label,option_text,is_correct,score_value) VALUES(?,?,?,?,?)");
+      $io = $pdo->prepare("
+        INSERT INTO question_options(question_id,label,option_text,is_correct,score_value)
+        VALUES(?,?,?,?,?)
+      ");
       foreach ($rows as $r) {
         $io->execute([$qid, $r['label'], $r['text'], $r['is_correct'], $r['score_value']]);
       }
@@ -135,7 +164,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
       <div>
         <h2 class="h1" style="margin:0;"><?= $question['id'] ? "Modifier question #".(int)$question['id'] : "Ajouter une question" ?></h2>
-        <p class="sub" style="margin:6px 0 0;">Options A..F · correct=+1 · mauvais=-1 · NSP=0</p>
+        <p class="sub" style="margin:6px 0 0;">Par défaut : MULTI (checkbox) · TRUE_FALSE : radio · NSP = 0</p>
       </div>
       <a class="btn ghost" href="/admin/questions.php">← Retour</a>
     </div>
@@ -161,7 +190,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
       <label>Type</label><br>
       <select name="question_type">
-        <?php foreach (['SINGLE','MULTI','TRUE_FALSE'] as $t): ?>
+        <?php foreach (['MULTI','TRUE_FALSE'] as $t): ?>
           <option value="<?= h($t) ?>" <?= $question['question_type']===$t?'selected':'' ?>><?= h($t) ?></option>
         <?php endforeach; ?>
       </select>

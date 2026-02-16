@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Decide question_type
         $nbCorrect = count($correctIdx);
-        $questionType = ($nbCorrect > 1) ? 'MULTI' : 'SINGLE';
+        $questionType = 'MULTI';
 
         // If looks like TRUE_FALSE (+ optionally NSP): Vrai/Faux/(NSP)
         $upperOpts = array_map(fn($x)=>mb_strtoupper(trim($x), 'UTF-8'), $opts);
