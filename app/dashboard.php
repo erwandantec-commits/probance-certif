@@ -2,13 +2,16 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/i18n.php';
 
 $pdo = db();
 $user = require_auth();
-$err = $_GET['err'] ?? '';
+$lang = get_lang();
 $uid = (int)$user['id'];
 
-// stats
+$errKey = trim((string)($_GET['err_key'] ?? ''));
+$err = trim((string)($_GET['err'] ?? ''));
+
 $statsStmt = $pdo->prepare("
   SELECT
     COUNT(*) as total_attempts,
@@ -19,23 +22,16 @@ $statsStmt = $pdo->prepare("
 ");
 $statsStmt->execute([$uid]);
 $stats = $statsStmt->fetch() ?: [
-  'total_attempts'=>0,
-  'completed'=>0,
-  'passed_count'=>0
+  'total_attempts' => 0,
+  'completed' => 0,
+  'passed_count' => 0,
 ];
 
-$statsStmt->execute([$uid]);
-$stats = $statsStmt->fetch() ?: ['total_attempts'=>0,'completed'=>0,'in_progress'=>0];
-
-// certifs dispo
 $pkgStmt = $pdo->query("SELECT id,name,duration_limit_minutes FROM packages ORDER BY id DESC");
 $packages = $pkgStmt->fetchAll();
 
-// derniers résultats (si tu as score dans sessions, adapte)
 $lastStmt = $pdo->prepare("
-  SELECT s.id, s.status, s.started_at, s.submitted_at,
-         s.score_percent, s.passed,
-         pk.name as package_name
+  SELECT s.id, s.status, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.user_id=?
@@ -44,173 +40,178 @@ $lastStmt = $pdo->prepare("
 ");
 $lastStmt->execute([$uid]);
 $last = $lastStmt->fetchAll();
-function status_label(string $status): string {
-  return match($status) {
-    'TERMINATED' => 'Terminé',
-    'ACTIVE' => 'En cours',
-    'EXPIRED' => 'Expiré',
-    default => $status
+
+function dash_status_label(string $status, string $lang): string {
+  return match ($status) {
+    'TERMINATED' => t('dash.status.terminated', [], $lang),
+    'ACTIVE' => t('dash.status.active', [], $lang),
+    'EXPIRED' => t('dash.status.expired', [], $lang),
+    default => $status,
   };
 }
 
-function status_badge_class(string $status): string {
-  return match($status) {
+function dash_status_badge_class(string $status): string {
+  return match ($status) {
     'TERMINATED' => 'pill success',
     'ACTIVE' => 'pill info',
     'EXPIRED' => 'pill warning',
-    default => 'pill'
+    default => 'pill',
   };
 }
 
-function score_fmt($v): string {
-  if ($v === null || $v === '') return '—';
+function dash_score_fmt($v, string $lang): string {
+  if ($v === null || $v === '') {
+    return t('dash.na', [], $lang);
+  }
   return number_format((float)$v, 2, '.', '') . '%';
 }
 
-function result_label(array $s): string {
-  if ($s['status'] !== 'TERMINATED') return '—';
-  if ($s['passed'] === null) return '—';
-  return ((int)$s['passed'] === 1) ? 'Réussi' : 'Échoué';
+function dash_result_label(array $s, string $lang): string {
+  if ($s['status'] !== 'TERMINATED' || $s['passed'] === null) {
+    return t('dash.na', [], $lang);
+  }
+  return ((int)$s['passed'] === 1) ? t('dash.result.passed', [], $lang) : t('dash.result.failed', [], $lang);
 }
 
-function result_badge_class(array $s): string {
-  if ($s['status'] !== 'TERMINATED' || $s['passed'] === null) return 'pill';
+function dash_result_badge_class(array $s): string {
+  if ($s['status'] !== 'TERMINATED' || $s['passed'] === null) {
+    return 'pill';
+  }
   return ((int)$s['passed'] === 1) ? 'pill success' : 'pill danger';
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <meta charset="utf-8">
-  <title>Mon espace</title>
+  <title><?= h(t('dash.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
 </head>
 <body>
-<div class="container">
-  <div class="header" style="margin-bottom:18px;">
-    <div>
-      <h2 class="h1">Salut <?= h($user['name'] ?: $user['email']) ?></h2>
-      <p class="sub">Ton espace certifications</p>
+<div class="container dashboard-container">
+  <div class="dashboard-head">
+    <div class="dashboard-head-copy">
+      <h2 class="h1"><?= h(t('dash.hello', ['name' => ($user['name'] ?: $user['email'])], $lang)) ?></h2>
+      <p class="sub"><?= h(t('dash.subtitle', [], $lang)) ?></p>
     </div>
-    <div style="display:flex; gap:10px; align-items:center;">
-      <?php if (($user['role'] ?? 'USER') === 'ADMIN'): ?>
-        <a class="btn ghost" href="/admin/">Admin</a>
-      <?php endif; ?>
-      <a class="btn ghost" href="/logout.php">Déconnexion</a>
+
+      <div class="dashboard-head-actions">
+      <div class="lang-switch">
+        <select id="dash-lang" class="input lang-select"
+                onchange="window.location.href='/dashboard.php?lang=' + encodeURIComponent(this.value);">
+          <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
+          <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
+          <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
+        </select>
+      </div>
+      <div class="dashboard-main-actions">
+        <?php if (($user['role'] ?? 'USER') === 'ADMIN'): ?>
+          <a class="btn ghost" href="/admin/"><?= h(t('dash.admin', [], $lang)) ?></a>
+        <?php endif; ?>
+        <a class="btn ghost dashboard-logout-btn" href="/logout.php"><?= h(t('dash.logout', [], $lang)) ?></a>
+      </div>
     </div>
   </div>
 
-  <?php if ($err): ?>
-    <div class="card" style="border-color: rgba(220,38,38,.25); background: rgba(220,38,38,.05); margin-bottom:14px;">
-      <p class="error" style="margin:0;"><?= h($err) ?></p>
+  <?php if ($errKey || $err): ?>
+    <div class="card dashboard-alert">
+      <p class="error dashboard-alert-text">
+        <?= h($errKey !== '' ? t($errKey, [], $lang) : $err) ?>
+      </p>
     </div>
   <?php endif; ?>
 
-  <div class="row">
-    <div class="card" style="flex:1; min-width:220px;">
-      <div class="sub">Tentatives</div>
-      <div style="font-size:28px; font-weight:800;">
-        <?= (int)$stats['total_attempts'] ?>
-      </div>
+  <div class="dashboard-stats">
+    <div class="card stat-card">
+      <div class="stat-title"><?= h(t('dash.attempts', [], $lang)) ?></div>
+      <div class="stat-value"><?= (int)$stats['total_attempts'] ?></div>
     </div>
 
-    <div class="card" style="flex:1; min-width:220px;">
-      <div class="sub">Terminées</div>
-      <div style="font-size:28px; font-weight:800;">
-        <?= (int)$stats['completed'] ?>
-      </div>
+    <div class="card stat-card">
+      <div class="stat-title"><?= h(t('dash.completed', [], $lang)) ?></div>
+      <div class="stat-value"><?= (int)$stats['completed'] ?></div>
     </div>
 
-    <div class="card" style="flex:1; min-width:220px;">
-      <div class="sub">Réussies</div>
-      <div style="font-size:28px; font-weight:800;">
-        <?= (int)$stats['passed_count'] ?>
-      </div>
+    <div class="card stat-card">
+      <div class="stat-title"><?= h(t('dash.passed', [], $lang)) ?></div>
+      <div class="stat-value"><?= (int)$stats['passed_count'] ?></div>
     </div>
   </div>
 
-  <div style="height:16px"></div>
+  <div class="card dashboard-card">
+    <h3 class="dashboard-section-title"><?= h(t('dash.start_cert', [], $lang)) ?></h3>
 
-  <div class="card">
-    <h3 style="margin:0 0 10px 0;">Passer une certification</h3>
-
-    <form method="post" action="/start.php" class="row" style="align-items:end;">
-      <div style="flex:2; min-width:240px;">
-        <label class="label">Certification</label>
+    <form method="post" action="/start.php" class="dashboard-start-form">
+      <input type="hidden" name="lang" value="<?= h($lang) ?>">
+      <div class="dashboard-field dashboard-cert-field">
+        <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
         <select name="package_id" required>
           <?php foreach ($packages as $pk): ?>
             <option value="<?= (int)$pk['id'] ?>">
-              <?= h($pk['name']) ?> (<?= (int)$pk['duration_limit_minutes'] ?> min)
+              <?= h(localize_text((string)$pk['name'], $lang)) ?> (<?= (int)$pk['duration_limit_minutes'] ?> min)
             </option>
           <?php endforeach; ?>
         </select>
       </div>
 
-      <div style="flex:1; min-width:200px;">
-        <label class="label">Email</label>
+      <div class="dashboard-field">
+        <label class="label"><?= h(t('login.email', [], $lang)) ?></label>
         <input class="input" name="email" type="email" value="<?= h($user['email']) ?>" readonly>
       </div>
 
-      <div>
-        <button class="btn" type="submit">Démarrer</button>
+      <div class="dashboard-start-action">
+        <button class="btn" type="submit"><?= h(t('dash.start', [], $lang)) ?></button>
       </div>
     </form>
   </div>
 
-  <div style="height:16px"></div>
-
-  <div class="card">
-    <h3 style="margin:0 0 10px 0;">Dernières sessions</h3>
+  <div class="card dashboard-card">
+    <h3 class="dashboard-section-title"><?= h(t('dash.last_sessions', [], $lang)) ?></h3>
 
     <?php if (!$last): ?>
-      <p class="small">Aucune session pour le moment.</p>
+      <p class="small"><?= h(t('dash.none', [], $lang)) ?></p>
     <?php else: ?>
-      <table class="table">
+      <div class="table-wrap">
+        <table class="table dashboard-table">
         <thead>
           <tr>
-            <th>Certification</th>
-            <th>Démarrée</th>
-            <th>Statut</th>
-            <th>Score</th>
-            <th>Résultat</th>
+            <th><?= h(t('dash.col.cert', [], $lang)) ?></th>
+            <th><?= h(t('dash.col.started', [], $lang)) ?></th>
+            <th><?= h(t('dash.col.status', [], $lang)) ?></th>
+            <th><?= h(t('dash.col.score', [], $lang)) ?></th>
+            <th><?= h(t('dash.col.result', [], $lang)) ?></th>
             <th></th>
           </tr>
         </thead>
         <tbody>
         <?php foreach ($last as $s): ?>
           <tr>
-            <td><?= h($s['package_name']) ?></td>
-
+            <td><?= h(localize_text((string)$s['package_name'], $lang)) ?></td>
+            <td><?= date('d/m/Y H:i', strtotime($s['started_at'])) ?></td>
             <td>
-              <?= date('d/m/Y H:i', strtotime($s['started_at'])) ?>
-            </td>
-
-            <td>
-              <span class="<?= h(status_badge_class($s['status'])) ?>">
-                <?= h(status_label($s['status'])) ?>
+              <span class="<?= h(dash_status_badge_class($s['status'])) ?>">
+                <?= h(dash_status_label($s['status'], $lang)) ?>
               </span>
             </td>
-
-            <td><?= h(score_fmt($s['score_percent'])) ?></td>
-
+            <td><?= h(dash_score_fmt($s['score_percent'], $lang)) ?></td>
             <td>
-              <span class="<?= h(result_badge_class($s)) ?>">
-                <?= h(result_label($s)) ?>
+              <span class="<?= h(dash_result_badge_class($s)) ?>">
+                <?= h(dash_result_label($s, $lang)) ?>
               </span>
             </td>
-
             <td>
               <?php if ($s['status'] === 'ACTIVE'): ?>
-                <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=1">Reprendre</a>
+                <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=1&lang=<?= h($lang) ?>"><?= h(t('dash.resume', [], $lang)) ?></a>
               <?php else: ?>
-                <a class="btn ghost" href="/result.php?sid=<?= h($s['id']) ?>">Voir</a>
+                <a class="btn ghost" href="/result.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.view', [], $lang)) ?></a>
               <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
         </tbody>
-      </table>
+        </table>
+      </div>
     <?php endif; ?>
   </div>
 </div>

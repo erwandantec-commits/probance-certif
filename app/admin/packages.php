@@ -8,7 +8,6 @@ $pdo = db();
 
 $packages = $pdo->query("SELECT * FROM packages ORDER BY id")->fetchAll();
 
-// counts by need/level for "recipe" packages
 $cntStmt = $pdo->query("
   SELECT need, level, COUNT(*) c
   FROM questions
@@ -19,7 +18,6 @@ foreach ($cntStmt->fetchAll() as $r) {
   $counts[strtoupper($r['need'])][(int)$r['level']] = (int)$r['c'];
 }
 
-// legacy counts per package (questions.package_id)
 $legacyStmt = $pdo->query("
   SELECT package_id, COUNT(*) c
   FROM questions
@@ -32,7 +30,6 @@ foreach ($legacyStmt->fetchAll() as $r) {
 }
 
 function compute_availability(array $pk, array $counts, array $legacyCounts): array {
-  // returns [available, required, ok_bool, detail_string]
   $required = 0;
   $available = 0;
   $detail = '';
@@ -43,7 +40,9 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
     $rules = json_decode($raw, true);
     if (is_array($rules) && !empty($rules['buckets']) && is_array($rules['buckets'])) {
       $required = isset($rules['max']) ? (int)$rules['max'] : (int)($pk['selection_count'] ?? 0);
-      if ($required < 1) $required = (int)($pk['selection_count'] ?? 0);
+      if ($required < 1) {
+        $required = (int)($pk['selection_count'] ?? 0);
+      }
 
       $missingParts = [];
       $sumAvail = 0;
@@ -52,7 +51,9 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
         $need = strtoupper((string)($b['need'] ?? ''));
         $take = (int)($b['take'] ?? 0);
         $levels = $b['levels'] ?? [];
-        if ($take <= 0 || !in_array($need, ['PONE','PHM','PPM'], true) || !is_array($levels)) continue;
+        if ($take <= 0 || !in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels)) {
+          continue;
+        }
 
         $bucketAvail = 0;
         foreach ($levels as $lv) {
@@ -69,78 +70,80 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       }
 
       $available = $sumAvail;
-      $detail = $missingParts ? ("Manque: " . implode(' · ', $missingParts)) : "OK";
+      $detail = $missingParts ? ('Manque: ' . implode(' - ', $missingParts)) : 'OK';
       $ok = ($available >= $required);
       return [$available, $required, $ok, $detail];
     }
   }
 
-  // Legacy mode: questions attached to package_id
   $required = (int)($pk['selection_count'] ?? 0);
   $available = (int)($legacyCounts[(int)$pk['id']] ?? 0);
   $ok = ($available >= $required);
-  $detail = $ok ? "OK" : ("Manque " . ($required - $available));
+  $detail = $ok ? 'OK' : ('Manque ' . ($required - $available));
   return [$available, $required, $ok, $detail];
 }
-
 ?>
 <!doctype html>
-<html>
+<html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Admin — Packages</title>
+  <title>Admin &middot; Packages</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-      <div>
-        <h2 class="h1" style="margin:0;">Admin — Packages</h2>
-        <p class="sub" style="margin:6px 0 0;">Paramètres de certification</p>
+  <div class="container admin-container">
+    <div class="card admin-card">
+      <div class="admin-head">
+        <div class="admin-head-copy">
+          <h2 class="h1">Admin &middot; Packages</h2>
+          <p class="sub">Param&egrave;tres de certification</p>
+        </div>
+        <div class="admin-head-actions">
+          <a class="btn ghost" href="/admin/index.php">&larr; Retour</a>
+          <a class="btn ghost admin-logout-btn" href="/logout.php">D&eacute;connexion</a>
+        </div>
       </div>
-      <div style="display:flex; gap:10px;">
-        <a class="btn ghost" href="/admin/index.php">← Retour</a>
-        <a class="btn ghost" href="/logout.php">Déconnexion</a>
+
+      <hr class="separator">
+
+      <div class="table-wrap">
+        <table class="table questions-table">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Seuil (%)</th>
+              <th>Dur&eacute;e (min)</th>
+              <th>Questions</th>
+              <th>Disponibilit&eacute;</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($packages as $pk): ?>
+              <?php [$avail, $req, $ok, $detail] = compute_availability($pk, $counts, $legacyCounts); ?>
+              <tr>
+                <td><?= h($pk['name']) ?></td>
+                <td><?= (int)$pk['pass_threshold_percent'] ?></td>
+                <td><?= (int)$pk['duration_limit_minutes'] ?></td>
+                <td><?= (int)$pk['selection_count'] ?></td>
+                <td>
+                  <span class="pill <?= $ok ? 'success' : 'warning' ?>">
+                    <?= $ok ? 'OK' : 'Incomplet' ?>
+                  </span>
+                  <span class="small" style="margin-left:8px;">
+                    <?= (int)$avail ?> / <?= (int)$req ?>
+                    <?php if (!$ok): ?> - <?= h($detail) ?><?php endif; ?>
+                  </span>
+                </td>
+                <td class="actions-cell">
+                  <a class="btn ghost" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>">Modifier</a>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
       </div>
-    </div>
-      <table class="table">
-        <tr>
-          <th>Nom</th>
-          <th>Seuil (%)</th>
-          <th>Durée (min)</th>
-          <th>Questions</th>
-          <th>Disponibilité</th>
-          <th></th>
-        </tr>
-
-        <?php foreach ($packages as $pk): ?>
-          <?php [$avail, $req, $ok, $detail] = compute_availability($pk, $counts, $legacyCounts); ?>
-          <tr>
-            <td><?= h($pk['name']) ?></td>
-            <td><?= (int)$pk['pass_threshold_percent'] ?></td>
-            <td><?= (int)$pk['duration_limit_minutes'] ?></td>
-            <td><?= (int)$pk['selection_count'] ?></td>
-
-            <td>
-              <span class="pill <?= $ok ? 'success' : 'warning' ?>">
-                <?= $ok ? 'OK' : 'Incomplet' ?>
-              </span>
-              <span class="small" style="margin-left:8px;">
-                <?= (int)$avail ?> / <?= (int)$req ?>
-                <?php if (!$ok): ?> — <?= h($detail) ?><?php endif; ?>
-              </span>
-            </td>
-
-            <td>
-              <a class="btn ghost" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>">
-                Modifier
-              </a>
-            </td>
-          </tr>
-        <?php endforeach; ?>
-      </table>
-
     </div>
   </div>
 </body>

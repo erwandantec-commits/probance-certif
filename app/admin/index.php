@@ -2,9 +2,6 @@
 require_once __DIR__ . '/_auth.php';
 require_admin();
 
-require_once __DIR__ . '/../i18n.php';
-$lang = get_lang();
-
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 $pdo = db();
@@ -57,7 +54,7 @@ if ($result === 'PASSED') {
 
 $whereSql = $where ? ("WHERE " . implode(" AND ", $where)) : "";
 
-// Pagination 
+// Pagination
 $limit = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
@@ -78,7 +75,7 @@ $stmt = $pdo->prepare($sql);
 // 1) bind des filtres (type/status)
 $i = 1;
 foreach ($params as $v) {
-  $stmt->bindValue($i++, $v); // strings OK
+  $stmt->bindValue($i++, $v);
 }
 
 // 2) bind LIMIT/OFFSET en INT (important pour MariaDB)
@@ -90,7 +87,7 @@ $sessions = $stmt->fetchAll();
 
 if (isset($_GET['export']) && $_GET['export'] === '1') {
 
-  // Requête SANS pagination
+  // Requete SANS pagination
   $exportSql = "
     SELECT s.started_at, c.email, s.session_type,
            pk.name AS package_name, s.status, s.score_percent, s.passed
@@ -140,24 +137,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   exit;
 }
 
-/* A — Profils certifiés (EXAM réussi uniquement) */
-$profiles = $pdo->query("
-  SELECT 
-    c.email,
-    MAX(s.submitted_at) AS last_cert_date,
-    pk.name AS package_name
-  FROM sessions s
-  JOIN contacts c ON c.id = s.contact_id
-  JOIN packages pk ON pk.id = s.package_id
-  WHERE s.status='TERMINATED'
-    AND s.passed=1
-    AND s.session_type='EXAM'
-  GROUP BY c.email, pk.name
-  ORDER BY last_cert_date DESC
-  LIMIT 200
-")->fetchAll();
-
-/* B — dashboard admin (stats) */
+/* B - dashboard admin (stats) */
 $stats = $pdo->query("
   SELECT
     SUM(status='ACTIVE') AS active_count,
@@ -169,243 +149,200 @@ $stats = $pdo->query("
 
 ?>
 <!doctype html>
-<html>
+<html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Admin</title>
+  <title>Admin &middot; Sessions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div>
-          <h2 class="h1" style="margin:0;"><?= h(t('admin.sessions')) ?></h2>
+  <div class="container admin-container">
+    <div class="card admin-card">
+      <div class="admin-head">
+        <div class="admin-head-copy">
+          <h2 class="h1">Admin &middot; Sessions</h2>
+          <p class="sub">Pilotage des sessions et certifications</p>
         </div>
-        <div style="display:flex; gap:10px;">
+        <div class="admin-head-actions">
           <a class="btn ghost" href="/dashboard.php">Espace candidat</a>
           <a class="btn ghost" href="/admin/packages.php">Packages</a>
           <a class="btn ghost" href="/admin/questions.php">Questions</a>
-          <a class="btn ghost" href="/logout.php">Déconnexion</a>
+          <a class="btn ghost" href="/admin/certifications.php">Certifications</a>
+          <a class="btn ghost admin-logout-btn" href="/logout.php">D&eacute;connexion</a>
         </div>
       </div>
 
-      <?php $qs = $_GET; ?>
-      <p class="sub" style="margin-top:6px;">
-        <a href="/admin/index.php?<?= h(http_build_query(array_merge($qs,['lang'=>'fr']))) ?>">FR</a> |
-        <a href="/admin/index.php?<?= h(http_build_query(array_merge($qs,['lang'=>'en']))) ?>">EN</a> |
-        <a href="/admin/index.php?<?= h(http_build_query(array_merge($qs,['lang'=>'ja']))) ?>">日本語</a>
-      </p>
+      <hr class="separator">
 
-      <form method="get"
-            style="margin:12px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <form method="get" class="filters-grid sessions-filters">
+        <div>
+          <label class="label" for="type">Type</label>
+          <select class="input" id="type" name="type">
+            <option value="ALL" <?= $type==='ALL'?'selected':'' ?>>Tous</option>
+            <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>EXAM</option>
+            <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>>TRAINING</option>
+          </select>
+        </div>
 
-        <select class="input" name="type" style="width:auto; min-width:140px; flex:0 0 auto;">
-          <option value="ALL" <?= $type==='ALL'?'selected':'' ?>>Type</option>
-          <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>EXAM</option>
-          <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>>TRAINING</option>
-        </select>
+        <div>
+          <label class="label" for="status">Statut</label>
+          <select class="input" id="status" name="status">
+            <option value="ALL" <?= $status==='ALL'?'selected':'' ?>>Tous</option>
+            <option value="ACTIVE" <?= $status==='ACTIVE'?'selected':'' ?>>ACTIVE</option>
+            <option value="TERMINATED" <?= $status==='TERMINATED'?'selected':'' ?>>TERMINATED</option>
+            <option value="EXPIRED" <?= $status==='EXPIRED'?'selected':'' ?>>EXPIRED</option>
+          </select>
+        </div>
 
-        <select class="input" name="status" style="width:auto; min-width:170px; flex:0 0 auto;">
-          <option value="ALL" <?= $status==='ALL'?'selected':'' ?>>Statut</option>
-          <option value="ACTIVE" <?= $status==='ACTIVE'?'selected':'' ?>>ACTIVE</option>
-          <option value="TERMINATED" <?= $status==='TERMINATED'?'selected':'' ?>>TERMINATED</option>
-          <option value="EXPIRED" <?= $status==='EXPIRED'?'selected':'' ?>>EXPIRED</option>
-        </select>
+        <div>
+          <label class="label" for="result">R&eacute;sultat</label>
+          <select class="input" id="result" name="result">
+            <option value="ALL" <?= $result==='ALL'?'selected':'' ?>>Tous</option>
+            <option value="PASSED" <?= $result==='PASSED'?'selected':'' ?>>R&eacute;ussi</option>
+            <option value="FAILED" <?= $result==='FAILED'?'selected':'' ?>>Echou&eacute;</option>
+          </select>
+        </div>
 
-        <select class="input" name="result" style="width:auto; min-width:150px; flex:0 0 auto;">
-          <option value="ALL" <?= $result==='ALL'?'selected':'' ?>>Résultat</option>
-          <option value="PASSED" <?= $result==='PASSED'?'selected':'' ?>>Réussi</option>
-          <option value="FAILED" <?= $result==='FAILED'?'selected':'' ?>>Échoué</option>
-        </select>
+        <div>
+          <label class="label" for="search">Email</label>
+          <input class="input" id="search" type="text" name="search" value="<?= h($search) ?>" placeholder="Email...">
+        </div>
 
-        <input class="input"
-              type="text"
-              name="search"
-              value="<?= h($search) ?>"
-              placeholder="<?= h(t('filters.email')) ?>"
-              style="width:260px; flex:0 0 auto;">
-
-        <button class="btn" type="submit"><?= h(t('btn.filter')) ?></button>
-
-        <button class="btn ghost" type="submit" name="export" value="1">
-          <?= h(t('btn.export')) ?>
-        </button>
-
-        <a class="btn ghost" href="/admin/index.php"><?= h(t('btn.reset')) ?></a>
-
+        <div class="filters-actions">
+          <button class="btn" type="submit">Filtrer</button>
+          <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
+          <a class="btn ghost" href="/admin/index.php">Reset</a>
+        </div>
       </form>
 
-      <div class="row" style="margin:12px 0;">
+      <div class="row sessions-stats">
         <span class="badge">Actives: <?= (int)$stats['active_count'] ?></span>
-        <span class="badge ok">EXAM réussies: <?= (int)$stats['passed_exam_count'] ?></span>
-        <span class="badge">Terminées: <?= (int)$stats['terminated_count'] ?></span>
-        <span class="badge bad">Expirées: <?= (int)$stats['expired_count'] ?></span>
+        <span class="badge ok">EXAM r&eacute;ussies: <?= (int)$stats['passed_exam_count'] ?></span>
+        <span class="badge">Termin&eacute;es: <?= (int)$stats['terminated_count'] ?></span>
+        <span class="badge bad">Expir&eacute;es: <?= (int)$stats['expired_count'] ?></span>
       </div>
 
-      <p class="sub" style="margin:8px 0 12px;">
-        Page <?= (int)$page ?> (<?= count($sessions) ?> résultats)
-      </p>
+      <p class="sub sessions-meta">Page <?= (int)$page ?> (<?= count($sessions) ?> r&eacute;sultats)</p>
 
-      <table class="table">
-        <tr>
-          <th>
-            <?php
-              $qs = $_GET;
-              $qs['sort'] = 'started_at';
+      <div class="table-wrap">
+        <?php if (!$sessions): ?>
+          <p class="empty-state">Aucune session trouv&eacute;e.</p>
+        <?php else: ?>
+          <table class="table questions-table sessions-table">
+            <thead>
+              <tr>
+                <th>
+                  <?php
+                    $qs = $_GET;
+                    unset($qs['lang']);
+                    $qs['sort'] = 'started_at';
 
-              if ($sort !== 'started_at') {
-                $qs['dir'] = 'DESC'; // premier clic sur Date = DESC
-              } else {
-                $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC';
-              }
+                    if ($sort !== 'started_at') {
+                      $qs['dir'] = 'DESC';
+                    } else {
+                      $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC';
+                    }
 
-              unset($qs['page']);
-              $url = '/admin/index.php?' . http_build_query($qs);
-            ?>
-            <a href="<?= h($url) ?>" style="text-decoration:none; color:inherit;">
-            <?= h(t('th.started_at')) ?>
-              <?php if ($sort === 'started_at'): ?>
-                <?= $dir === 'DESC' ? '↓' : '↑' ?>
-              <?php endif; ?>
-            </a>
-          </th>
-          <th>Email</th>
-          <th>Type</th>
-          <th>Package</th>
-          <th><?= h(t('th.status')) ?></th>
-          <th>
-            <?php
-              $qs = $_GET;
-              $qs['sort'] = 'score_percent';
+                    unset($qs['page']);
+                    $url = '/admin/index.php?' . http_build_query($qs);
+                  ?>
+                  <a class="sort-link" href="<?= h($url) ?>">
+                    Date d&eacute;but
+                    <?php if ($sort === 'started_at'): ?>
+                      <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span>
+                    <?php endif; ?>
+                  </a>
+                </th>
+                <th>Email</th>
+                <th>Type</th>
+                <th>Package</th>
+                <th>Statut</th>
+                <th>
+                  <?php
+                    $qs = $_GET;
+                    unset($qs['lang']);
+                    $qs['sort'] = 'score_percent';
 
-              // Si on clique pour la première fois sur Score → DESC
-              if ($sort !== 'score_percent') {
-                $qs['dir'] = 'DESC';
-              } else {
-                $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC';
-              }
+                    if ($sort !== 'score_percent') {
+                      $qs['dir'] = 'DESC';
+                    } else {
+                      $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC';
+                    }
 
-              unset($qs['page']);
-              $url = '/admin/index.php?' . http_build_query($qs);
-            ?>
-            <a href="<?= h($url) ?>" style="text-decoration:none; color:inherit;">
-              Score
-              <?php if ($sort === 'score_percent'): ?>
-                <?= $dir === 'DESC' ? '↓' : '↑' ?>
-              <?php endif; ?>
-            </a>
-          </th>
-          <th><?= h(t('th.result')) ?></th>
-          <th></th>
-        </tr>
-
-        <?php foreach ($sessions as $s): ?>
-          <tr>
-            <td><?= h($s['started_at']) ?></td>
-            <td>
-              <a href="/admin/contact.php?email=<?= urlencode($s['email']) ?>">
-                <?= h($s['email']) ?>
-              </a>
-            </td>
-            <td><?= h($s['session_type']) ?></td>
-            <td><?= h($s['package_name']) ?></td>
-            <td>
-              <?php if ($s['status'] === 'TERMINATED'): ?>
-                <span class="badge ok"><?= h(t('badge.done')) ?></span>
-              <?php elseif ($s['status'] === 'EXPIRED'): ?>
-                <span class="badge bad"><?= h(t('badge.expired')) ?></span>
-              <?php else: ?>
-                <span class="badge"><?= h(t('badge.active')) ?></span>
-              <?php endif; ?>
-            </td>
-            <td>
-              <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?>
-            </td>
-
-            <td>
-              <?php if ($s['session_type'] === 'EXAM' && $s['status'] === 'TERMINATED'): ?>
-                <?php if ((int)$s['passed'] === 1): ?>
-                  <span class="badge ok"><?= h(t('badge.passed')) ?></span>
-                <?php else: ?>
-                  <span class="badge bad"><?= h(t('badge.failed')) ?></span>
-                <?php endif; ?>
-              <?php else: ?>
-                -
-              <?php endif; ?>
-            </td>
-
-            <td>
-              <a class="btn ghost" href="/admin/session.php?sid=<?= h($s['id']) ?>">Voir</a>
-            </td>
-
-          </tr>
-        <?php endforeach; ?>
-      </table>
+                    unset($qs['page']);
+                    $url = '/admin/index.php?' . http_build_query($qs);
+                  ?>
+                  <a class="sort-link" href="<?= h($url) ?>">
+                    Score
+                    <?php if ($sort === 'score_percent'): ?>
+                      <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span>
+                    <?php endif; ?>
+                  </a>
+                </th>
+                <th>R&eacute;sultat</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($sessions as $s): ?>
+                <tr>
+                  <td><?= h($s['started_at']) ?></td>
+                  <td>
+                    <a href="/admin/contact.php?email=<?= urlencode($s['email']) ?>">
+                      <?= h($s['email']) ?>
+                    </a>
+                  </td>
+                  <td><?= h($s['session_type']) ?></td>
+                  <td><?= h($s['package_name']) ?></td>
+                  <td>
+                    <?php if ($s['status'] === 'TERMINATED'): ?>
+                      <span class="badge ok">Termin&eacute;</span>
+                    <?php elseif ($s['status'] === 'EXPIRED'): ?>
+                      <span class="badge bad">Expir&eacute;</span>
+                    <?php else: ?>
+                      <span class="badge">Actif</span>
+                    <?php endif; ?>
+                  </td>
+                  <td><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></td>
+                  <td>
+                    <?php if ($s['session_type'] === 'EXAM' && $s['status'] === 'TERMINATED'): ?>
+                      <?php if ((int)$s['passed'] === 1): ?>
+                        <span class="badge ok">R&eacute;ussi</span>
+                      <?php else: ?>
+                        <span class="badge bad">Echou&eacute;</span>
+                      <?php endif; ?>
+                    <?php else: ?>
+                      -
+                    <?php endif; ?>
+                  </td>
+                  <td class="actions-cell">
+                    <a class="btn ghost" href="/admin/session.php?sid=<?= h($s['id']) ?>">Voir</a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
 
       <?php
-        // reconstruit l'URL en gardant les filtres
         $qs = $_GET;
-        unset($qs['page']);
+        unset($qs['lang'], $qs['page']);
         $base = '/admin/index.php';
         $common = $qs ? ('?' . http_build_query($qs)) : '';
         $sep = $common ? '&' : '?';
-        ?>
+      ?>
 
-        <div style="margin-top:12px; display:flex; gap:8px;">
-          
-          <?php if ($page > 1): ?>
-            <a class="btn ghost"
-              href="<?= h($base . $common . $sep . 'page=' . ($page - 1)) ?>">
-              ← Page précédente
-            </a>
-          <?php endif; ?>
+      <div class="sessions-pagination">
+        <?php if ($page > 1): ?>
+          <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page - 1)) ?>">&larr; Page pr&eacute;c&eacute;dente</a>
+        <?php endif; ?>
 
-          <?php if (count($sessions) === $limit): ?>
-            <a class="btn ghost"
-              href="<?= h($base . $common . $sep . 'page=' . ($page + 1)) ?>">
-              Page suivante →
-            </a>
-          <?php endif; ?>
-
-        </div>
-
-
-      <!-- Section Profils certifiés -->
-      <h2 class="h1" style="margin-top:18px;">Profils — Certifications valides (&lt; 1 an)</h2>
-      <p class="sub">Basé sur les sessions EXAM terminées et réussies.</p>
-
-      <table class="table">
-        <tr>
-          <th>Email</th>
-          <th>Certification</th>
-          <th>Date</th>
-          <th>Statut</th>
-        </tr>
-
-        <?php foreach ($profiles as $p):
-          $ts = strtotime($p['last_cert_date']);
-          $valid = $ts && ($ts >= time() - 365*24*3600);
-        ?>
-          <tr>
-            <td>
-              <a href="/admin/contact.php?email=<?= urlencode($p['email']) ?>">
-                <?= h($p['email']) ?>
-              </a>
-            </td>
-            <td><?= h($p['package_name']) ?></td>
-            <td><?= h($p['last_cert_date']) ?></td>
-            <td>
-              <?php if ($valid): ?>
-                <span class="badge ok">Certifié</span>
-              <?php else: ?>
-                <span class="badge bad">Expiré</span>
-              <?php endif; ?>
-            </td>
-          </tr>
-        <?php endforeach; ?>
-      </table>
-
+        <?php if (count($sessions) === $limit): ?>
+          <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page + 1)) ?>">Page suivante &rarr;</a>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 </body>

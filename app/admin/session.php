@@ -48,6 +48,13 @@ $rows = $pdo->prepare("
 
 $rows->execute([$sid]);
 $items = $rows->fetchAll();
+
+$statusLabel = match ((string)$s['status']) {
+  'TERMINATED' => 'Termine',
+  'ACTIVE' => 'En cours',
+  'EXPIRED' => 'Expire',
+  default => (string)$s['status'],
+};
 ?>
 <!doctype html>
 <html>
@@ -60,13 +67,13 @@ $items = $rows->fetchAll();
     </div>
     <div style="display:flex; gap:10px;">
       <a class="btn ghost" href="/admin/index.php">← Retour</a>
-      <a class="btn ghost" href="/logout.php">Déconnexion</a>
+      <a class="btn ghost admin-logout-btn" href="/logout.php">Déconnexion</a>
     </div>
   </div>
 
   <p><b>Email :</b> <?= h($s['email']) ?></p>
   <p><b>Package :</b> <?= h($s['package_name']) ?></p>
-  <p><b>Statut :</b> <?= h($s['status']) ?></p>
+  <p><b>Statut :</b> <?= h($statusLabel) ?></p>
   <p><b>Score :</b> <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></p>
 
   <hr>

@@ -2,13 +2,15 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/i18n.php';
 
 $user = require_auth();
+$lang = get_lang();
 $uid = (int)$user['id'];
 $email = $user['email'];
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header("Location: /dashboard.php");
+  header("Location: /dashboard.php?lang=" . urlencode($lang));
   exit;
 }
 
@@ -16,57 +18,54 @@ $pdo = db();
 $package_id = (int)($_POST['package_id'] ?? 0);
 
 if ($package_id <= 0) {
-  header("Location: /dashboard.php?err=" . urlencode("Package invalide"));
+  header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.invalid_package'));
   exit;
 }
 
-// Load package
 $stmt = $pdo->prepare("SELECT * FROM packages WHERE id=? AND is_active=1");
 $stmt->execute([$package_id]);
 $pkg = $stmt->fetch();
 
 if (!$pkg) {
-  header("Location: /dashboard.php?err=" . urlencode("Package introuvable"));
+  header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.package_not_found'));
   exit;
 }
 
 $limit = (int)$pkg['selection_count'];
-if ($limit < 1) $limit = 1;
+if ($limit < 1) {
+  $limit = 1;
+}
 
 $rules = null;
 $rulesRaw = $pkg['selection_rules_json'] ?? null;
 if (is_string($rulesRaw) && trim($rulesRaw) !== '') {
   $tmp = json_decode($rulesRaw, true);
-  if (is_array($tmp)) $rules = $tmp;
+  if (is_array($tmp)) {
+    $rules = $tmp;
+  }
 }
 
-// --------------------------
-// Select questions (2 modes)
-// --------------------------
+$qids = [];
 
-$qids = []; // array of question ids (ints)
+$pickByNeedLevel = function (string $need, array $levels, int $take, array $excludeIds) use ($pdo): array {
+  if ($take <= 0) {
+    return [];
+  }
 
-// Helper: fetch random question ids by filters, excluding already selected
-$pickByNeedLevel = function(string $need, array $levels, int $take, array $excludeIds) use ($pdo) : array {
-  if ($take <= 0) return [];
-
-  // sanitize levels -> ints
   $levels = array_values(array_unique(array_map('intval', $levels)));
   $levels = array_filter($levels, fn($x) => $x >= 1 && $x <= 9);
-  if (!$levels) return [];
+  if (!$levels) {
+    return [];
+  }
 
   $placeLevels = implode(',', array_fill(0, count($levels), '?'));
-
   $sql = "
     SELECT q.id
     FROM questions q
     JOIN question_options qo ON qo.question_id = q.id
     WHERE q.need = ?
       AND q.level IN ($placeLevels)
-    GROUP BY q.id
-    HAVING COUNT(qo.id) >= 2
   ";
-
   $params = array_merge([$need], $levels);
 
   if (!empty($excludeIds)) {
@@ -75,7 +74,11 @@ $pickByNeedLevel = function(string $need, array $levels, int $take, array $exclu
     $params = array_merge($params, array_map('intval', $excludeIds));
   }
 
-  $sql .= " ORDER BY RAND() LIMIT " . (int)$take;
+  $sql .= "
+    GROUP BY q.id
+    HAVING COUNT(qo.id) >= 2
+    ORDER BY RAND()
+    LIMIT " . (int)$take;
 
   $st = $pdo->prepare($sql);
   $st->execute($params);
@@ -84,23 +87,34 @@ $pickByNeedLevel = function(string $need, array $levels, int $take, array $exclu
 };
 
 if ($rules && !empty($rules['buckets']) && is_array($rules['buckets'])) {
-  // New mode: use recipe (need/level buckets)
   $max = isset($rules['max']) ? (int)$rules['max'] : $limit;
-  if ($max < 1) $max = $limit;
+  if ($max < 1) {
+    $max = $limit;
+  }
 
   foreach ($rules['buckets'] as $b) {
-    if (count($qids) >= $max) break;
+    if (count($qids) >= $max) {
+      break;
+    }
 
     $need = strtoupper(trim((string)($b['need'] ?? '')));
     $levels = $b['levels'] ?? [];
     $take = (int)($b['take'] ?? 0);
 
-    if (!in_array($need, ['PONE','PHM','PPM'], true)) continue;
-    if (!is_array($levels)) $levels = [];
-    if ($take <= 0) continue;
+    if (!in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
+      continue;
+    }
+    if (!is_array($levels)) {
+      $levels = [];
+    }
+    if ($take <= 0) {
+      continue;
+    }
 
     $remaining = $max - count($qids);
-    if ($take > $remaining) $take = $remaining;
+    if ($take > $remaining) {
+      $take = $remaining;
+    }
 
     $picked = $pickByNeedLevel($need, $levels, $take, $qids);
     foreach ($picked as $id) {
@@ -108,20 +122,16 @@ if ($rules && !empty($rules['buckets']) && is_array($rules['buckets'])) {
     }
   }
 
-  // If recipe didn't reach max, fail with clear error
   if (count($qids) < $max) {
-    header("Location: /dashboard.php?err=" . urlencode("Pas assez de questions taguées (need/level) pour générer cette certification"));
+    header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.not_enough_tagged'));
     exit;
   }
 
-  // Ensure we use $max count
   if (count($qids) > $max) {
     $qids = array_slice($qids, 0, $max);
   }
-
-  $limit = $max; // for downstream checks
+  $limit = $max;
 } else {
-  // Legacy mode: questions attached to package_id (your current behavior)
   $q = $pdo->prepare("
     SELECT q.id
     FROM questions q
@@ -137,17 +147,13 @@ if ($rules && !empty($rules['buckets']) && is_array($rules['buckets'])) {
   $qids = array_map(fn($r) => (int)$r['id'], $rows ?: []);
 
   if (count($qids) < $limit) {
-    header("Location: /dashboard.php?err=" . urlencode("Pas assez de questions pour ce package"));
+    header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.not_enough_package'));
     exit;
   }
 }
 
-// --------------------------
-// Create session
-// --------------------------
 $pdo->beginTransaction();
 try {
-  // upsert contact by user email
   $stmt = $pdo->prepare("SELECT id FROM contacts WHERE email=?");
   $stmt->execute([$email]);
   $contact = $stmt->fetch();
@@ -176,11 +182,10 @@ try {
 
   $pdo->commit();
 
-  header("Location: /exam.php?sid=" . urlencode($session_id) . "&p=1");
+  header("Location: /exam.php?sid=" . urlencode($session_id) . "&p=1&lang=" . urlencode($lang));
   exit;
-
 } catch (Throwable $e) {
   $pdo->rollBack();
-  header("Location: /dashboard.php?err=" . urlencode("Erreur création session"));
+  header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.create_failed'));
   exit;
 }

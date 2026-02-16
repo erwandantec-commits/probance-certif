@@ -1,10 +1,17 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
+require_once __DIR__ . '/i18n.php';
+
 $pdo = db();
+$lang = get_lang();
 
 $sid = $_GET['sid'] ?? '';
-if (!$sid) { http_response_code(400); echo "Missing sid"; exit; }
+if (!$sid) {
+  http_response_code(400);
+  echo h(t('exam.missing_sid', [], $lang));
+  exit;
+}
 
 $stmt = $pdo->prepare("
   SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent, pk.duration_limit_minutes
@@ -15,9 +22,12 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$sid]);
 $s = $stmt->fetch();
-if (!$s) { http_response_code(404); echo "Not found"; exit; }
+if (!$s) {
+  http_response_code(404);
+  echo h(t('exam.session_not_found', [], $lang));
+  exit;
+}
 
-// Expiration serveur (robuste) : si ACTIVE et délai dépassé => EXPIRED
 if ($s['status'] === 'ACTIVE') {
   $started = strtotime($s['started_at']);
   $limitMinutes = (int)$s['duration_limit_minutes'];
@@ -27,7 +37,6 @@ if ($s['status'] === 'ACTIVE') {
     $u = $pdo->prepare("UPDATE sessions SET status='EXPIRED' WHERE id=?");
     $u->execute([$sid]);
 
-    // recharger la session
     $stmt = $pdo->prepare("
       SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent, pk.duration_limit_minutes
       FROM sessions s
@@ -39,81 +48,87 @@ if ($s['status'] === 'ACTIVE') {
     $s = $stmt->fetch();
   }
 }
-
 ?>
 <!doctype html>
-<html>
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <meta charset="utf-8">
-  <title>Résultat</title>
+  <title><?= h(t('result.title', [], $lang)) ?></title>
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 
 <body>
   <div class="container">
     <div class="card">
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
+        <select id="result-lang" class="input lang-select"
+                onchange="window.location.href='/result.php?sid=<?= h(urlencode($sid)) ?>&lang=' + encodeURIComponent(this.value);">
+          <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
+          <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
+          <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
+        </select>
+      </div>
 
       <div class="header">
         <div>
-          <h2 class="h1">Résultat</h2>
-          <p class="sub"><?= h($s['package_name']) ?> — <?= h($s['email']) ?></p>
+          <h2 class="h1"><?= h(t('result.title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(localize_text((string)$s['package_name'], $lang)) ?> - <?= h($s['email']) ?></p>
         </div>
 
         <?php if ($s['status'] === 'TERMINATED'): ?>
           <?php if ((int)$s['passed'] === 1): ?>
-            <span class="badge ok">✅ Réussi</span>
+            <span class="badge ok"><?= h(t('result.badge.passed', [], $lang)) ?></span>
           <?php else: ?>
-            <span class="badge bad">❌ Échec</span>
+            <span class="badge bad"><?= h(t('result.badge.failed', [], $lang)) ?></span>
           <?php endif; ?>
         <?php elseif ($s['status'] === 'EXPIRED'): ?>
-          <span class="badge bad">⏱ Expirée</span>
+          <span class="badge bad"><?= h(t('result.badge.expired', [], $lang)) ?></span>
         <?php else: ?>
-          <span class="badge">En cours</span>
+          <span class="badge"><?= h(t('result.badge.active', [], $lang)) ?></span>
         <?php endif; ?>
       </div>
 
       <div class="row" style="margin-bottom:12px;">
-        <span class="badge">Statut: <?= h($s['status']) ?></span>
+        <span class="badge"><?= h(t('result.status_label', [], $lang)) ?>: <?= h($s['status']) ?></span>
         <?php if (!empty($s['started_at'])): ?>
-          <span class="badge">Début: <?= h($s['started_at']) ?></span>
+          <span class="badge"><?= h(t('result.started', [], $lang)) ?>: <?= h($s['started_at']) ?></span>
         <?php endif; ?>
         <?php if (!empty($s['submitted_at'])): ?>
-          <span class="badge">Fin: <?= h($s['submitted_at']) ?></span>
+          <span class="badge"><?= h(t('result.ended', [], $lang)) ?>: <?= h($s['submitted_at']) ?></span>
         <?php endif; ?>
       </div>
 
       <?php if ($s['status'] === 'TERMINATED'): ?>
         <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border);">
           <p style="margin:0; font-size:16px;">
-            <b>Score :</b> <?= h($s['score_percent']) ?>%
-            <span class="small">(seuil <?= (int)$s['pass_threshold_percent'] ?>%)</span>
+            <b><?= h(t('result.score', [], $lang)) ?>:</b> <?= h($s['score_percent']) ?>%
+            <span class="small">(<?= h(t('result.threshold', ['value' => (int)$s['pass_threshold_percent']], $lang)) ?>)</span>
           </p>
         </div>
 
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/start.php">Espace candidat</a>
-          <a class="btn ghost" href="/admin/index.php">Voir dans l’admin</a>
+          <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
+          <a class="btn ghost" href="/admin/index.php"><?= h(t('result.admin_view', [], $lang)) ?></a>
         </div>
 
       <?php elseif ($s['status'] === 'EXPIRED'): ?>
-        <p class="error">⏱ La session a expiré (temps dépassé).</p>
+        <p class="error"><?= h(t('result.expired_message', [], $lang)) ?></p>
 
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/start.php">Espace candidat</a>
-          <a class="btn ghost" href="/admin/index.php">Admin</a>
+          <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
+          <a class="btn ghost" href="/admin/index.php"><?= h(t('result.admin', [], $lang)) ?></a>
         </div>
 
       <?php else: ?>
-        <p>Session en cours…</p>
+        <p><?= h(t('result.in_progress', [], $lang)) ?></p>
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/exam.php?sid=<?= h($sid) ?>&p=1">Reprendre</a>
-          <a class="btn ghost" href="/start.php">Retour</a>
+          <a class="btn" href="/exam.php?sid=<?= h($sid) ?>&p=1&lang=<?= h($lang) ?>"><?= h(t('result.resume', [], $lang)) ?></a>
+          <a class="btn ghost" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.back', [], $lang)) ?></a>
         </div>
       <?php endif; ?>
-
     </div>
 
-    <p class="small" style="margin-top:14px;">les réponses ne sont visibles que côté admin.</p>
+    <p class="small" style="margin-top:14px;"><?= h(t('result.answers_admin_only', [], $lang)) ?></p>
   </div>
 </body>
 </html>
