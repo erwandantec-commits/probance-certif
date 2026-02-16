@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_auth.php';
 require_admin();
 
 require_once __DIR__ . '/../i18n.php';
@@ -181,8 +181,9 @@ $stats = $pdo->query("
       <h2><?= h(t('admin.sessions')) ?></h2>
 
       <p>
-        <a href="/start.php">← Start</a> |
+        <a href="/start.php">Start</a> |
         <a href="/admin/packages.php">Packages</a> |
+        <a href="/admin/questions.php">Questions</a> |
         <a href="/admin/logout.php">Déconnexion</a>
       </p>
 
