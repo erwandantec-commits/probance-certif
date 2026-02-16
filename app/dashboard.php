@@ -5,6 +5,7 @@ require_once __DIR__ . '/auth.php';
 
 $pdo = db();
 $user = require_auth();
+$err = $_GET['err'] ?? '';
 $uid = (int)$user['id'];
 
 // stats
@@ -58,6 +59,12 @@ $last = $lastStmt->fetchAll();
     </div>
   </div>
 
+  <?php if ($err): ?>
+    <div class="card" style="border-color: rgba(220,38,38,.25); background: rgba(220,38,38,.05); margin-bottom:14px;">
+      <p class="error" style="margin:0;"><?= h($err) ?></p>
+    </div>
+  <?php endif; ?>
+
   <div class="row">
     <div class="card" style="flex:1; min-width:220px;">
       <div class="sub">Tentatives</div>
@@ -79,7 +86,6 @@ $last = $lastStmt->fetchAll();
     <h3 style="margin:0 0 10px 0;">Passer une certification</h3>
 
     <form method="post" action="/start.php" class="row" style="align-items:end;">
-      <input type="hidden" name="user_id" value="<?= (int)$uid ?>">
       <div style="flex:2; min-width:240px;">
         <label class="label">Certification</label>
         <select name="package_id" required>
