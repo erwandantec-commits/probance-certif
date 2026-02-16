@@ -60,6 +60,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
       </select>
       <button class="btn ghost" type="submit">Filtrer</button>
       <a class="btn" href="/admin/question_edit.php?new=1<?= $pkg? '&package_id='.$pkg : '' ?>">+ Ajouter</a>
+      <a class="btn ghost" href="/admin/import_questions.php<?= $pkg ? '?package_id='.$pkg : '' ?>">Importer</a>
     </form>
 
     <div style="margin-top:14px;">
