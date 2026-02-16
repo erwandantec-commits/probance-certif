@@ -2,6 +2,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/services/session_service.php';
 
 $pdo = db();
 $lang = get_lang();
@@ -33,18 +34,8 @@ if ($sess['status'] !== 'ACTIVE') {
   exit;
 }
 
-$started = new DateTime($sess['started_at']);
-$limitMin = (int)$sess['duration_limit_minutes'];
-if ($limitMin < 1) {
-  $limitMin = 1;
-}
-
-$expires = (clone $started)->modify("+{$limitMin} minutes");
-$now = new DateTime("now");
-
-if ($now > $expires) {
-  $upd = $pdo->prepare("UPDATE sessions SET status='EXPIRED' WHERE id=?");
-  $upd->execute([$sid]);
+if (session_is_expired($sess)) {
+  mark_session_expired($pdo, $sid);
   header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
   exit;
 }
@@ -100,7 +91,8 @@ $selStmt->execute([$sid, $qid]);
 $selectedIds = array_map(fn($r) => (int)$r['option_id'], $selStmt->fetchAll());
 $selectedMap = array_fill_keys($selectedIds, true);
 
-$remainingSeconds = max(0, $expires->getTimestamp() - $now->getTimestamp());
+$expiresTs = strtotime((string)$sess['started_at']) + (max(1, (int)$sess['duration_limit_minutes']) * 60);
+$remainingSeconds = max(0, $expiresTs - time());
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $lang = get_lang();

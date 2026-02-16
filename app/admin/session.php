@@ -24,28 +24,22 @@ $rows = $pdo->prepare("
   SELECT
     sq.position,
     q.text,
-
-    -- bonnes réponses (ex: 'A' ou 'A,C')
     (
       SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
       FROM question_options qo
       WHERE qo.question_id = q.id AND qo.is_correct = 1
     ) AS correct_labels,
-
-    -- réponses candidat (ex: 'B' ou 'A,D')
     (
       SELECT GROUP_CONCAT(qo2.label ORDER BY qo2.label SEPARATOR ',')
       FROM answer_options ao
       JOIN question_options qo2 ON qo2.id = ao.option_id
       WHERE ao.session_id = sq.session_id AND ao.question_id = q.id
     ) AS picked_labels
-
   FROM session_questions sq
   JOIN questions q ON q.id = sq.question_id
   WHERE sq.session_id=?
   ORDER BY sq.position ASC
 ");
-
 $rows->execute([$sid]);
 $items = $rows->fetchAll();
 
@@ -55,33 +49,71 @@ $statusLabel = match ((string)$s['status']) {
   'EXPIRED' => 'Expire',
   default => (string)$s['status'],
 };
+
+$statusClass = match ((string)$s['status']) {
+  'TERMINATED' => 'badge ok',
+  'EXPIRED' => 'badge bad',
+  default => 'badge',
+};
 ?>
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Détail session</title><link rel="stylesheet" href="/assets/style.css">
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Admin &middot; Detail session</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/assets/style.css">
 </head>
-<body style="font-family: Arial; max-width: 980px; margin: 40px auto;">
-  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-  <div>
-      <h2 class="h1" style="margin:0;">Détail session</h2>
-    </div>
-    <div style="display:flex; gap:10px;">
-      <a class="btn ghost" href="/admin/index.php">← Retour</a>
-      <a class="btn ghost admin-logout-btn" href="/logout.php">Déconnexion</a>
+<body>
+  <div class="container admin-container">
+    <div class="card admin-card">
+      <div class="admin-head">
+        <div class="admin-head-copy">
+          <h2 class="h1">Admin &middot; Detail session</h2>
+          <p class="sub">Analyse complete de la session</p>
+        </div>
+        <div class="admin-head-actions">
+          <a class="btn ghost" href="/admin/index.php">&larr; Retour</a>
+          <a class="btn ghost admin-logout-btn" href="/logout.php">Deconnexion</a>
+        </div>
+      </div>
+
+      <hr class="separator">
+
+      <div class="row sessions-stats">
+        <span class="badge">Email: <?= h($s['email']) ?></span>
+        <span class="badge">Package: <?= h($s['package_name']) ?></span>
+        <span class="<?= h($statusClass) ?>">Statut: <?= h($statusLabel) ?></span>
+        <span class="badge">Score: <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></span>
+      </div>
+
+      <div class="table-wrap">
+        <?php if (!$items): ?>
+          <p class="empty-state">Aucune question dans cette session.</p>
+        <?php else: ?>
+          <table class="table questions-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Question</th>
+                <th>Reponse candidat</th>
+                <th>Reponse correcte</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($items as $it): ?>
+                <tr>
+                  <td><?= (int)$it['position'] ?></td>
+                  <td><?= h($it['text']) ?></td>
+                  <td><?= h($it['picked_labels'] ?: '-') ?></td>
+                  <td><?= h($it['correct_labels'] ?: '-') ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
-
-  <p><b>Email :</b> <?= h($s['email']) ?></p>
-  <p><b>Package :</b> <?= h($s['package_name']) ?></p>
-  <p><b>Statut :</b> <?= h($statusLabel) ?></p>
-  <p><b>Score :</b> <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></p>
-
-  <hr>
-  <?php foreach ($items as $it): ?>
-    <div style="padding: 12px; border:1px solid #ddd; border-radius:8px; margin-bottom:10px;">
-      <p><b>#<?= (int)$it['position'] ?>.</b> <?= h($it['text']) ?></p>
-      <p><b>Réponse candidat :</b> <?= h($it['picked_labels'] ?: '-') ?> | <b>Correct :</b> <?= h($it['correct_labels'] ?: '-') ?></p>
-    </div>
-  <?php endforeach; ?>
 </body>
 </html>

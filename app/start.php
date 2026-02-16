@@ -3,6 +3,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/services/session_service.php';
 
 $user = require_auth();
 $lang = get_lang();
@@ -168,11 +169,7 @@ try {
 
   $session_id = uuidv4();
 
-  $ins = $pdo->prepare("
-    INSERT INTO sessions(id, contact_id, user_id, package_id, session_type)
-    VALUES(?,?,?,?,'EXAM')
-  ");
-  $ins->execute([$session_id, $contact_id, $uid, $package_id]);
+  create_session_record($pdo, $session_id, $contact_id, $uid, $package_id, 'EXAM', $lang);
 
   $pos = 1;
   $insq = $pdo->prepare("INSERT INTO session_questions(session_id, question_id, position) VALUES(?,?,?)");

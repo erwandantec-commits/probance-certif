@@ -211,8 +211,8 @@ $stats = $pdo->query("
 
         <div class="filters-actions">
           <button class="btn" type="submit">Filtrer</button>
-          <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
           <a class="btn ghost" href="/admin/index.php">Reset</a>
+          <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
         </div>
       </form>
 
@@ -235,7 +235,6 @@ $stats = $pdo->query("
                 <th>
                   <?php
                     $qs = $_GET;
-                    unset($qs['lang']);
                     $qs['sort'] = 'started_at';
 
                     if ($sort !== 'started_at') {
@@ -261,7 +260,6 @@ $stats = $pdo->query("
                 <th>
                   <?php
                     $qs = $_GET;
-                    unset($qs['lang']);
                     $qs['sort'] = 'score_percent';
 
                     if ($sort !== 'score_percent') {
@@ -328,7 +326,7 @@ $stats = $pdo->query("
 
       <?php
         $qs = $_GET;
-        unset($qs['lang'], $qs['page']);
+        unset($qs['page']);
         $base = '/admin/index.php';
         $common = $qs ? ('?' . http_build_query($qs)) : '';
         $sep = $common ? '&' : '?';

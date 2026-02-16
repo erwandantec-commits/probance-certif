@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/services/session_service.php';
 
 $pdo = db();
 $lang = get_lang();
@@ -65,12 +66,7 @@ if ($maxPoints <= 0) {
 $threshold = (int)$sess['pass_threshold_percent'];
 $passed = ($score >= $threshold) ? 1 : 0;
 
-$upd = $pdo->prepare("
-  UPDATE sessions
-  SET status='TERMINATED', submitted_at=NOW(), score_percent=?, passed=?
-  WHERE id=?
-");
-$upd->execute([round($score, 2), $passed, $sid]);
+mark_session_terminated($pdo, $sid, round($score, 2), $passed);
 
 header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
 exit;

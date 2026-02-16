@@ -2,6 +2,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/services/session_service.php';
 
 $pdo = db();
 $lang = get_lang();
@@ -28,25 +29,18 @@ if (!$s) {
   exit;
 }
 
-if ($s['status'] === 'ACTIVE') {
-  $started = strtotime($s['started_at']);
-  $limitMinutes = (int)$s['duration_limit_minutes'];
-  $expiresAt = $started + ($limitMinutes * 60);
+if (session_is_expired($s)) {
+  mark_session_expired($pdo, $sid);
 
-  if (time() > $expiresAt) {
-    $u = $pdo->prepare("UPDATE sessions SET status='EXPIRED' WHERE id=?");
-    $u->execute([$sid]);
-
-    $stmt = $pdo->prepare("
-      SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent, pk.duration_limit_minutes
-      FROM sessions s
-      JOIN contacts c ON c.id = s.contact_id
-      JOIN packages pk ON pk.id = s.package_id
-      WHERE s.id=?
-    ");
-    $stmt->execute([$sid]);
-    $s = $stmt->fetch();
-  }
+  $stmt = $pdo->prepare("
+    SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent, pk.duration_limit_minutes
+    FROM sessions s
+    JOIN contacts c ON c.id = s.contact_id
+    JOIN packages pk ON pk.id = s.package_id
+    WHERE s.id=?
+  ");
+  $stmt->execute([$sid]);
+  $s = $stmt->fetch();
 }
 ?>
 <!doctype html>

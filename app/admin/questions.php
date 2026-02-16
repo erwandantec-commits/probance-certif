@@ -104,6 +104,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
       <div class="filters-actions">
         <button class="btn" type="submit">Filtrer</button>
+        <a class="btn ghost" href="/admin/questions.php">Reset</a>
         <a class="btn ghost" href="/admin/question_edit.php?new=1<?= $pkg ? '&package_id=' . $pkg : '' ?>">+ Ajouter</a>
         <a class="btn ghost" href="/admin/import_questions.php<?= $pkg ? '?package_id=' . $pkg : '' ?>">&uarr; Importer</a>
       </div>

@@ -4,6 +4,7 @@ require_admin();
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
+require_once __DIR__ . '/../services/session_service.php';
 $pdo = db();
 
 $email = trim((string)($_GET['email'] ?? ''));
@@ -14,6 +15,9 @@ if (!in_array($certStatus, ['ALL', 'CERTIFIED', 'SOON', 'EXPIRED'], true)) {
 }
 
 $packages = $pdo->query("SELECT id, name FROM packages ORDER BY id DESC")->fetchAll();
+$sessionEndExpr = sessions_column_exists($pdo, 'ended_at')
+  ? "COALESCE(s.ended_at, s.submitted_at, s.started_at)"
+  : "COALESCE(s.submitted_at, s.started_at)";
 
 $where = [
   "s.session_type='EXAM'",
@@ -36,7 +40,7 @@ $sql = "
     c.email,
     s.package_id,
     pk.name AS package_name,
-    MAX(COALESCE(s.submitted_at, s.started_at)) AS last_cert_date
+    MAX($sessionEndExpr) AS last_cert_date
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
@@ -48,9 +52,6 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $rawRows = $stmt->fetchAll();
 
-$now = new DateTimeImmutable('today');
-$soonLimit = $now->modify('+30 days');
-
 $stats = [
   'CERTIFIED' => 0,
   'SOON' => 0,
@@ -59,24 +60,15 @@ $stats = [
 $rows = [];
 
 foreach ($rawRows as $r) {
-  $last = new DateTimeImmutable((string)$r['last_cert_date']);
-  $expires = $last->modify('+1 year');
+  $status = certification_status_from_last_success((string)$r['last_cert_date']);
+  $statusKey = (string)$status['status_key'];
+  $statusLabel = (string)$status['status_label'];
+  $statusClass = (string)$status['status_class'];
+  $expires = $status['expires_at'];
 
-  if ($expires < $now) {
-    $statusKey = 'EXPIRED';
-    $statusLabel = 'Expire';
-    $statusClass = 'pill danger';
-  } elseif ($expires <= $soonLimit) {
-    $statusKey = 'SOON';
-    $statusLabel = 'Expire bientot';
-    $statusClass = 'pill warning';
-  } else {
-    $statusKey = 'CERTIFIED';
-    $statusLabel = 'Certifie';
-    $statusClass = 'pill success';
+  if (isset($stats[$statusKey])) {
+    $stats[$statusKey]++;
   }
-
-  $stats[$statusKey]++;
 
   if ($certStatus !== 'ALL' && $certStatus !== $statusKey) {
     continue;
@@ -85,8 +77,8 @@ foreach ($rawRows as $r) {
   $rows[] = [
     'email' => (string)$r['email'],
     'package_name' => (string)$r['package_name'],
-    'last_cert_date' => $last->format('Y-m-d H:i:s'),
-    'expires_at' => $expires->format('Y-m-d'),
+    'last_cert_date' => (string)$r['last_cert_date'],
+    'expires_at' => $expires instanceof DateTimeImmutable ? $expires->format('Y-m-d') : '-',
     'status_key' => $statusKey,
     'status_label' => $statusLabel,
     'status_class' => $statusClass,
@@ -172,8 +164,8 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 
         <div class="filters-actions">
           <button class="btn" type="submit">Filtrer</button>
-          <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
           <a class="btn ghost" href="/admin/certifications.php">Reset</a>
+          <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
         </div>
       </form>
 
