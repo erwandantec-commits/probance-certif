@@ -1,0 +1,121 @@
+:root{
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --text:#111827;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+  --primary:#2563eb;
+  --primary2:#1d4ed8;
+  --danger:#dc2626;
+  --ok:#16a34a;
+}
+
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.container{
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 10px 20px rgba(0,0,0,.04);
+}
+
+.header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 14px;
+}
+
+.h1{
+  font-size: 22px;
+  margin:0;
+}
+.sub{
+  color: var(--muted);
+  margin: 6px 0 0 0;
+  font-size: 14px;
+}
+
+.row{ display:flex; gap:12px; flex-wrap:wrap; }
+
+.label{ display:block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+.input, select{
+  width:100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background:#fff;
+  font-size: 15px;
+}
+.input:focus, select:focus{
+  outline: 2px solid rgba(37,99,235,.2);
+  border-color: rgba(37,99,235,.5);
+}
+
+.btn{
+  display:inline-block;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor:pointer;
+  text-decoration:none;
+  color:#fff;
+  background: var(--primary);
+}
+.btn:hover{ background: var(--primary2); }
+
+.btn.secondary{
+  background:#111827;
+}
+.btn.secondary:hover{ background:#0b1220; }
+
+.btn.ghost{
+  background:transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn.ghost:hover{ background:#f3f4f6; }
+
+.badge{
+  display:inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background:#fff;
+  color: var(--muted);
+}
+.badge.ok{ color: var(--ok); border-color: rgba(22,163,74,.25); background: rgba(22,163,74,.07); }
+.badge.bad{ color: var(--danger); border-color: rgba(220,38,38,.25); background: rgba(220,38,38,.07); }
+
+.table{
+  width:100%;
+  border-collapse: collapse;
+}
+.table th, .table td{
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align:left;
+  font-size: 14px;
+}
+.table th{
+  color: var(--muted);
+  font-weight: 700;
+}
+.small{ font-size: 13px; color: var(--muted); }
+.error{ color: var(--danger); font-weight: 700; }
