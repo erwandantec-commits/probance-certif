@@ -138,6 +138,7 @@ if ($canShowReview) {
                 onchange="window.location.href='/result.php?sid=<?= h(urlencode($sid)) ?>&lang=' + encodeURIComponent(this.value);">
           <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
           <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
+          <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
           <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
         </select>
       </div>
@@ -272,3 +273,4 @@ if ($canShowReview) {
 	  </div>
 </body>
 </html>
+

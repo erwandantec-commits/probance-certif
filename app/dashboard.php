@@ -288,6 +288,7 @@ function dash_cert_status_class(string $statusKey): string {
                 onchange="window.location.href='/dashboard.php?lang=' + encodeURIComponent(this.value);">
           <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
           <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
+          <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
           <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
         </select>
       </div>
@@ -587,3 +588,4 @@ function dash_cert_status_class(string $statusKey): string {
 </script>
 </body>
 </html>
+
