@@ -11,6 +11,7 @@ $pdo = db();
 $type   = strtoupper(trim($_GET['type'] ?? 'ALL'));
 $status = strtoupper(trim($_GET['status'] ?? 'ALL'));
 $search = trim($_GET['search'] ?? '');
+$package = trim($_GET['package'] ?? 'ALL');
 
 $result = strtoupper(trim($_GET['result'] ?? 'ALL'));
 $allowedResults = ['ALL', 'PASSED', 'FAILED'];
@@ -30,6 +31,13 @@ $allowedStatus = ['ALL', 'ACTIVE', 'TERMINATED', 'EXPIRED'];
 
 if (!in_array($type, $allowedTypes, true)) $type = 'ALL';
 if (!in_array($status, $allowedStatus, true)) $status = 'ALL';
+
+$packagesStmt = $pdo->query("SELECT id, name FROM packages ORDER BY name ASC");
+$packages = $packagesStmt->fetchAll() ?: [];
+$packageIds = array_map(fn($pkg) => (string)$pkg['id'], $packages);
+if ($package !== 'ALL' && !in_array($package, $packageIds, true)) {
+  $package = 'ALL';
+}
 
 function admin_session_type_label(string $type): string {
   return match ($type) {
@@ -54,6 +62,10 @@ if ($status !== 'ALL') {
 if ($search !== '') {
   $where[] = "c.email LIKE ?";
   $params[] = '%' . $search . '%';
+}
+if ($package !== 'ALL') {
+  $where[] = "s.package_id = ?";
+  $params[] = (int)$package;
 }
 if ($result === 'PASSED') {
   $where[] = "s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=1";
@@ -187,6 +199,18 @@ $stats = $pdo->query("
             <option value="ALL" <?= $type==='ALL'?'selected':'' ?>>Tous</option>
             <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>Certification</option>
             <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>>Test</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="label" for="package">Package</label>
+          <select class="input" id="package" name="package">
+            <option value="ALL" <?= $package==='ALL'?'selected':'' ?>>Tous</option>
+            <?php foreach ($packages as $pkg): ?>
+              <option value="<?= (int)$pkg['id'] ?>" <?= $package===(string)$pkg['id']?'selected':'' ?>>
+                <?= h($pkg['name']) ?>
+              </option>
+            <?php endforeach; ?>
           </select>
         </div>
 
