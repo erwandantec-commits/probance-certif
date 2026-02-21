@@ -360,7 +360,7 @@ function certification_status_from_last_success(?string $lastSuccessAt, ?DateTim
 
   return [
     'status_key' => 'CERTIFIED',
-    'status_label' => 'Certifie',
+    'status_label' => 'Certifié',
     'status_class' => 'pill success',
     'expires_at' => $expires,
   ];

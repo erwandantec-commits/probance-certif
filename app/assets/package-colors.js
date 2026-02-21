@@ -5,7 +5,7 @@
     RED: "#dc2626",
     BLACK: "#111827",
     SILVER: "#64748b",
-    VERMEIL: "#b45309"
+    GOLD: "#d4af37"
   };
 
   function normalizePackageName(label) {

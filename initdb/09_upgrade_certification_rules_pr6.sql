@@ -1,52 +1,17 @@
--- Upgrade PR4: certification tracks (GREEN/BLUE/RED/BLACK/SILVER/GOLD)
--- Adds JSON-based selection rules and question taxonomy columns when missing.
+-- Upgrade PR6:
+-- - rename VERMEIL package to GOLD
+-- - align certification selection rules with product requirements
 
-ALTER TABLE packages
-  ADD COLUMN IF NOT EXISTS selection_rules_json LONGTEXT NULL AFTER selection_percent;
+UPDATE packages
+SET name = 'GOLD'
+WHERE name = 'VERMEIL';
 
-ALTER TABLE questions
-  ADD COLUMN IF NOT EXISTS need ENUM('PONE','PHM','PPM') NOT NULL DEFAULT 'PONE' AFTER text,
-  ADD COLUMN IF NOT EXISTS level TINYINT NOT NULL DEFAULT 1 AFTER need;
-
--- Ensure legacy rows have valid defaults.
-UPDATE questions
-SET need = 'PONE'
-WHERE need IS NULL OR need NOT IN ('PONE', 'PHM', 'PPM');
-
-UPDATE questions
-SET level = 1
-WHERE level IS NULL OR level < 1 OR level > 3;
-
--- Remove legacy demo package from existing databases.
-DELETE FROM packages
-WHERE name = 'Certification Package Red';
-
--- Create the 6 certification packages when missing.
-INSERT INTO packages (name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_mode, selection_percent, is_active)
-SELECT 'GREEN', 80, 10, 40, 'COUNT', NULL, 1
-WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'GREEN');
-
-INSERT INTO packages (name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_mode, selection_percent, is_active)
-SELECT 'BLUE', 80, 10, 40, 'COUNT', NULL, 1
-WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'BLUE');
-
-INSERT INTO packages (name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_mode, selection_percent, is_active)
-SELECT 'RED', 80, 10, 50, 'COUNT', NULL, 1
-WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'RED');
-
-INSERT INTO packages (name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_mode, selection_percent, is_active)
-SELECT 'BLACK', 80, 10, 50, 'COUNT', NULL, 1
-WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'BLACK');
-
-INSERT INTO packages (name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_mode, selection_percent, is_active)
-SELECT 'SILVER', 80, 10, 50, 'COUNT', NULL, 1
-WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'SILVER');
-
+-- Ensure GOLD exists even if no VERMEIL row was present.
 INSERT INTO packages (name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_mode, selection_percent, is_active)
 SELECT 'GOLD', 80, 10, 50, 'COUNT', NULL, 1
 WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'GOLD');
 
--- GREEN: Operational
+-- GREEN: up to 10 PONE level >=2, then fill to 40 with PONE level 1.
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -61,7 +26,7 @@ SET
   )
 WHERE name = 'GREEN';
 
--- BLUE: Advanced
+-- BLUE: up to 30 PONE level >=2, then fill to 40 with PONE level 1.
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -76,7 +41,7 @@ SET
   )
 WHERE name = 'BLUE';
 
--- RED: Expert Operational
+-- RED: 40 PHM L1 then fill with PONE L3/L2/L1.
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -93,7 +58,7 @@ SET
   )
 WHERE name = 'RED';
 
--- BLACK: Expert Confirmed
+-- BLACK: 30 PHM L>=2, then up to 40 with PHM L1, then fill with PONE L3/L2/L1.
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -111,7 +76,7 @@ SET
   )
 WHERE name = 'BLACK';
 
--- SILVER: Senior Expert
+-- SILVER: 40 PPM L1, then fill with PHM/PONE as defined.
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -131,7 +96,7 @@ SET
   )
 WHERE name = 'SILVER';
 
--- GOLD: Master
+-- GOLD: 30 PPM L>=2, then up to 40 with PPM L1, then fill with PHM/PONE as defined.
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -151,3 +116,4 @@ SET
     )
   )
 WHERE name = 'GOLD';
+

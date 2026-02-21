@@ -55,6 +55,37 @@ function result_status_label(string $status, string $lang): string {
 $isTrainingSession = (($s['session_type'] ?? 'EXAM') === 'TRAINING');
 $canShowReview = $isTrainingSession && in_array((string)$s['status'], ['TERMINATED', 'EXPIRED'], true);
 $reviewItems = [];
+$isTerminatedExam = (
+  (string)($s['session_type'] ?? '') === 'EXAM' &&
+  (string)($s['status'] ?? '') === 'TERMINATED'
+);
+$isPassedTerminatedExam = $isTerminatedExam && (int)($s['passed'] ?? 0) === 1;
+$validUntil = '';
+if ($isPassedTerminatedExam) {
+  $baseDateRaw = (string)($s['submitted_at'] ?: $s['started_at']);
+  if ($baseDateRaw !== '') {
+    try {
+      $dt = new DateTimeImmutable($baseDateRaw);
+      $validUntil = $dt->modify('+1 year')->format('d/m/Y');
+    } catch (Throwable $e) {
+      $validUntil = '';
+    }
+  }
+}
+$packageCode = strtolower(trim((string)($s['package_name'] ?? '')));
+$badgeByPackage = [
+  'green' => 'user-badge-green.png',
+  'blue' => 'user-badge-blue.png',
+  'red' => 'user-badge-red.png',
+  'black' => 'user-badge-black.png',
+  'silver' => 'user-badge-silver.png',
+  'gold' => 'user-badge-gold.png',
+];
+$passedBadge = $badgeByPackage[$packageCode] ?? 'user-badge-blue.png';
+$heroImagePath = ((int)($s['passed'] ?? 0) === 1)
+  ? '/assets/badges/' . $passedBadge
+  : '/assets/badges/failed.png';
+$heroScoreColor = package_color_hex((string)($s['package_name'] ?? ''));
 
 if ($canShowReview) {
   $reviewStmt = $pdo->prepare("
@@ -96,7 +127,7 @@ if ($canShowReview) {
 <head>
   <meta charset="utf-8">
   <title><?= h(t('result.title', [], $lang)) ?></title>
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=9">
 </head>
 
 <body>
@@ -140,16 +171,37 @@ if ($canShowReview) {
         <?php endif; ?>
       </div>
 
-      <?php if ($s['status'] === 'TERMINATED'): ?>
-        <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border);">
-          <p style="margin:0; font-size:16px;">
-            <b><?= h(t('result.score', [], $lang)) ?>:</b> <?= h($s['score_percent']) ?>%
-            <span class="small">(<?= h(t('result.threshold', ['value' => (int)$s['pass_threshold_percent']], $lang)) ?>)</span>
-          </p>
-        </div>
+	      <?php if ($s['status'] === 'TERMINATED'): ?>
+          <?php if ($isTerminatedExam): ?>
+            <div class="result-blue-hero">
+              <img class="result-blue-hero-badge" src="<?= h($heroImagePath) ?>" alt="Badge Resultat">
+              <?php if ((int)$s['passed'] === 1): ?>
+                <p class="result-blue-hero-title"><?= h(t('result.hero_passed_title', ['cert' => localize_text((string)$s['package_name'], $lang)], $lang)) ?></p>
+              <?php else: ?>
+                <p class="result-blue-hero-title"><?= h(t('result.hero_failed_title', [], $lang)) ?></p>
+              <?php endif; ?>
+              <p class="result-blue-hero-score" style="color:<?= h($heroScoreColor) ?>">
+                <span class="result-blue-hero-score-label"><?= h(t('result.hero_score_prefix', [], $lang)) ?></span>
+                <b><?= h(number_format((float)$s['score_percent'], 0, '.', '')) ?>%</b>
+              </p>
+              <?php if ((int)$s['passed'] === 1 && $validUntil !== ''): ?>
+                <p class="result-blue-hero-valid"><?= h(t('result.hero_valid_until', ['date' => $validUntil], $lang)) ?></p>
+              <?php endif; ?>
+              <?php if ((int)$s['passed'] !== 1): ?>
+                <p class="result-blue-hero-valid"><?= h(t('result.hero_failed_message', ['score' => number_format((float)$s['score_percent'], 0, '.', '')], $lang)) ?></p>
+              <?php endif; ?>
+            </div>
+          <?php else: ?>
+	          <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border);">
+	            <p style="margin:0; font-size:16px;">
+	              <b><?= h(t('result.score', [], $lang)) ?>:</b> <?= h($s['score_percent']) ?>%
+	              <span class="small">(<?= h(t('result.threshold', ['value' => (int)$s['pass_threshold_percent']], $lang)) ?>)</span>
+	            </p>
+	          </div>
+          <?php endif; ?>
 
-        <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
+	        <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+	          <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
         </div>
 
       <?php elseif ($s['status'] === 'EXPIRED'): ?>

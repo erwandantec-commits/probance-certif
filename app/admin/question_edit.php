@@ -195,7 +195,7 @@ function package_label_style_local(string $packageName): string {
     'RED' => '#dc2626',
     'BLACK' => '#111827',
     'SILVER' => '#64748b',
-    'VERMEIL' => '#b45309',
+    'GOLD' => '#d4af37',
     default => '#334155',
   };
   return 'color:' . $color . ';font-weight:700;';

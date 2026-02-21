@@ -953,6 +953,63 @@ button:disabled {
   margin: 0 0 16px;
 }
 
+.dashboard-certifications-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-cert-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.dashboard-cert-card-badge {
+  width: 124px;
+  height: auto;
+  display: block;
+}
+
+.dashboard-cert-card-link {
+  display: flex;
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboard-cert-card-link:hover,
+.dashboard-cert-card-link:focus-visible {
+  border-color: #bfdbfe;
+  background: #fcfdff;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard-cert-card-link:focus-visible {
+  outline: 1px solid rgba(37,99,235,.25);
+  outline-offset: 2px;
+}
+
+.dashboard-cert-card-name {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.dashboard-cert-card-meta {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.dashboard-cert-card-status {
+  margin-top: 2px;
+}
+
 .dashboard-start-form {
   display: flex;
   flex-direction: column;
@@ -1136,6 +1193,59 @@ button:disabled {
   white-space: nowrap;
 }
 
+.result-blue-hero {
+  margin: 10px auto 0;
+  width: 100%;
+  max-width: none;
+  text-align: center !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.result-blue-hero-badge {
+  width: 300px;
+  max-width: 80%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.result-blue-hero-title {
+  margin: 2px 0 0;
+  font-size: 36px;
+  line-height: 1.08;
+  font-weight: 800;
+  color: #2f343f;
+  width: 100%;
+  max-width: 700px;
+  text-align: center;
+}
+
+.result-blue-hero-score {
+  margin: 2px 0 0;
+  font-size: 30px;
+  line-height: 1.15;
+  color: #284a8f;
+  width: 100%;
+  text-align: center;
+}
+
+.result-blue-hero-score-label {
+  color: inherit;
+  font-weight: 700;
+}
+
+.result-blue-hero-valid {
+  margin: 4px 0 0;
+  color: #7b8598;
+  font-size: 20px;
+  width: 100%;
+  text-align: center;
+}
+
 @media (max-width: 900px) {
   .admin-card {
     padding: 16px;
@@ -1203,6 +1313,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-certifications-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .dashboard-mode-group {
     grid-template-columns: 1fr;
   }
@@ -1227,10 +1341,38 @@ button:disabled {
     width: 100%;
     min-width: 0;
   }
+
+  .result-blue-hero-title {
+    font-size: 32px;
+  }
+
+  .result-blue-hero-score {
+    font-size: 27px;
+  }
+
+  .result-blue-hero-valid {
+    font-size: 18px;
+  }
 }
 
 @media (max-width: 640px) {
   .dash-cert-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-certifications-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .result-blue-hero-title {
+    font-size: 28px;
+  }
+
+  .result-blue-hero-score {
+    font-size: 24px;
+  }
+
+  .result-blue-hero-valid {
+    font-size: 17px;
   }
 }

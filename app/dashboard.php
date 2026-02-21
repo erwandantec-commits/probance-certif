@@ -3,6 +3,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/services/session_service.php';
 
 $pdo = db();
 $user = require_auth();
@@ -36,7 +37,7 @@ $packageOrder = [
   'RED' => 3,
   'BLACK' => 4,
   'SILVER' => 5,
-  'VERMEIL' => 6,
+  'GOLD' => 6,
 ];
 usort($packages, static function (array $a, array $b) use ($packageOrder): int {
   $an = strtoupper(trim((string)($a['name'] ?? '')));
@@ -59,6 +60,89 @@ $lastStmt = $pdo->prepare("
 ");
 $lastStmt->execute([$uid]);
 $last = $lastStmt->fetchAll();
+
+$certSuccessStmt = $pdo->prepare("
+  SELECT s.id, s.contact_id, s.package_id, s.started_at, s.submitted_at, pk.name AS package_name
+  FROM sessions s
+  JOIN packages pk ON pk.id = s.package_id
+  WHERE s.user_id=?
+    AND s.session_type='EXAM'
+    AND s.status='TERMINATED'
+    AND s.passed=1
+  ORDER BY s.started_at DESC
+");
+$certSuccessStmt->execute([$uid]);
+$certCards = [];
+$revokedMap = [];
+$hasRevocationsTable = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'certification_revocations'
+")->fetchColumn();
+
+if ($hasRevocationsTable) {
+  $revokedRows = $pdo->query("
+    SELECT contact_id, package_id, revoked_at
+    FROM certification_revocations
+  ")->fetchAll();
+  foreach ($revokedRows as $rv) {
+    $k = (int)$rv['contact_id'] . ':' . (int)$rv['package_id'];
+    $revokedMap[$k] = (string)$rv['revoked_at'];
+  }
+}
+
+$badgeByPackage = [
+  'GREEN' => '/assets/badges/user-badge-green.png?v=2',
+  'BLUE' => '/assets/badges/user-badge-blue.png',
+  'RED' => '/assets/badges/user-badge-red.png',
+  'BLACK' => '/assets/badges/user-badge-black.png',
+  'SILVER' => '/assets/badges/user-badge-silver.png',
+  'GOLD' => '/assets/badges/user-badge-gold.png',
+];
+foreach ($certSuccessStmt->fetchAll() as $row) {
+  $pkgId = (int)$row['package_id'];
+  $contactId = (int)$row['contact_id'];
+  $revocationKey = $contactId . ':' . $pkgId;
+  if (isset($certCards[$pkgId])) {
+    continue;
+  }
+  $baseDate = (string)($row['submitted_at'] ?: $row['started_at']);
+  $statusInfo = certification_status_from_last_success($baseDate);
+  $pkgName = strtoupper(trim((string)$row['package_name']));
+  $certCards[$pkgId] = [
+    'sid' => (string)$row['id'],
+    'package_name' => (string)$row['package_name'],
+    'badge' => $badgeByPackage[$pkgName] ?? '/assets/badges/user-badge-blue.png',
+    'tone' => package_color_hex((string)$row['package_name']),
+    'started_at' => (string)$row['started_at'],
+    'expires_at' => $statusInfo['expires_at'] instanceof DateTimeImmutable ? $statusInfo['expires_at']->format('d/m/Y') : '',
+    'status_key' => isset($revokedMap[$revocationKey]) ? 'REVOKED' : (string)$statusInfo['status_key'],
+  ];
+  if (isset($revokedMap[$revocationKey])) {
+    $certCards[$pkgId]['expires_at'] = '';
+  }
+}
+$certCardOrder = [
+  'GREEN' => 6,
+  'BLUE' => 5,
+  'RED' => 4,
+  'BLACK' => 3,
+  'SILVER' => 2,
+  'GOLD' => 1,
+];
+if (!empty($certCards)) {
+  uasort($certCards, static function (array $a, array $b) use ($certCardOrder): int {
+    $an = strtoupper(trim((string)($a['package_name'] ?? '')));
+    $bn = strtoupper(trim((string)($b['package_name'] ?? '')));
+    $ai = $certCardOrder[$an] ?? 999;
+    $bi = $certCardOrder[$bn] ?? 999;
+    if ($ai === $bi) {
+      return strcmp((string)($a['package_name'] ?? ''), (string)($b['package_name'] ?? ''));
+    }
+    return $ai <=> $bi;
+  });
+}
 
 $activeStmt = $pdo->prepare("
   SELECT id, package_id, session_type, started_at
@@ -161,6 +245,26 @@ function dash_session_type_label(string $type, string $lang): string {
     default => $type,
   };
 }
+
+function dash_cert_status_label(string $statusKey, string $lang): string {
+  return match ($statusKey) {
+    'CERTIFIED' => t('dash.cert_status.certified', [], $lang),
+    'SOON' => t('dash.cert_status.soon', [], $lang),
+    'EXPIRED' => t('dash.cert_status.expired', [], $lang),
+    'REVOKED' => t('dash.cert_status.revoked', [], $lang),
+    default => t('dash.na', [], $lang),
+  };
+}
+
+function dash_cert_status_class(string $statusKey): string {
+  return match ($statusKey) {
+    'CERTIFIED' => 'pill success',
+    'SOON' => 'pill warning',
+    'EXPIRED' => 'pill danger',
+    'REVOKED' => 'pill danger',
+    default => 'pill',
+  };
+}
 ?>
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
@@ -219,6 +323,34 @@ function dash_session_type_label(string $type, string $lang): string {
       <div class="stat-title"><?= h(t('dash.passed', [], $lang)) ?></div>
       <div class="stat-value"><?= (int)$stats['passed_count'] ?></div>
     </div>
+  </div>
+
+  <div class="card dashboard-card">
+    <h3 class="dashboard-section-title"><?= h(t('dash.certifications.title', [], $lang)) ?></h3>
+
+    <?php if (!$certCards): ?>
+      <p class="small"><?= h(t('dash.certifications.none', [], $lang)) ?></p>
+    <?php else: ?>
+      <div class="dashboard-certifications-grid">
+        <?php foreach ($certCards as $card): ?>
+          <a class="dashboard-cert-card dashboard-cert-card-link" href="/result.php?sid=<?= h((string)$card['sid']) ?>&lang=<?= h($lang) ?>">
+            <img class="dashboard-cert-card-badge" src="<?= h($card['badge']) ?>" alt="<?= h(localize_text((string)$card['package_name'], $lang)) ?>">
+            <div class="dashboard-cert-card-name" style="color:<?= h($card['tone']) ?>;">
+              <?= h(localize_text((string)$card['package_name'], $lang)) ?>
+            </div>
+            <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.obtained_on', [], $lang)) ?>: <?= h(date('d/m/Y', strtotime((string)$card['started_at']))) ?></div>
+            <?php if ((string)$card['expires_at'] !== ''): ?>
+              <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.valid_until', [], $lang)) ?>: <?= h((string)$card['expires_at']) ?></div>
+            <?php endif; ?>
+            <div class="dashboard-cert-card-status">
+              <span class="<?= h(dash_cert_status_class((string)$card['status_key'])) ?>">
+                <?= h(dash_cert_status_label((string)$card['status_key'], $lang)) ?>
+              </span>
+            </div>
+          </a>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
   </div>
 
   <div class="card dashboard-card">
