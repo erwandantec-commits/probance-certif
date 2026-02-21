@@ -81,7 +81,7 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
 
 $sql = "
-  SELECT s.id, s.started_at, s.submitted_at, s.status, s.score_percent, s.passed,
+  SELECT s.id, s.started_at, s.submitted_at, s.status, s.termination_type, s.score_percent, s.passed,
          c.email, pk.name AS package_name, s.session_type
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
@@ -260,7 +260,7 @@ $stats = $pdo->query("
         <?php else: ?>
           <table class="table questions-table sessions-table">
             <thead>
-              <tr>
+	              <tr>
                 <th>
                   <?php
                     $qs = $_GET;
@@ -281,9 +281,10 @@ $stats = $pdo->query("
                       <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span>
                     <?php endif; ?>
                   </a>
-                </th>
-                <th>Email</th>
-                <th>Type</th>
+	                </th>
+	                <th>Date fin</th>
+	                <th>Email</th>
+	                <th>Type</th>
                 <th>Package</th>
                 <th>Statut</th>
                 <th>
@@ -312,25 +313,27 @@ $stats = $pdo->query("
               </tr>
             </thead>
             <tbody>
-              <?php foreach ($sessions as $s): ?>
-                <tr>
-                  <td><?= h($s['started_at']) ?></td>
-                  <td>
-                    <a href="/admin/contact.php?email=<?= urlencode($s['email']) ?>">
+	              <?php foreach ($sessions as $s): ?>
+	                <tr>
+	                  <td><?= h($s['started_at']) ?></td>
+                    <td><?= $s['status'] === 'ACTIVE' ? '-' : h((string)($s['submitted_at'] ?? '-')) ?></td>
+	                  <td>
+	                    <a href="/admin/contact.php?email=<?= urlencode($s['email']) ?>">
                       <?= h($s['email']) ?>
                     </a>
                   </td>
                   <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
 	                  <td><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></td>
-                  <td>
-                    <?php if ($s['status'] === 'TERMINATED'): ?>
-                      <span class="badge ok">Termin&eacute;</span>
-                    <?php elseif ($s['status'] === 'EXPIRED'): ?>
-                      <span class="badge bad">Expir&eacute;</span>
-                    <?php else: ?>
-                      <span class="badge">En cours</span>
-                    <?php endif; ?>
-                  </td>
+	                  <td>
+                      <?php $isTimeout = strtoupper(trim((string)($s['termination_type'] ?? ''))) === 'TIMEOUT'; ?>
+	                    <?php if ($s['status'] === 'TERMINATED' && !$isTimeout): ?>
+	                      <span class="badge ok">Termin&eacute;</span>
+	                    <?php elseif ($s['status'] === 'EXPIRED' || $isTimeout): ?>
+	                      <span class="badge bad">Temps &eacute;coul&eacute;</span>
+	                    <?php else: ?>
+	                      <span class="badge">En cours</span>
+	                    <?php endif; ?>
+	                  </td>
                   <td><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></td>
                   <td>
                     <?php if ($s['session_type'] === 'EXAM' && $s['status'] === 'TERMINATED'): ?>

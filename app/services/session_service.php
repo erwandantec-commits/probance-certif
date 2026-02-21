@@ -217,10 +217,17 @@ function compute_session_score_snapshot(PDO $pdo, string $sessionId): array {
   $maxStmt->execute([$sessionId]);
   $maxPoints = (int)($maxStmt->fetch()['max_points'] ?? 0);
 
-  // Raw score follows business rules from option scores:
-  // correct = +1, wrong = -1, unanswered = 0 (no row in answer_options).
+  // Raw score follows business rules aligned with correction feedback:
+  // correct = +1, wrong = -1, neutral option (score_value=0) = 0, unanswered = 0.
+  // We prioritize is_correct so legacy rows with bad score_value still score correctly.
   $rawStmt = $pdo->prepare("
-    SELECT COALESCE(SUM(qo.score_value), 0) AS raw_score
+    SELECT COALESCE(SUM(
+      CASE
+        WHEN qo.is_correct = 1 THEN 1
+        WHEN qo.score_value = 0 THEN 0
+        ELSE -1
+      END
+    ), 0) AS raw_score
     FROM answer_options ao
     JOIN question_options qo ON qo.id = ao.option_id
     WHERE ao.session_id=?

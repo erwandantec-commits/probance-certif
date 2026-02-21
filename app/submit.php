@@ -32,6 +32,12 @@ if ($sess['status'] !== 'ACTIVE') {
   exit;
 }
 
+if (session_is_expired($sess)) {
+  mark_session_expired($pdo, $sid);
+  header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
+  exit;
+}
+
 $scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
 $score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
 

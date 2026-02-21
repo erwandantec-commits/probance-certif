@@ -121,6 +121,7 @@ CREATE TABLE sessions (
   ended_at DATETIME NULL,
   submitted_at DATETIME NULL,
   termination_type ENUM('MANUAL','TIMEOUT') NULL,
+  paused_remaining_seconds INT NULL,
   status ENUM('ACTIVE','TERMINATED','EXPIRED') NOT NULL DEFAULT 'ACTIVE',
   score_percent DECIMAL(5,2) NULL,
   passed TINYINT(1) NULL,

@@ -121,6 +121,38 @@ body{
 .badge.bad{ color: var(--danger); border-color: rgba(220,38,38,.25); background: rgba(220,38,38,.07); }
 .badge.muted-dark{ color:#000000; border-color: rgba(0,0,0,.38); background: rgba(0,0,0,.06); }
 
+.exam-option{
+  display:block;
+  padding:10px 10px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  margin:10px 0;
+  cursor:pointer;
+}
+
+.exam-option.is-correct{
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.exam-option.is-wrong{
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.exam-feedback{
+  margin: 10px 0 0;
+  font-weight: 700;
+}
+
+.exam-feedback-ok{
+  color: #15803d;
+}
+
+.exam-feedback-bad{
+  color: #b91c1c;
+}
+
 .table{
   width:100%;
   border-collapse: collapse;

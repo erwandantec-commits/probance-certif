@@ -44,10 +44,11 @@ $rows = $pdo->prepare("
 $rows->execute([$sid]);
 $items = $rows->fetchAll();
 
+$terminationType = strtoupper(trim((string)($s['termination_type'] ?? '')));
 $statusLabel = match ((string)$s['status']) {
-  'TERMINATED' => 'Termin&eacute;',
+  'TERMINATED' => ($terminationType === 'TIMEOUT' ? 'Temps écoulé' : 'Terminé'),
   'ACTIVE' => 'En cours',
-  'EXPIRED' => 'Expir&eacute;',
+  'EXPIRED' => 'Temps écoulé',
   default => (string)$s['status'],
 };
 
@@ -56,6 +57,7 @@ $statusClass = match ((string)$s['status']) {
   'EXPIRED' => 'badge bad',
   default => 'badge',
 };
+
 ?>
 <!doctype html>
 <html lang="fr">

@@ -51,6 +51,45 @@ function result_status_label(string $status, string $lang): string {
     default => $status,
   };
 }
+
+$isTrainingSession = (($s['session_type'] ?? 'EXAM') === 'TRAINING');
+$canShowReview = $isTrainingSession && in_array((string)$s['status'], ['TERMINATED', 'EXPIRED'], true);
+$reviewItems = [];
+
+if ($canShowReview) {
+  $reviewStmt = $pdo->prepare("
+    SELECT
+      sq.position,
+      q.text,
+      (
+        SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
+        FROM question_options qo
+        WHERE qo.question_id = q.id AND qo.is_correct = 1
+      ) AS correct_labels,
+      (
+        SELECT GROUP_CONCAT(qo2.label ORDER BY qo2.label SEPARATOR ',')
+        FROM answer_options ao
+        JOIN question_options qo2 ON qo2.id = ao.option_id
+        WHERE ao.session_id = sq.session_id AND ao.question_id = q.id
+      ) AS picked_labels,
+      (
+        SELECT GROUP_CONCAT(qo.id ORDER BY qo.id SEPARATOR ',')
+        FROM question_options qo
+        WHERE qo.question_id = q.id AND qo.is_correct = 1
+      ) AS correct_ids,
+      (
+        SELECT GROUP_CONCAT(ao.option_id ORDER BY ao.option_id SEPARATOR ',')
+        FROM answer_options ao
+        WHERE ao.session_id = sq.session_id AND ao.question_id = q.id
+      ) AS picked_ids
+    FROM session_questions sq
+    JOIN questions q ON q.id = sq.question_id
+    WHERE sq.session_id=?
+    ORDER BY sq.position ASC
+  ");
+  $reviewStmt->execute([$sid]);
+  $reviewItems = $reviewStmt->fetchAll() ?: [];
+}
 ?>
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
@@ -127,9 +166,57 @@ function result_status_label(string $status, string $lang): string {
           <a class="btn ghost" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.back', [], $lang)) ?></a>
         </div>
       <?php endif; ?>
-    </div>
+	    </div>
 
-    <p class="small" style="margin-top:14px;"><?= h(t('result.answers_admin_only', [], $lang)) ?></p>
-  </div>
+      <?php if ($canShowReview): ?>
+        <div class="card" style="margin-top:14px;">
+          <h3 style="margin-top:0;"><?= h(t('result.review_title', [], $lang)) ?></h3>
+          <div class="table-wrap">
+            <?php if (!$reviewItems): ?>
+              <p class="empty-state"><?= h(t('dash.none', [], $lang)) ?></p>
+            <?php else: ?>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th><?= h(t('result.review_question', [], $lang)) ?></th>
+                    <th><?= h(t('result.review_your_answer', [], $lang)) ?></th>
+                    <th><?= h(t('result.review_expected', [], $lang)) ?></th>
+                    <th><?= h(t('result.review_status', [], $lang)) ?></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($reviewItems as $it): ?>
+                    <?php
+                      $pickedIds = (string)($it['picked_ids'] ?? '');
+                      $correctIds = (string)($it['correct_ids'] ?? '');
+                      if ($pickedIds === '') {
+                        $reviewKey = 'result.review_unanswered';
+                        $reviewClass = 'pill warning';
+                      } elseif ($pickedIds === $correctIds) {
+                        $reviewKey = 'result.review_correct';
+                        $reviewClass = 'pill success';
+                      } else {
+                        $reviewKey = 'result.review_incorrect';
+                        $reviewClass = 'pill danger';
+                      }
+                    ?>
+                    <tr>
+                      <td><?= (int)$it['position'] ?></td>
+                      <td><?= h(localize_text((string)$it['text'], $lang)) ?></td>
+                      <td><?= h((string)($it['picked_labels'] ?: '-')) ?></td>
+                      <td><?= h((string)($it['correct_labels'] ?: '-')) ?></td>
+                      <td><span class="<?= h($reviewClass) ?>"><?= h(t($reviewKey, [], $lang)) ?></span></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php else: ?>
+	      <p class="small" style="margin-top:14px;"><?= h(t('result.answers_admin_only', [], $lang)) ?></p>
+      <?php endif; ?>
+	  </div>
 </body>
 </html>
