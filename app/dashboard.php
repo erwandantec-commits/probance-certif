@@ -60,6 +60,61 @@ $lastStmt = $pdo->prepare("
 $lastStmt->execute([$uid]);
 $last = $lastStmt->fetchAll();
 
+$activeStmt = $pdo->prepare("
+  SELECT id, package_id, session_type, started_at
+  FROM sessions
+  WHERE user_id=? AND status='ACTIVE'
+  ORDER BY started_at DESC
+");
+$activeStmt->execute([$uid]);
+$activeByPackage = [];
+$resumePosBySession = [];
+
+$resumePosStmt = $pdo->prepare("
+  SELECT MIN(sq.position) AS resume_pos
+  FROM session_questions sq
+  WHERE sq.session_id=?
+    AND NOT EXISTS (
+      SELECT 1
+      FROM answer_options ao
+      WHERE ao.session_id = sq.session_id
+        AND ao.question_id = sq.question_id
+    )
+");
+$totalPosStmt = $pdo->prepare("
+  SELECT COUNT(*) AS c
+  FROM session_questions
+  WHERE session_id=?
+");
+
+foreach ($activeStmt->fetchAll() as $row) {
+  $sid = (string)$row['id'];
+  $pkgId = (int)$row['package_id'];
+  $stype = strtoupper(trim((string)($row['session_type'] ?? 'EXAM')));
+  if (!in_array($stype, ['EXAM', 'TRAINING'], true)) {
+    $stype = 'EXAM';
+  }
+
+  $resumePosStmt->execute([$sid]);
+  $resumePos = (int)($resumePosStmt->fetch()['resume_pos'] ?? 0);
+  if ($resumePos < 1) {
+    $totalPosStmt->execute([$sid]);
+    $resumePos = max(1, (int)($totalPosStmt->fetch()['c'] ?? 1));
+  }
+  $resumePosBySession[$sid] = $resumePos;
+
+  if (!isset($activeByPackage[$pkgId])) {
+    $activeByPackage[$pkgId] = [];
+  }
+  if (!isset($activeByPackage[$pkgId][$stype])) {
+    $activeByPackage[$pkgId][$stype] = [
+      'id' => $sid,
+      'resume_p' => $resumePos,
+      'started_at' => (string)$row['started_at'],
+    ];
+  }
+}
+
 function dash_status_label(string $status, string $lang): string {
   return match ($status) {
     'TERMINATED' => t('dash.status.terminated', [], $lang),
@@ -190,15 +245,19 @@ function dash_session_type_label(string $type, string $lang): string {
 	                  $pkDuration = (int)$pk['duration_limit_minutes'];
 	                  $isFirst = ((int)$pk['id'] === (int)$firstPkg['id']);
 	                ?>
-	                <button
-	                  type="button"
-	                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?>"
-	                  data-package-value="<?= (int)$pk['id'] ?>"
-	                  data-package-name="<?= h($pkName) ?>"
-	                  data-package-duration="<?= (int)$pkDuration ?>"
-	                  data-package-tone="<?= h($pkTone) ?>"
-	                  style="--cert-tone: <?= h($pkTone) ?>;"
-	                >
+		                <button
+		                  type="button"
+		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?>"
+		                  data-package-value="<?= (int)$pk['id'] ?>"
+		                  data-package-name="<?= h($pkName) ?>"
+		                  data-active-sid-exam="<?= h((string)($activeByPackage[(int)$pk['id']]['EXAM']['id'] ?? '')) ?>"
+		                  data-active-p-exam="<?= (int)($activeByPackage[(int)$pk['id']]['EXAM']['resume_p'] ?? 1) ?>"
+		                  data-active-sid-training="<?= h((string)($activeByPackage[(int)$pk['id']]['TRAINING']['id'] ?? '')) ?>"
+		                  data-active-p-training="<?= (int)($activeByPackage[(int)$pk['id']]['TRAINING']['resume_p'] ?? 1) ?>"
+		                  data-package-duration="<?= (int)$pkDuration ?>"
+		                  data-package-tone="<?= h($pkTone) ?>"
+		                  style="--cert-tone: <?= h($pkTone) ?>;"
+		                >
 	                  <span class="dash-cert-tile-name"><?= h($pkName) ?></span>
 	                  <span class="dash-cert-tile-time"><?= (int)$pkDuration ?> min</span>
 	                </button>
@@ -230,12 +289,17 @@ function dash_session_type_label(string $type, string $lang): string {
         </div>
       </div>
 
-	      <div class="dashboard-start-foot">
-	        <div class="dashboard-start-action">
-	          <button class="btn" type="submit" <?= $packages ? '' : 'disabled' ?>><?= h(t('dash.start', [], $lang)) ?></button>
-	        </div>
-	      </div>
-	    </form>
+		      <div class="dashboard-start-foot">
+		        <div class="dashboard-start-action">
+		          <button id="dash-start-btn" class="btn" type="submit" <?= $packages ? '' : 'disabled' ?>><?= h(t('dash.start', [], $lang)) ?></button>
+              <a id="dash-continue-btn"
+                 class="btn ghost"
+                 href="#"
+                 style="display:none;"
+              ><?= h(t('dash.continue_current', [], $lang)) ?></a>
+		        </div>
+		      </div>
+		    </form>
   </div>
 
   <div class="card dashboard-card">
@@ -247,16 +311,16 @@ function dash_session_type_label(string $type, string $lang): string {
       <div class="table-wrap">
         <table class="table dashboard-table">
         <thead>
-          <tr>
-            <th><?= h(t('dash.col.cert', [], $lang)) ?></th>
-            <th><?= h(t('dash.col.type', [], $lang)) ?></th>
-            <th><?= h(t('dash.col.started', [], $lang)) ?></th>
-            <th><?= h(t('dash.col.status', [], $lang)) ?></th>
-            <th><?= h(t('dash.col.score', [], $lang)) ?></th>
-            <th><?= h(t('dash.col.result', [], $lang)) ?></th>
-            <th></th>
-          </tr>
-        </thead>
+	          <tr>
+	            <th><?= h(t('dash.col.cert', [], $lang)) ?></th>
+	            <th><?= h(t('dash.col.type', [], $lang)) ?></th>
+	            <th><?= h(t('dash.col.started', [], $lang)) ?></th>
+	            <th><?= h(t('dash.col.status', [], $lang)) ?></th>
+	            <th><?= h(t('dash.col.score', [], $lang)) ?></th>
+	            <th><?= h(t('dash.col.result', [], $lang)) ?></th>
+	            <th><?= h(t('dash.col.action', [], $lang)) ?></th>
+	          </tr>
+	        </thead>
         <tbody>
         <?php foreach ($last as $s): ?>
           <tr>
@@ -274,13 +338,22 @@ function dash_session_type_label(string $type, string $lang): string {
                 <?= h(dash_result_label($s, $lang)) ?>
               </span>
             </td>
-            <td>
-              <?php if ($s['status'] === 'ACTIVE'): ?>
-                <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=1&lang=<?= h($lang) ?>"><?= h(t('dash.resume', [], $lang)) ?></a>
-              <?php else: ?>
-                <a class="btn ghost" href="/result.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.view', [], $lang)) ?></a>
-              <?php endif; ?>
-            </td>
+	            <td>
+	              <?php if ($s['status'] === 'ACTIVE'): ?>
+	                <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=<?= (int)($resumePosBySession[(string)$s['id']] ?? 1) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.resume', [], $lang)) ?></a>
+                  <a class="btn ghost icon-btn danger"
+                     href="/session_delete.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"
+                     aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                     title="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                     onclick="return confirm('<?= h(t('dash.delete_confirm', [], $lang)) ?>');">
+                    <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                    </svg>
+                  </a>
+	              <?php else: ?>
+	                <a class="btn ghost" href="/result.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.view', [], $lang)) ?></a>
+	              <?php endif; ?>
+	            </td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -292,15 +365,64 @@ function dash_session_type_label(string $type, string $lang): string {
 <script src="/assets/package-colors.js"></script>
 <script>
   (function () {
+    var form = document.querySelector('.dashboard-start-form');
     var input = document.getElementById('dash-package-input');
     var tiles = document.querySelectorAll('.dash-cert-tile');
+    var startBtn = document.getElementById('dash-start-btn');
+    var continueBtn = document.getElementById('dash-continue-btn');
+    var startDefaultLabel = <?= json_encode(t('dash.start', [], $lang)) ?>;
+    var startNewExamLabel = <?= json_encode(t('dash.start_new_exam', [], $lang)) ?>;
+    var startNewTrainingLabel = <?= json_encode(t('dash.start_new_training', [], $lang)) ?>;
+    var continueExamLabel = <?= json_encode(t('dash.continue_current_exam', [], $lang)) ?>;
+    var continueTrainingLabel = <?= json_encode(t('dash.continue_current_training', [], $lang)) ?>;
+    var overwriteConfirmExamText = <?= json_encode(t('dash.confirm_overwrite_session_exam', [], $lang)) ?>;
+    var overwriteConfirmTrainingText = <?= json_encode(t('dash.confirm_overwrite_session_training', [], $lang)) ?>;
+    var selectedActiveSid = '';
+    var selectedMode = 'EXAM';
     if (!input || !tiles.length) return;
 
+    function getMode() {
+      var checked = document.querySelector('input[name="session_type"]:checked');
+      var mode = checked ? checked.value : 'EXAM';
+      return mode === 'TRAINING' ? 'TRAINING' : 'EXAM';
+    }
+
     function setActive(value) {
+      var activeSid = '';
+      var activeP = '1';
+      selectedMode = getMode();
       tiles.forEach(function (tile) {
         var active = (tile.getAttribute('data-package-value') === value);
         tile.classList.toggle('is-active', active);
+        if (active) {
+          if (selectedMode === 'TRAINING') {
+            activeSid = tile.getAttribute('data-active-sid-training') || '';
+            activeP = tile.getAttribute('data-active-p-training') || '1';
+          } else {
+            activeSid = tile.getAttribute('data-active-sid-exam') || '';
+            activeP = tile.getAttribute('data-active-p-exam') || '1';
+          }
+        }
       });
+
+      if (startBtn) {
+        if (!activeSid) {
+          startBtn.textContent = startDefaultLabel;
+        } else {
+          startBtn.textContent = (selectedMode === 'TRAINING') ? startNewTrainingLabel : startNewExamLabel;
+        }
+      }
+      if (continueBtn) {
+        if (activeSid) {
+          continueBtn.style.display = '';
+          continueBtn.textContent = (selectedMode === 'TRAINING') ? continueTrainingLabel : continueExamLabel;
+          continueBtn.setAttribute('href', '/exam.php?sid=' + encodeURIComponent(activeSid) + '&p=' + encodeURIComponent(activeP) + '&lang=' + encodeURIComponent(<?= json_encode($lang) ?>));
+        } else {
+          continueBtn.style.display = 'none';
+          continueBtn.setAttribute('href', '#');
+        }
+      }
+      selectedActiveSid = activeSid;
     }
 
     tiles.forEach(function (tile) {
@@ -312,7 +434,23 @@ function dash_session_type_label(string $type, string $lang): string {
       });
     });
 
+    document.querySelectorAll('input[name="session_type"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        setActive(input.value);
+      });
+    });
+
     setActive(input.value);
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        if (!selectedActiveSid) return;
+        var confirmText = (selectedMode === 'TRAINING') ? overwriteConfirmTrainingText : overwriteConfirmExamText;
+        if (!window.confirm(confirmText)) {
+          e.preventDefault();
+        }
+      });
+    }
   })();
 </script>
 </body>

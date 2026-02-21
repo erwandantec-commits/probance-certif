@@ -139,6 +139,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (isset($_POST['prev']) && $p > 1) {
     $p--;
   }
+  if (isset($_POST['pause'])) {
+    header("Location: /dashboard.php?lang=" . urlencode($lang));
+    exit;
+  }
   if (isset($_POST['next']) && $p < $total) {
     $p++;
   }
@@ -209,10 +213,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn ghost" name="prev" <?= $p <= 1 ? 'disabled' : '' ?>>&larr; <?= h(t('exam.prev', [], $lang)) ?></button>
-        <button type="submit" class="btn ghost" name="next" value="1" <?= ((int)$p === (int)$total) ? 'disabled="disabled"' : '' ?>>
-          <?= h(t('exam.next', [], $lang)) ?> &rarr;
-        </button>
-        <button class="btn" name="finish" style="margin-left:auto;"><?= h(t('exam.finish', [], $lang)) ?></button>
+        <?php if ((int)$p < (int)$total): ?>
+          <button type="submit" class="btn" name="next" value="1">
+            <?= h(t('exam.validate', [], $lang)) ?>
+          </button>
+        <?php endif; ?>
+        <button class="btn ghost" type="submit" name="pause" value="1"><?= h(t('exam.pause', [], $lang)) ?></button>
+        <?php if ((int)$p === (int)$total): ?>
+          <button class="btn" name="finish" style="margin-left:auto;"><?= h(t('exam.finish', [], $lang)) ?></button>
+        <?php endif; ?>
       </div>
 
       <p class="small" style="margin-top:12px;"><?= h(t('exam.score_hint', [], $lang)) ?></p>

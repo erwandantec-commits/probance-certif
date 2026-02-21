@@ -92,15 +92,14 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
   $hasNeed = table_column_exists($pdo, 'questions', 'need');
   $hasLevel = table_column_exists($pdo, 'questions', 'level');
 
-  // Legacy behavior: selection_rules_json is authoritative when present.
+  // Legacy bucket rules can drive distribution, but package count stays authoritative.
   $raw = $pkg['selection_rules_json'] ?? null;
   if ($hasNeed && $hasLevel && is_string($raw) && trim($raw) !== '') {
     $rules = json_decode($raw, true);
     if (is_array($rules) && !empty($rules['buckets']) && is_array($rules['buckets'])) {
-      $max = isset($rules['max']) ? (int)$rules['max'] : $limit;
-      if ($max < 1) {
-        $max = $limit;
-      }
+      // Package settings are authoritative for the total number of questions.
+      // Legacy JSON `max` is ignored to keep admin package config effective.
+      $max = $limit;
 
       $qids = [];
       foreach ($rules['buckets'] as $bucket) {

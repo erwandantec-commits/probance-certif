@@ -218,7 +218,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <h3 class="distribution-title">Questions du package</h3>
       <div style="margin: 0 0 10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn ghost" href="/admin/question_edit.php?package_id=<?= (int)$id ?>">Ajouter une question</a>
         <a class="btn ghost" href="/admin/import_questions.php?package_id=<?= (int)$id ?>">Importer questions</a>
       </div>
       <p class="small">

@@ -8,6 +8,12 @@ $pdo = db();
 $id = (int)($_GET['id'] ?? 0);
 $prefPkg = (int)($_GET['package_id'] ?? 0);
 
+if ($id <= 0) {
+  http_response_code(403);
+  echo "Creation manuelle des questions desactivee. Utilisez l'import.";
+  exit;
+}
+
 $packages = $pdo->query("SELECT id, name FROM packages ORDER BY id DESC")->fetchAll();
 
 $question = [
@@ -22,36 +28,34 @@ $question = [
 
 $optionsByLabel = [];
 
-if ($id > 0) {
-  $st = $pdo->prepare("SELECT id, package_id, text, need, level, question_type, allow_skip FROM questions WHERE id=?");
-  $st->execute([$id]);
-  $q = $st->fetch();
-  if (!$q) {
-    http_response_code(404);
-    echo "Question not found";
-    exit;
-  }
+$st = $pdo->prepare("SELECT id, package_id, text, need, level, question_type, allow_skip FROM questions WHERE id=?");
+$st->execute([$id]);
+$q = $st->fetch();
+if (!$q) {
+  http_response_code(404);
+  echo "Question not found";
+  exit;
+}
 
-  $question = [
-    'id' => (int)$q['id'],
-    'package_id' => (int)$q['package_id'],
-    'text' => (string)$q['text'],
-    'need' => (string)($q['need'] ?? 'PONE'),
-    'level' => (int)($q['level'] ?? 1),
-    'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
-    'allow_skip' => (int)($q['allow_skip'] ?? 1),
-  ];
+$question = [
+  'id' => (int)$q['id'],
+  'package_id' => (int)$q['package_id'],
+  'text' => (string)$q['text'],
+  'need' => (string)($q['need'] ?? 'PONE'),
+  'level' => (int)($q['level'] ?? 1),
+  'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
+  'allow_skip' => (int)($q['allow_skip'] ?? 1),
+];
 
-  $os = $pdo->prepare("
-    SELECT label, option_text, is_correct, score_value
-    FROM question_options
-    WHERE question_id=?
-    ORDER BY label ASC
-  ");
-  $os->execute([$id]);
-  foreach ($os->fetchAll() as $o) {
-    $optionsByLabel[(string)$o['label']] = $o;
-  }
+$os = $pdo->prepare("
+  SELECT label, option_text, is_correct, score_value
+  FROM question_options
+  WHERE question_id=?
+  ORDER BY label ASC
+");
+$os->execute([$id]);
+foreach ($os->fetchAll() as $o) {
+  $optionsByLabel[(string)$o['label']] = $o;
 }
 
 $labels = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -158,16 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $qid = $question['id'];
       } else {
-        $ins = $pdo->prepare("INSERT INTO questions(package_id, text, need, level, question_type, allow_skip) VALUES(?,?,?,?,?,?)");
-        $ins->execute([
-          $question['package_id'],
-          $question['text'],
-          $question['need'],
-          $question['level'],
-          $question['question_type'],
-          $question['allow_skip'],
-        ]);
-        $qid = (int)$pdo->lastInsertId();
+        throw new RuntimeException("Creation manuelle des questions desactivee.");
       }
 
       $pdo->prepare("DELETE FROM question_options WHERE question_id=?")->execute([$qid]);
@@ -210,7 +205,7 @@ function package_label_style_local(string $packageName): string {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title><?= $question['id'] ? "Modifier question #".(int)$question['id'] : "Ajouter une question" ?></title>
+  <title><?= "Modifier question #".(int)$question['id'] ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css">
 </head>
@@ -219,7 +214,7 @@ function package_label_style_local(string $packageName): string {
   <div class="card admin-card">
     <div class="admin-head">
       <div class="admin-head-copy">
-        <h2 class="h1"><?= $question['id'] ? "Admin &middot; Modifier question #".(int)$question['id'] : "Admin &middot; Ajouter une question" ?></h2>
+        <h2 class="h1"><?= "Admin &middot; Modifier question #".(int)$question['id'] ?></h2>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('questions'); ?>

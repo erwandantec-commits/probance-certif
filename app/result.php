@@ -39,8 +39,17 @@ if (session_is_expired($s)) {
     JOIN packages pk ON pk.id = s.package_id
     WHERE s.id=?
   ");
-  $stmt->execute([$sid]);
-  $s = $stmt->fetch();
+$stmt->execute([$sid]);
+$s = $stmt->fetch();
+}
+
+function result_status_label(string $status, string $lang): string {
+  return match ($status) {
+    'TERMINATED' => t('dash.status.terminated', [], $lang),
+    'ACTIVE' => t('dash.status.active', [], $lang),
+    'EXPIRED' => t('dash.status.expired', [], $lang),
+    default => $status,
+  };
 }
 ?>
 <!doctype html>
@@ -83,7 +92,7 @@ if (session_is_expired($s)) {
       </div>
 
       <div class="row" style="margin-bottom:12px;">
-        <span class="badge"><?= h(t('result.status_label', [], $lang)) ?>: <?= h($s['status']) ?></span>
+        <span class="badge"><?= h(t('result.status_label', [], $lang)) ?>: <?= h(result_status_label((string)$s['status'], $lang)) ?></span>
         <?php if (!empty($s['started_at'])): ?>
           <span class="badge"><?= h(t('result.started', [], $lang)) ?>: <?= h($s['started_at']) ?></span>
         <?php endif; ?>
@@ -102,7 +111,6 @@ if (session_is_expired($s)) {
 
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
           <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
-          <a class="btn ghost" href="/admin/index.php"><?= h(t('result.admin_view', [], $lang)) ?></a>
         </div>
 
       <?php elseif ($s['status'] === 'EXPIRED'): ?>
@@ -110,7 +118,6 @@ if (session_is_expired($s)) {
 
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
           <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
-          <a class="btn ghost" href="/admin/index.php"><?= h(t('result.admin', [], $lang)) ?></a>
         </div>
 
       <?php else: ?>

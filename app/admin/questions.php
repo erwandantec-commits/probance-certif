@@ -110,7 +110,7 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
     <div class="admin-head">
       <div class="admin-head-copy">
         <h2 class="h1">Admin &middot; Questions</h2>
-        <p class="sub">Ajouter / modifier / supprimer</p>
+        <p class="sub">Modifier / supprimer (creation via import uniquement)</p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('questions'); ?>
@@ -120,7 +120,6 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
     <hr class="separator">
 
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 8px;">
-      <a class="btn ghost" href="/admin/question_edit.php?new=1<?= $pkg ? '&package_id=' . $pkg : '' ?>">+ Ajouter</a>
       <a class="btn ghost" href="/admin/import_questions.php<?= $pkg ? '?package_id=' . $pkg : '' ?>">&uarr; Importer</a>
     </div>
 

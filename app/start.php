@@ -57,6 +57,14 @@ try {
     $contact_id = (int)$contact['id'];
   }
 
+  // If a session for the same certification is paused/active, replace it.
+  // Deleting the session cascades to linked questions/answers.
+  $dropActive = $pdo->prepare("
+    DELETE FROM sessions
+    WHERE user_id=? AND package_id=? AND session_type=? AND status='ACTIVE'
+  ");
+  $dropActive->execute([$uid, $package_id, $session_type]);
+
   $session_id = uuidv4();
 
   create_session_record($pdo, $session_id, $contact_id, $uid, $package_id, $session_type, $lang);
