@@ -145,14 +145,17 @@ if (!empty($certCards)) {
 }
 
 $activeStmt = $pdo->prepare("
-  SELECT id, package_id, session_type, started_at
-  FROM sessions
+  SELECT s.id, s.package_id, s.session_type, s.started_at, pk.name AS package_name, pk.duration_limit_minutes
+  FROM sessions s
+  JOIN packages pk ON pk.id = s.package_id
   WHERE user_id=? AND status='ACTIVE'
-  ORDER BY started_at DESC
+  ORDER BY s.started_at DESC
 ");
 $activeStmt->execute([$uid]);
+$activeRows = $activeStmt->fetchAll();
 $activeByPackage = [];
 $resumePosBySession = [];
+$activeHighlights = [];
 
 $resumePosStmt = $pdo->prepare("
   SELECT MIN(sq.position) AS resume_pos
@@ -171,7 +174,7 @@ $totalPosStmt = $pdo->prepare("
   WHERE session_id=?
 ");
 
-foreach ($activeStmt->fetchAll() as $row) {
+foreach ($activeRows as $row) {
   $sid = (string)$row['id'];
   $pkgId = (int)$row['package_id'];
   $stype = strtoupper(trim((string)($row['session_type'] ?? 'EXAM')));
@@ -186,6 +189,17 @@ foreach ($activeStmt->fetchAll() as $row) {
     $resumePos = max(1, (int)($totalPosStmt->fetch()['c'] ?? 1));
   }
   $resumePosBySession[$sid] = $resumePos;
+  $limitMinutes = max(1, (int)($row['duration_limit_minutes'] ?? 1));
+  $expiresAt = strtotime((string)$row['started_at']) + ($limitMinutes * 60);
+  $remainingSeconds = max(0, $expiresAt - time());
+  $activeHighlights[] = [
+    'id' => $sid,
+    'package_name' => (string)($row['package_name'] ?? ''),
+    'session_type' => $stype,
+    'started_at' => (string)$row['started_at'],
+    'resume_p' => $resumePos,
+    'remaining_seconds' => $remainingSeconds,
+  ];
 
   if (!isset($activeByPackage[$pkgId])) {
     $activeByPackage[$pkgId] = [];
@@ -265,6 +279,19 @@ function dash_cert_status_class(string $statusKey): string {
     default => 'pill',
   };
 }
+
+function dash_remaining_label(int $seconds): string {
+  if ($seconds <= 0) {
+    return '00:00';
+  }
+  $h = intdiv($seconds, 3600);
+  $m = intdiv($seconds % 3600, 60);
+  $s = $seconds % 60;
+  if ($h > 0) {
+    return sprintf('%02d:%02d:%02d', $h, $m, $s);
+  }
+  return sprintf('%02d:%02d', $m, $s);
+}
 ?>
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
@@ -324,6 +351,44 @@ function dash_cert_status_class(string $statusKey): string {
       <div class="stat-title"><?= h(t('dash.passed', [], $lang)) ?></div>
       <div class="stat-value"><?= (int)$stats['passed_count'] ?></div>
     </div>
+  </div>
+
+  <div class="card dashboard-card">
+    <h3 class="dashboard-section-title"><?= h(t('dash.active_sessions.title', [], $lang)) ?></h3>
+    <?php if (!$activeHighlights): ?>
+      <p class="small"><?= h(t('dash.active_sessions.none', [], $lang)) ?></p>
+    <?php else: ?>
+      <div class="dashboard-active-grid">
+        <?php foreach ($activeHighlights as $a): ?>
+          <article class="dashboard-active-item">
+            <div class="dashboard-active-item-head">
+              <span style="<?= h(package_label_style((string)$a['package_name'])) ?>"><?= h(localize_text((string)$a['package_name'], $lang)) ?></span>
+              <span class="pill info"><?= h(dash_session_type_label((string)$a['session_type'], $lang)) ?></span>
+            </div>
+            <div class="dashboard-active-item-meta">
+              <?= h(t('dash.active_sessions.started', [], $lang)) ?>: <?= h(date('d/m/Y H:i', strtotime((string)$a['started_at']))) ?>
+            </div>
+            <div class="dashboard-active-item-meta">
+              <?= h(t('dash.active_sessions.remaining', [], $lang)) ?>: <b><?= h(dash_remaining_label((int)$a['remaining_seconds'])) ?></b>
+            </div>
+            <div class="dashboard-active-item-actions">
+              <a class="btn" href="/exam.php?sid=<?= h((string)$a['id']) ?>&p=<?= (int)$a['resume_p'] ?>&lang=<?= h($lang) ?>">
+                <?= h(((string)$a['session_type'] === 'TRAINING') ? t('dash.continue_current_training', [], $lang) : t('dash.continue_current_exam', [], $lang)) ?>
+              </a>
+              <a class="btn ghost icon-btn danger"
+                 href="/session_delete.php?sid=<?= h((string)$a['id']) ?>&lang=<?= h($lang) ?>"
+                 aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                 title="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                 onclick="return confirm('<?= h(t('dash.delete_confirm', [], $lang)) ?>');">
+                <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                </svg>
+              </a>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
   </div>
 
   <div class="card dashboard-card">
@@ -409,6 +474,15 @@ function dash_cert_status_class(string $statusKey): string {
               <span class="dashboard-mode-content">
                 <span class="dashboard-mode-title"><?= h(t('dash.session_type.exam', [], $lang)) ?></span>
                 <span class="dashboard-mode-hint"><?= h(t('dash.session_type.exam_hint', [], $lang)) ?></span>
+                <span class="dashboard-mode-icon" aria-hidden="true">
+                  <svg class="dashboard-mode-icon-cert" viewBox="0 0 24 24" focusable="false">
+                    <path d="M12 2.8l1.5 1.1 1.8.2 1.1 1.5 1.7.7.2 1.8 1.1 1.5-.7 1.7.2 1.8-1.5 1.1-.7 1.7-1.8.2-1.5 1.1-1.7-.7-1.8.2-1.1-1.5-1.7-.7-.2-1.8-1.1-1.5.7-1.7-.2-1.8 1.5-1.1.7-1.7 1.8-.2L12 2.8z"/>
+                    <circle cx="12" cy="10.9" r="4.3"/>
+                    <path d="M10.1 10.9l1.3 1.3 2.6-2.6"/>
+                    <path d="M7.2 15.8l-2 4 2.1-.5 1 2L10.3 17"/>
+                    <path d="M16.8 15.8l2 4-2.1-.5-1 2L13.7 17"/>
+                  </svg>
+                </span>
               </span>
             </label>
             <label class="dashboard-mode-option">
@@ -416,6 +490,14 @@ function dash_cert_status_class(string $statusKey): string {
               <span class="dashboard-mode-content">
                 <span class="dashboard-mode-title"><?= h(t('dash.session_type.training', [], $lang)) ?></span>
                 <span class="dashboard-mode-hint"><?= h(t('dash.session_type.training_hint', [], $lang)) ?></span>
+                <span class="dashboard-mode-icon" aria-hidden="true">
+                  <svg class="dashboard-mode-icon-training" viewBox="0 0 24 24" focusable="false">
+                    <circle cx="12" cy="4" r="2.2"/>
+                    <path d="M4.2 7.5h1.4v4h-1.4zM6.1 6.8h1v5.4h-1zM16.9 6.8h1v5.4h-1zM18.4 7.5h1.4v4h-1.4z"/>
+                    <path d="M7.1 8.5h9.8v1.6H7.1z"/>
+                    <path d="M10.1 11.2h3.8v2.9l1.6 2.2v4.2h-2.1v-3.4L12 15.5l-1.3 1.6v3.4H8.6v-4.2l1.5-2.2z"/>
+                  </svg>
+                </span>
               </span>
             </label>
           </div>
