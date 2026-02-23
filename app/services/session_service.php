@@ -110,6 +110,7 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
         $need = strtoupper(trim((string)($bucket['need'] ?? '')));
         $levels = $bucket['levels'] ?? [];
         $take = (int)($bucket['take'] ?? 0);
+        $targetTotal = (int)($bucket['target_total'] ?? 0);
 
         if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels) || $take <= 0) {
           continue;
@@ -124,6 +125,18 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
         $remaining = $max - count($qids);
         if ($take > $remaining) {
           $take = $remaining;
+        }
+        if ($targetTotal > 0) {
+          $remainingToTarget = $targetTotal - count($qids);
+          if ($remainingToTarget <= 0) {
+            continue;
+          }
+          if ($take > $remainingToTarget) {
+            $take = $remainingToTarget;
+          }
+        }
+        if ($take <= 0) {
+          continue;
         }
 
         $inLevels = implode(',', array_fill(0, count($levels), '?'));

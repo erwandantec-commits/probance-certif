@@ -5,9 +5,6 @@ require_once __DIR__ . '/_nav.php';
 
 $pdo = db();
 
-$packages = $pdo->query("SELECT id, name FROM packages ORDER BY id DESC")->fetchAll();
-$pkg = (int)($_GET['package_id'] ?? 0);
-
 $need = strtoupper(trim((string)($_GET['need'] ?? '')));
 $level = (int)($_GET['level'] ?? 0);
 $activeNeed = in_array($need, ['PONE', 'PHM', 'PPM'], true) ? $need : '';
@@ -16,8 +13,10 @@ $activeLevel = ($level >= 1 && $level <= 3) ? $level : 0;
 $params = [];
 $conds = [];
 
-if ($pkg > 0) { $conds[] = "q.package_id=?"; $params[] = $pkg; }
-if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) { $conds[] = "q.need=?"; $params[] = $need; }
+if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
+  $conds[] = "q.need=?";
+  $params[] = $need;
+}
 if ($level >= 1 && $level <= 3) { $conds[] = "q.level=?"; $params[] = $level; }
 
 $where = $conds ? ("WHERE " . implode(" AND ", $conds)) : "";
@@ -36,7 +35,7 @@ $offset = ($page - 1) * $limit;
 
 $stmt = $pdo->prepare("
   SELECT
-    q.id, q.text, q.need, q.level, q.question_type, q.allow_skip,
+    q.id, q.external_id, q.text, q.need, q.level, q.question_type, q.allow_skip,
     COALESCE(p.name, '(Banque globale)') AS package_name,
     (SELECT COUNT(*) FROM question_options qo WHERE qo.question_id=q.id) AS opt_count
   FROM questions q
@@ -55,13 +54,12 @@ $stmt->bindValue($i++, (int)$offset, PDO::PARAM_INT);
 $stmt->execute();
 $questions = $stmt->fetchAll();
 
+$distribution = [];
 $distStmt = $pdo->query("
   SELECT need, level, COUNT(*) c
   FROM questions
   GROUP BY need, level
 ");
-
-$distribution = [];
 foreach ($distStmt->fetchAll() as $row) {
   $distribution[$row['need']][(int)$row['level']] = (int)$row['c'];
 }
@@ -82,11 +80,8 @@ function package_label_style_local(string $packageName): string {
   return 'color:' . $color . ';font-weight:700;';
 }
 
-function questions_filter_url(int $pkg, string $need = '', int $level = 0): string {
+function questions_filter_url(string $need = '', int $level = 0): string {
   $params = [];
-  if ($pkg > 0) {
-    $params['package_id'] = $pkg;
-  }
   if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
     $params['need'] = $need;
   }
@@ -120,7 +115,7 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
     <hr class="separator">
 
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 8px;">
-      <a class="btn ghost" href="/admin/import_questions.php<?= $pkg ? '?package_id=' . $pkg : '' ?>">&uarr; Importer</a>
+      <a class="btn ghost" href="/admin/import_questions.php">&uarr; Importer</a>
     </div>
 
     <div class="distribution-wrap">
@@ -128,13 +123,13 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
       <div class="distribution-grid">
         <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
           <div class="distribution-card distribution-card-clickable"
-               data-filter-need-url="<?= h(questions_filter_url($pkg, $n, 0)) ?>"
+               data-filter-need-url="<?= h(questions_filter_url($n, 0)) ?>"
                role="link"
                tabindex="0"
                aria-label="Filtrer sur <?= h($n) ?>">
             <p class="distribution-need">
               <a class="distribution-need-link <?= $activeNeed === $n && $activeLevel === 0 ? 'is-active' : '' ?>"
-                 href="<?= h(questions_filter_url($pkg, $n, 0)) ?>">
+                 href="<?= h(questions_filter_url($n, 0)) ?>">
                 <?= h($n) ?>
               </a>
             </p>
@@ -143,7 +138,7 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
                 $c = $distribution[$n][$i] ?? 0;
               ?>
                 <a class="distribution-chip distribution-chip-link <?= $activeNeed === $n && $activeLevel === $i ? 'is-active' : '' ?>"
-                   href="<?= h(questions_filter_url($pkg, $n, $i)) ?>">
+                   href="<?= h(questions_filter_url($n, $i)) ?>">
                   L<?= $i ?> <b><?= $c ?></b>
                 </a>
               <?php endfor; ?>
@@ -152,22 +147,6 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
         <?php endforeach; ?>
       </div>
     </div>
-
-    <form method="get" style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
-      <div style="min-width:260px; flex:0 0 450px;">
-        <label class="label" for="package_id">Package</label>
-        <select id="package_id" name="package_id">
-          <option value="0">Tous</option>
-          <?php foreach ($packages as $p): ?>
-            <option value="<?= (int)$p['id'] ?>" <?= $pkg === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style_local((string)$p['name'])) ?>">
-              <?= h($p['name']) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <button class="btn" type="submit">Filtrer</button>
-      <a class="btn ghost" href="/admin/questions.php">Reset</a>
-    </form>
 
     <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
 
@@ -179,9 +158,9 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
           <thead>
             <tr>
               <th>ID</th>
-              <th>Package</th>
-              <th>Need</th>
-              <th>Level</th>
+              <th>ID question</th>
+              <th>Connaissances requises</th>
+              <th>Niveau</th>
               <th>Type</th>
               <th>Options</th>
               <th>&Eacute;nonc&eacute;</th>
@@ -192,11 +171,15 @@ function questions_filter_url(int $pkg, string $need = '', int $level = 0): stri
             <?php foreach ($questions as $q): ?>
               <tr>
                 <td><?= (int)$q['id'] ?></td>
-	                <td><span style="<?= h(package_label_style_local((string)$q['package_name'])) ?>"><?= h($q['package_name']) ?></span></td>
-                <td><?= h($q['need']) ?></td>
+                <td><?= ($q['external_id'] === null || $q['external_id'] === '') ? '-' : (int)$q['external_id'] ?></td>
+                <td><?= h((string)$q['need']) ?></td>
                 <td><?= (int)$q['level'] ?></td>
                 <td>
-                  <?= ($q['question_type'] === 'TRUE_FALSE') ? 'Vrai/Faux' : 'Choix multiple' ?>
+                  <?= match ((string)$q['question_type']) {
+                    'TRUE_FALSE' => 'Vrai/Faux',
+                    'SINGLE' => 'Choix unique',
+                    default => 'Choix multiple',
+                  } ?>
                 </td>
 	                <td><?= (int)$q['opt_count'] ?></td>
                 <td><?= h(mb_strimwidth((string)$q['text'], 0, 90, '...', 'UTF-8')) ?></td>

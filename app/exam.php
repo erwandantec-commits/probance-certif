@@ -106,7 +106,10 @@ if (!$q) {
 }
 
 $qid = (int)$q['id'];
-$qType = $q['question_type'] ?? 'MULTI';
+$qType = (string)($q['question_type'] ?? 'MULTI');
+if (!in_array($qType, ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
+  $qType = 'MULTI';
+}
 $allowSkip = (int)($q['allow_skip'] ?? 1) === 1;
 $isTraining = (($sess['session_type'] ?? 'EXAM') === 'TRAINING');
 $showFeedback = $isTraining && $checked;
@@ -286,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	        <?php foreach ($options as $o):
 	          $oid = (int)$o['id'];
 	          $isChecked = isset($selectedMap[$oid]);
-	          $isMulti = ($qType !== 'TRUE_FALSE');
+		          $isMulti = ($qType === 'MULTI');
             $isCorrectOption = (int)($o['is_correct'] ?? 0) === 1;
             $optionClass = 'exam-option';
             if ($showFeedback) {

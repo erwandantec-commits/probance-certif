@@ -1,17 +1,7 @@
--- Upgrade PR6:
--- - rename VERMEIL package to GOLD
--- - align certification selection rules with product requirements
+-- Upgrade v2: align certification selection algorithms with product rules
+-- Adds target_total on "fill up to N" buckets.
 
-UPDATE packages
-SET name = 'GOLD'
-WHERE name = 'VERMEIL';
-
--- Ensure GOLD exists even if no VERMEIL row was present.
-INSERT INTO packages (name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_mode, selection_percent, is_active)
-SELECT 'GOLD', 80, 10, 50, 'COUNT', NULL, 1
-WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'GOLD');
-
--- GREEN: up to 10 PONE level >=2, then fill to 40 with PONE level 1.
+-- GREEN
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -26,7 +16,7 @@ SET
   )
 WHERE name = 'GREEN';
 
--- BLUE: up to 30 PONE level >=2, then fill to 40 with PONE level 1.
+-- BLUE
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -41,7 +31,7 @@ SET
   )
 WHERE name = 'BLUE';
 
--- RED: 40 PHM L1 then fill with PONE L3/L2/L1.
+-- RED
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -58,7 +48,7 @@ SET
   )
 WHERE name = 'RED';
 
--- BLACK: 30 PHM L>=2, then up to 40 with PHM L1, then fill with PONE L3/L2/L1.
+-- BLACK
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -76,7 +66,7 @@ SET
   )
 WHERE name = 'BLACK';
 
--- SILVER: 40 PPM L1, then fill with PHM/PONE as defined.
+-- SILVER
 UPDATE packages
 SET
   selection_mode = 'COUNT',
@@ -96,7 +86,7 @@ SET
   )
 WHERE name = 'SILVER';
 
--- GOLD: 30 PPM L>=2, then up to 40 with PPM L1, then fill with PHM/PONE as defined.
+-- GOLD
 UPDATE packages
 SET
   selection_mode = 'COUNT',

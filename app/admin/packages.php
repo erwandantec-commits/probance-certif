@@ -9,14 +9,21 @@ $pdo = db();
 
 $packages = $pdo->query("SELECT * FROM packages ORDER BY id")->fetchAll();
 
-$cntStmt = $pdo->query("
-  SELECT need, level, COUNT(*) c
-  FROM questions
-  GROUP BY need, level
-");
 $counts = [];
+$cntStmt = $pdo->query("
+  SELECT q.need, q.level, COUNT(*) c
+  FROM questions q
+  WHERE EXISTS (
+    SELECT 1
+    FROM question_options qo
+    WHERE qo.question_id = q.id
+    GROUP BY qo.question_id
+    HAVING COUNT(*) >= 2
+  )
+  GROUP BY q.need, q.level
+");
 foreach ($cntStmt->fetchAll() as $r) {
-  $counts[strtoupper($r['need'])][(int)$r['level']] = (int)$r['c'];
+  $counts[strtoupper((string)$r['need'])][(int)$r['level']] = (int)$r['c'];
 }
 
 $legacyStmt = $pdo->query("
@@ -49,6 +56,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       foreach ($rules['buckets'] as $b) {
         $need = strtoupper((string)($b['need'] ?? ''));
         $take = (int)($b['take'] ?? 0);
+        $targetTotal = (int)($b['target_total'] ?? 0);
         $levels = $b['levels'] ?? [];
         if ($take <= 0 || !in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels)) {
           continue;
@@ -61,6 +69,21 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
         }
 
         $canTake = min($take, $bucketAvail);
+        if ($targetTotal > 0) {
+          $remainingToTarget = $targetTotal - $sumAvail;
+          if ($remainingToTarget <= 0) {
+            continue;
+          }
+          $canTake = min($canTake, $remainingToTarget);
+        }
+        $remainingToRequired = $required - $sumAvail;
+        if ($remainingToRequired <= 0) {
+          break;
+        }
+        $canTake = min($canTake, $remainingToRequired);
+        if ($canTake <= 0) {
+          continue;
+        }
         $sumAvail += $canTake;
       }
 

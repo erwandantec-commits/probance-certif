@@ -7,6 +7,24 @@ require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 $pdo = db();
 
+function package_edit_questions_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'questions'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+
+
 $id = (int)($_GET['id'] ?? 0);
 $filterNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
 $filterLevel = (int)($_GET['level'] ?? 0);
@@ -28,6 +46,41 @@ if (!$pk) {
   exit;
 }
 
+$allowedByNeed = [];
+$rulesRaw = trim((string)($pk['selection_rules_json'] ?? ''));
+if ($rulesRaw !== '') {
+  $rules = json_decode($rulesRaw, true);
+  if (is_array($rules) && !empty($rules['buckets']) && is_array($rules['buckets'])) {
+    foreach ($rules['buckets'] as $bucket) {
+      $need = strtoupper(trim((string)($bucket['need'] ?? '')));
+      $levels = $bucket['levels'] ?? [];
+      if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels)) {
+        continue;
+      }
+      if (!isset($allowedByNeed[$need])) {
+        $allowedByNeed[$need] = [];
+      }
+      foreach ($levels as $lv) {
+        $lv = (int)$lv;
+        if ($lv >= 1 && $lv <= 9) {
+          $allowedByNeed[$need][$lv] = true;
+        }
+      }
+    }
+  }
+}
+if (empty($allowedByNeed)) {
+  $allowedByNeed = [
+    'PONE' => [1 => true, 2 => true, 3 => true],
+    'PHM' => [1 => true, 2 => true, 3 => true],
+    'PPM' => [1 => true, 2 => true, 3 => true],
+  ];
+}
+
+if ($filterNeed !== '' && !isset($allowedByNeed[$filterNeed])) {
+  $filterNeed = '';
+}
+
 $dist = [
   'PONE' => [1 => 0, 2 => 0, 3 => 0],
   'PHM' => [1 => 0, 2 => 0, 3 => 0],
@@ -35,27 +88,51 @@ $dist = [
 ];
 
 $distStmt = $pdo->prepare("
-  SELECT need, level, COUNT(*) AS c
+  SELECT need, knowledge_required_csv, level
   FROM questions
-  WHERE package_id = ?
-  GROUP BY need, level
 ");
-$distStmt->execute([$id]);
+$distStmt->execute();
 foreach ($distStmt->fetchAll() as $r) {
-  $need = strtoupper((string)($r['need'] ?? 'PONE'));
   $level = (int)($r['level'] ?? 1);
-  if (!isset($dist[$need]) || $level < 1 || $level > 3) {
+  if ($level < 1 || $level > 3) {
     continue;
   }
-  $dist[$need][$level] = (int)$r['c'];
+  $tokens = [];
+  $fallbackNeed = strtoupper((string)($r['need'] ?? 'PONE'));
+  if (isset($dist[$fallbackNeed])) {
+    $tokens[$fallbackNeed] = true;
+  }
+  foreach (array_keys($tokens) as $tk) {
+    if (!isset($allowedByNeed[$tk]) || !isset($allowedByNeed[$tk][$level])) {
+      continue;
+    }
+    $dist[$tk][$level] = (int)($dist[$tk][$level] ?? 0) + 1;
+  }
 }
+
+$eligibleWhereParts = [];
+$eligibleParams = [];
+foreach ($allowedByNeed as $needKey => $levelsMap) {
+  $levels = array_keys($levelsMap);
+  $levels = array_values(array_filter(array_map('intval', $levels), fn($x) => $x >= 1 && $x <= 9));
+  if (!$levels) {
+    continue;
+  }
+  $inLevels = implode(',', array_fill(0, count($levels), '?'));
+  $eligibleWhereParts[] = "(q.need = ? AND q.level IN ($inLevels))";
+  $eligibleParams[] = $needKey;
+  foreach ($levels as $lv) {
+    $eligibleParams[] = $lv;
+  }
+}
+$eligibleSql = $eligibleWhereParts ? ('(' . implode(' OR ', $eligibleWhereParts) . ')') : '1=1';
 
 $qCountSql = "
   SELECT COUNT(*)
   FROM questions q
-  WHERE q.package_id = ?
+  WHERE $eligibleSql
 ";
-$qCountParams = [$id];
+$qCountParams = $eligibleParams;
 if ($filterNeed !== '') {
   $qCountSql .= " AND q.need = ? ";
   $qCountParams[] = $filterNeed;
@@ -79,15 +156,16 @@ $qSql = "
     q.id,
     q.text,
     q.need,
+    q.knowledge_required_csv,
     q.level,
     q.question_type,
     q.allow_skip,
     COUNT(qo.id) AS option_count
   FROM questions q
   LEFT JOIN question_options qo ON qo.question_id = q.id
-  WHERE q.package_id = ?
+  WHERE $eligibleSql
 ";
-$qParams = [$id];
+$qParams = $eligibleParams;
 if ($filterNeed !== '') {
   $qSql .= " AND q.need = ? ";
   $qParams[] = $filterNeed;
@@ -97,7 +175,7 @@ if ($filterLevel > 0) {
   $qParams[] = $filterLevel;
 }
 $qSql .= "
-  GROUP BY q.id, q.text, q.need, q.level, q.question_type, q.allow_skip
+	  GROUP BY q.id, q.text, q.need, q.knowledge_required_csv, q.level, q.question_type, q.allow_skip
   ORDER BY q.id DESC
   LIMIT ? OFFSET ?
 ";
@@ -218,10 +296,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <h3 class="distribution-title">Questions du package</h3>
       <div style="margin: 0 0 10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn ghost" href="/admin/import_questions.php?package_id=<?= (int)$id ?>">Importer questions</a>
+        <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
       </div>
       <p class="small">
-        Répartition par need et level pour ce package uniquement.
+        Répartition par connaissances requises et niveau (banque globale, utilisée pour le tirage de ce package).
         <?php if ($filterNeed !== '' || $filterLevel > 0): ?>
           <span class="small" style="margin-left:8px;">
             Filtre: <b><?= h($filterNeed ?: 'Tous') ?></b><?= $filterLevel > 0 ? ' - L' . (int)$filterLevel : '' ?>
@@ -230,10 +308,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
       </p>
 
-      <div class="distribution-grid" style="margin-top:10px;">
-        <?php foreach (['PONE', 'PHM', 'PPM'] as $need): ?>
-          <div class="distribution-card distribution-card-clickable"
-               data-filter-need-url="/admin/package_edit.php?id=<?= (int)$id ?>&need=<?= urlencode($need) ?>"
+	      <div class="distribution-grid" style="margin-top:10px;">
+	        <?php foreach (['PONE', 'PHM', 'PPM'] as $need): ?>
+          <?php if (!isset($allowedByNeed[$need])) continue; ?>
+	          <div class="distribution-card distribution-card-clickable"
+	               data-filter-need-url="/admin/package_edit.php?id=<?= (int)$id ?>&need=<?= urlencode($need) ?>"
                role="link"
                tabindex="0"
                aria-label="Filtrer sur <?= h($need) ?>">
@@ -259,15 +338,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <div class="table-wrap" style="margin-top:14px;">
         <?php if (!$questions): ?>
-          <p class="empty-state">Aucune question dans ce package.</p>
+          <p class="empty-state">Aucune question dans la banque pour ce filtre.</p>
         <?php else: ?>
           <table class="table questions-table package-questions-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Énoncé</th>
-                <th>Need</th>
-                <th>Level</th>
+	                <th>Connaissances requises</th>
+	                <th>Niveau</th>
                 <th>Type</th>
                 <th>Options</th>
                 <th>Action</th>
@@ -284,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <tr>
                   <td><?= (int)$q['id'] ?></td>
                   <td><?= h($text) ?></td>
-                  <td><?= h((string)($q['need'] ?? 'PONE')) ?></td>
+	                  <td><?= h((string)($q['need'] ?? 'PONE')) ?></td>
                   <td><?= (int)($q['level'] ?? 1) ?></td>
                   <td>
                     <?php

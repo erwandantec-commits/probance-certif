@@ -6,7 +6,6 @@ require_once __DIR__ . '/_nav.php';
 $pdo = db();
 
 $id = (int)($_GET['id'] ?? 0);
-$prefPkg = (int)($_GET['package_id'] ?? 0);
 
 if ($id <= 0) {
   http_response_code(403);
@@ -14,11 +13,8 @@ if ($id <= 0) {
   exit;
 }
 
-$packages = $pdo->query("SELECT id, name FROM packages ORDER BY id DESC")->fetchAll();
-
 $question = [
   'id' => 0,
-  'package_id' => $prefPkg ?: (int)($packages[0]['id'] ?? 1),
   'text' => '',
   'need' => 'PONE',
   'level' => 1,
@@ -28,7 +24,7 @@ $question = [
 
 $optionsByLabel = [];
 
-$st = $pdo->prepare("SELECT id, package_id, text, need, level, question_type, allow_skip FROM questions WHERE id=?");
+$st = $pdo->prepare("SELECT id, text, need, level, question_type, allow_skip FROM questions WHERE id=?");
 $st->execute([$id]);
 $q = $st->fetch();
 if (!$q) {
@@ -39,11 +35,10 @@ if (!$q) {
 
 $question = [
   'id' => (int)$q['id'],
-  'package_id' => (int)$q['package_id'],
   'text' => (string)$q['text'],
   'need' => (string)($q['need'] ?? 'PONE'),
   'level' => (int)($q['level'] ?? 1),
-  'question_type' => (string)(($q['question_type'] ?? 'MULTI') === 'SINGLE' ? 'MULTI' : ($q['question_type'] ?? 'MULTI')),
+  'question_type' => (string)($q['question_type'] ?? 'MULTI'),
   'allow_skip' => (int)($q['allow_skip'] ?? 1),
 ];
 
@@ -62,7 +57,6 @@ $labels = ['A', 'B', 'C', 'D', 'E', 'F'];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $question['package_id'] = (int)($_POST['package_id'] ?? $question['package_id']);
   $question['text'] = trim((string)($_POST['text'] ?? ''));
   $question['need'] = strtoupper(trim((string)($_POST['need'] ?? ($question['need'] ?? 'PONE'))));
   $question['level'] = (int)($_POST['level'] ?? ($question['level'] ?? 1));
@@ -72,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($question['text'] === '') {
     $errors[] = "Enonce obligatoire.";
   }
-  if (!in_array($question['question_type'], ['MULTI', 'TRUE_FALSE'], true)) {
+  if (!in_array($question['question_type'], ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
     $errors[] = "Type invalide.";
   }
   if (!in_array($question['need'], ['PONE', 'PHM', 'PPM'], true)) {
@@ -125,13 +119,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   $nbCorrect = array_sum(array_map(fn($r) => $r['is_correct'], $rows));
 
-  if ($question['question_type'] === 'TRUE_FALSE') {
-    if ($nbCorrect !== 1) {
-      $errors[] = "TRUE_FALSE : exactement 1 bonne reponse.";
-    }
-  } else {
-    if ($nbCorrect < 1) {
-      $errors[] = "MULTI : au moins 1 bonne reponse.";
+	  if ($question['question_type'] === 'TRUE_FALSE') {
+	    if ($nbCorrect !== 1) {
+	      $errors[] = "TRUE_FALSE : exactement 1 bonne reponse.";
+	    }
+	  } elseif ($question['question_type'] === 'SINGLE') {
+	    if ($nbCorrect !== 1) {
+	      $errors[] = "SINGLE : exactement 1 bonne reponse.";
+	    }
+	  } else {
+	    if ($nbCorrect < 1) {
+	      $errors[] = "MULTI : au moins 1 bonne reponse.";
     }
   }
 
@@ -150,9 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     try {
       if ($question['id'] > 0) {
-        $up = $pdo->prepare("UPDATE questions SET package_id=?, text=?, need=?, level=?, question_type=?, allow_skip=? WHERE id=?");
+        $up = $pdo->prepare("UPDATE questions SET text=?, need=?, level=?, question_type=?, allow_skip=? WHERE id=?");
         $up->execute([
-          $question['package_id'],
           $question['text'],
           $question['need'],
           $question['level'],
@@ -186,20 +183,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
-
-function package_label_style_local(string $packageName): string {
-  $name = strtoupper(trim($packageName));
-  $color = match ($name) {
-    'GREEN' => '#16a34a',
-    'BLUE' => '#2563eb',
-    'RED' => '#dc2626',
-    'BLACK' => '#111827',
-    'SILVER' => '#64748b',
-    'GOLD' => '#d4af37',
-    default => '#334155',
-  };
-  return 'color:' . $color . ';font-weight:700;';
-}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -233,35 +216,7 @@ function package_label_style_local(string $packageName): string {
     <?php endif; ?>
 
     <form method="post" class="question-form">
-      <div class="import-help">
-        <div class="import-help-head">
-          <span class="import-help-tag">Guide</span>
-          <strong>Configuration de la question</strong>
-        </div>
-        <div class="import-help-grid">
-          <div class="import-help-block">
-            <div class="import-help-block-title">Utilise pour le tirage</div>
-            <p class="import-help-text"><code>Need</code> + <code>Level</code></p>
-          </div>
-          <div class="import-help-block">
-            <div class="import-help-block-title">Utilise pour organiser</div>
-            <p class="import-help-text"><code>Package</code> (vue admin)</p>
-          </div>
-        </div>
-      </div>
-
       <div class="question-fields">
-        <div class="question-field question-field-full">
-          <label class="label">Package</label>
-	          <select name="package_id" required>
-	            <?php foreach ($packages as $p): ?>
-	              <option value="<?= (int)$p['id'] ?>" <?= $question['package_id'] === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style_local((string)$p['name'])) ?>">
-	                <?= h($p['name']) ?>
-	              </option>
-	            <?php endforeach; ?>
-	          </select>
-        </div>
-
         <div class="question-field">
           <label class="label">Need</label>
           <select name="need" required>
@@ -290,6 +245,7 @@ function package_label_style_local(string $packageName): string {
             <?php
             $typeLabels = [
               'MULTI' => 'Choix multiple',
+              'SINGLE' => 'Choix unique',
               'TRUE_FALSE' => 'Vrai / Faux',
             ];
             foreach ($typeLabels as $typeValue => $typeLabel):
@@ -342,6 +298,5 @@ function package_label_style_local(string $packageName): string {
     </form>
   </div>
 </div>
-<script src="/assets/package-colors.js"></script>
 </body>
 </html>

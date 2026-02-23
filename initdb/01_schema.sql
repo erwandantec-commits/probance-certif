@@ -69,8 +69,15 @@ CREATE TABLE package_rules (
 -- Questions: uniquement l'énoncé + métadonnées
 CREATE TABLE questions (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  package_id INT NOT NULL,
+  external_id BIGINT NULL,
+  package_id INT NULL,
   text TEXT NOT NULL,
+  theme VARCHAR(255) NULL,
+  category VARCHAR(255) NULL,
+  profile VARCHAR(255) NULL,
+  need ENUM('PONE','PHM','PPM') NOT NULL DEFAULT 'PONE',
+  knowledge_required_csv VARCHAR(64) NULL,
+  level TINYINT NOT NULL DEFAULT 1,
 
   -- SINGLE: 1 choix max
   -- MULTI: plusieurs choix possibles
@@ -79,8 +86,13 @@ CREATE TABLE questions (
 
   -- L'utilisateur peut soumettre sans sélectionner (score 0)
   allow_skip TINYINT(1) NOT NULL DEFAULT 1,
+  explanation TEXT NULL,
+  meta_json LONGTEXT NULL,
 
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY uq_questions_external_id (external_id),
 
   CONSTRAINT fk_questions_package
     FOREIGN KEY (package_id) REFERENCES packages(id)
