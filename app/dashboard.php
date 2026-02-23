@@ -144,8 +144,12 @@ if (!empty($certCards)) {
   });
 }
 
+$activePausedSelect = sessions_column_exists($pdo, 'paused_remaining_seconds')
+  ? ", s.paused_remaining_seconds"
+  : ", NULL AS paused_remaining_seconds";
 $activeStmt = $pdo->prepare("
   SELECT s.id, s.package_id, s.session_type, s.started_at, pk.name AS package_name, pk.duration_limit_minutes
+    $activePausedSelect
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE user_id=? AND status='ACTIVE'
@@ -189,9 +193,14 @@ foreach ($activeRows as $row) {
     $resumePos = max(1, (int)($totalPosStmt->fetch()['c'] ?? 1));
   }
   $resumePosBySession[$sid] = $resumePos;
-  $limitMinutes = max(1, (int)($row['duration_limit_minutes'] ?? 1));
-  $expiresAt = strtotime((string)$row['started_at']) + ($limitMinutes * 60);
-  $remainingSeconds = max(0, $expiresAt - time());
+  $pausedRemaining = $row['paused_remaining_seconds'] ?? null;
+  if ($pausedRemaining !== null && $pausedRemaining !== '') {
+    $remainingSeconds = max(0, (int)$pausedRemaining);
+  } else {
+    $limitMinutes = max(1, (int)($row['duration_limit_minutes'] ?? 1));
+    $expiresAt = strtotime((string)$row['started_at']) + ($limitMinutes * 60);
+    $remainingSeconds = max(0, $expiresAt - time());
+  }
   $activeHighlights[] = [
     'id' => $sid,
     'package_name' => (string)($row['package_name'] ?? ''),
