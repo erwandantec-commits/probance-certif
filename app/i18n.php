@@ -158,6 +158,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
 
       'start.err.invalid_package' => 'Package invalide.',
       'start.err.package_not_found' => 'Package introuvable.',
+      'start.err.cert_already_valid' => 'Cette certification est déjà valide. Vous ne pouvez pas la repasser pour le moment.',
       'start.err.not_enough_tagged' => 'Pas assez de questions taguées pour générer cette certification.',
       'start.err.not_enough_package' => 'Pas assez de questions pour ce package.',
       'start.err.create_failed' => 'Erreur création session.',
@@ -293,6 +294,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
 
       'start.err.invalid_package' => 'Invalid package.',
       'start.err.package_not_found' => 'Package not found.',
+      'start.err.cert_already_valid' => 'This certification is already valid. You cannot retake it right now.',
       'start.err.not_enough_tagged' => 'Not enough tagged questions to build this certification.',
       'start.err.not_enough_package' => 'Not enough questions for this package.',
       'start.err.create_failed' => 'Session creation failed.',
@@ -428,6 +430,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
 
       'start.err.invalid_package' => 'Paquete inválido.',
       'start.err.package_not_found' => 'Paquete no encontrado.',
+      'start.err.cert_already_valid' => 'Esta certificación ya es válida. No puedes repetirla por el momento.',
       'start.err.not_enough_tagged' => 'No hay suficientes preguntas etiquetadas para generar esta certificación.',
       'start.err.not_enough_package' => 'No hay suficientes preguntas para este paquete.',
       'start.err.create_failed' => 'Error al crear la sesión.',
@@ -563,6 +566,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
 
       'start.err.invalid_package' => '無効なパッケージです。',
       'start.err.package_not_found' => 'パッケージが見つかりません。',
+      'start.err.cert_already_valid' => 'この認定は現在有効です。今は再受験できません。',
       'start.err.not_enough_tagged' => 'この認定を生成するためのタグ付き問題が不足しています。',
       'start.err.not_enough_package' => 'このパッケージの問題数が不足しています。',
       'start.err.create_failed' => 'セッション作成に失敗しました。',

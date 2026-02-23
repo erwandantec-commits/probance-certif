@@ -36,6 +36,46 @@ if (!$pkg) {
   exit;
 }
 
+if ($session_type === 'EXAM') {
+  $hasRevocationsTable = (bool)$pdo->query("
+    SELECT COUNT(*)
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'certification_revocations'
+  ")->fetchColumn();
+
+  $revocationJoin = $hasRevocationsTable
+    ? "LEFT JOIN certification_revocations cr ON cr.contact_id = s.contact_id AND cr.package_id = s.package_id"
+    : "";
+  $revocationWhere = $hasRevocationsTable
+    ? "AND cr.contact_id IS NULL"
+    : "";
+
+  $validCertStmt = $pdo->prepare("
+    SELECT COALESCE(s.ended_at, s.submitted_at, s.started_at) AS last_success_at
+    FROM sessions s
+    $revocationJoin
+    WHERE s.user_id=?
+      AND s.package_id=?
+      AND s.session_type='EXAM'
+      AND s.status='TERMINATED'
+      AND s.passed=1
+      $revocationWhere
+    ORDER BY COALESCE(s.ended_at, s.submitted_at, s.started_at) DESC
+    LIMIT 1
+  ");
+  $validCertStmt->execute([$uid, $package_id]);
+  $lastSuccessAt = $validCertStmt->fetchColumn();
+  $certStatus = certification_status_from_last_success(
+    is_string($lastSuccessAt) ? $lastSuccessAt : null
+  );
+
+  if (($certStatus['status_key'] ?? 'NONE') === 'CERTIFIED' || ($certStatus['status_key'] ?? 'NONE') === 'SOON') {
+    header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.cert_already_valid'));
+    exit;
+  }
+}
+
 $selection = select_questions_for_package($pdo, $pkg);
 $qids = $selection['ids'] ?? [];
 if (($selection['error_key'] ?? null) !== null) {
