@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <form method="post">
         <div class="package-edit-grid">
           <div>
-            <label class="label">Seuil de réussite (%)</label>
+            <label class="label">Seuil de rÃ©ussite (%)</label>
             <input
               class="input"
               type="number"
@@ -260,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
 
           <div>
-            <label class="label">Durée max (minutes)</label>
+            <label class="label">DurÃ©e max (minutes)</label>
             <input
               class="input"
               type="number"
@@ -273,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
 
           <div>
-            <label class="label">Nombre de questions tirées</label>
+            <label class="label">Nombre de questions tirÃ©es</label>
             <input
               class="input"
               type="number"
@@ -299,7 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
       </div>
       <p class="small">
-        Répartition par connaissances requises et niveau (banque globale, utilisée pour le tirage de ce package).
+        RÃ©partition par connaissances requises et niveau (banque globale, utilisÃ©e pour le tirage de ce package).
         <?php if ($filterNeed !== '' || $filterLevel > 0): ?>
           <span class="small" style="margin-left:8px;">
             Filtre: <b><?= h($filterNeed ?: 'Tous') ?></b><?= $filterLevel > 0 ? ' - L' . (int)$filterLevel : '' ?>
@@ -344,7 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Énoncé</th>
+                <th>Ã‰noncÃ©</th>
 	                <th>Connaissances requises</th>
 	                <th>Niveau</th>
                 <th>Type</th>
@@ -399,15 +399,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ?>
       <div class="sessions-pagination">
         <?php if ($page > 1): ?>
-          <a class="btn ghost" href="<?= h($base . $common . '&page=' . ($page - 1)) ?>">&larr; Précédent</a>
+          <a class="btn ghost" href="<?= h($base . $common . '&page=' . ($page - 1)) ?>">&larr;</a>
         <?php else: ?>
-          <button class="btn ghost" disabled>&larr; Précédent</button>
+          <button class="btn ghost" disabled>&larr;</button>
+        <?php endif; ?>
+
+        <?php if ($totalPages <= 7): ?>
+          <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . '&page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+        <?php else: ?>
+          <a class="btn <?= $page === 1 ? '' : 'ghost' ?>" href="<?= h($base . $common . '&page=1') ?>">1</a>
+
+          <?php if ($page <= 4): ?>
+            <?php for ($p = 2; $p <= 5; $p++): ?>
+              <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . '&page=' . $p) ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php elseif ($page >= ($totalPages - 3)): ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php for ($p = $totalPages - 4; $p <= $totalPages - 1; $p++): ?>
+              <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . '&page=' . $p) ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+          <?php else: ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php for ($p = $page - 1; $p <= $page + 1; $p++): ?>
+              <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . '&page=' . $p) ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php endif; ?>
+
+          <a class="btn <?= $totalPages === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . '&page=' . $totalPages) ?>"><?= (int)$totalPages ?></a>
         <?php endif; ?>
 
         <?php if ($page < $totalPages): ?>
-          <a class="btn ghost" href="<?= h($base . $common . '&page=' . ($page + 1)) ?>">Suivant &rarr;</a>
+          <a class="btn ghost" href="<?= h($base . $common . '&page=' . ($page + 1)) ?>">&rarr;</a>
         <?php else: ?>
-          <button class="btn ghost" disabled>Suivant &rarr;</button>
+          <button class="btn ghost" disabled>&rarr;</button>
         <?php endif; ?>
       </div>
     </div>
@@ -433,3 +461,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </script>
 </body>
 </html>
+

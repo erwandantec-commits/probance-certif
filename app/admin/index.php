@@ -78,6 +78,24 @@ $whereSql = $where ? ("WHERE " . implode(" AND ", $where)) : "";
 // Pagination
 $limit = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
+
+$countSql = "
+  SELECT COUNT(*)
+  FROM sessions s
+  JOIN contacts c ON c.id = s.contact_id
+  $whereSql
+";
+$countStmt = $pdo->prepare($countSql);
+$i = 1;
+foreach ($params as $v) {
+  $countStmt->bindValue($i++, $v);
+}
+$countStmt->execute();
+$totalRows = (int)$countStmt->fetchColumn();
+$totalPages = max(1, (int)ceil($totalRows / $limit));
+if ($page > $totalPages) {
+  $page = $totalPages;
+}
 $offset = ($page - 1) * $limit;
 
 $sql = "
@@ -252,7 +270,7 @@ $stats = $pdo->query("
         <span class="badge bad">Expir&eacute;es: <?= (int)$stats['expired_count'] ?></span>
       </div>
 
-      <p class="sub sessions-meta">Page <?= (int)$page ?> (<?= count($sessions) ?> r&eacute;sultats)</p>
+      <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> r&eacute;sultats)</p>
 
       <div class="table-wrap">
         <?php if (!$sessions): ?>
@@ -329,7 +347,7 @@ $stats = $pdo->query("
 	                    <?php if ($s['status'] === 'TERMINATED' && !$isTimeout): ?>
 	                      <span class="badge ok">Termin&eacute;</span>
 	                    <?php elseif ($s['status'] === 'EXPIRED' || $isTimeout): ?>
-	                      <span class="badge bad">Temps &eacute;coul&eacute;</span>
+	                      <span class="badge bad">Expir&eacute;e</span>
 	                    <?php else: ?>
 	                      <span class="badge">En cours</span>
 	                    <?php endif; ?>
@@ -366,11 +384,43 @@ $stats = $pdo->query("
 
       <div class="sessions-pagination">
         <?php if ($page > 1): ?>
-          <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page - 1)) ?>">&larr; Page pr&eacute;c&eacute;dente</a>
+          <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page - 1)) ?>">&larr;</a>
+        <?php else: ?>
+          <button class="btn ghost" disabled>&larr;</button>
         <?php endif; ?>
 
-        <?php if (count($sessions) === $limit): ?>
-          <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page + 1)) ?>">Page suivante &rarr;</a>
+        <?php if ($totalPages <= 7): ?>
+          <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+        <?php else: ?>
+          <a class="btn <?= $page === 1 ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=1') ?>">1</a>
+
+          <?php if ($page <= 4): ?>
+            <?php for ($p = 2; $p <= 5; $p++): ?>
+              <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php elseif ($page >= ($totalPages - 3)): ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php for ($p = $totalPages - 4; $p <= $totalPages - 1; $p++): ?>
+              <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+          <?php else: ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php for ($p = $page - 1; $p <= $page + 1; $p++): ?>
+              <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+            <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php endif; ?>
+
+          <a class="btn <?= $totalPages === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $totalPages) ?>"><?= (int)$totalPages ?></a>
+        <?php endif; ?>
+
+        <?php if ($page < $totalPages): ?>
+          <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page + 1)) ?>">&rarr;</a>
+        <?php else: ?>
+          <button class="btn ghost" disabled>&rarr;</button>
         <?php endif; ?>
       </div>
     </div>

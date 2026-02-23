@@ -210,15 +210,43 @@ function questions_filter_url(string $need = '', int $level = 0): string {
     ?>
     <div class="sessions-pagination">
       <?php if ($page > 1): ?>
-        <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page - 1)) ?>">&larr; Précédent</a>
+        <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page - 1)) ?>">&larr;</a>
       <?php else: ?>
-        <button class="btn ghost" disabled>&larr; Précédent</button>
+        <button class="btn ghost" disabled>&larr;</button>
+      <?php endif; ?>
+
+      <?php if ($totalPages <= 7): ?>
+        <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+          <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+        <?php endfor; ?>
+      <?php else: ?>
+        <a class="btn <?= $page === 1 ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=1') ?>">1</a>
+
+        <?php if ($page <= 4): ?>
+          <?php for ($p = 2; $p <= 5; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+        <?php elseif ($page >= ($totalPages - 3)): ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php for ($p = $totalPages - 4; $p <= $totalPages - 1; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+        <?php else: ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php for ($p = $page - 1; $p <= $page + 1; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+        <?php endif; ?>
+
+        <a class="btn <?= $totalPages === $page ? '' : 'ghost' ?>" href="<?= h($base . $common . $sep . 'page=' . $totalPages) ?>"><?= (int)$totalPages ?></a>
       <?php endif; ?>
 
       <?php if ($page < $totalPages): ?>
-        <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page + 1)) ?>">Suivant &rarr;</a>
+        <a class="btn ghost" href="<?= h($base . $common . $sep . 'page=' . ($page + 1)) ?>">&rarr;</a>
       <?php else: ?>
-        <button class="btn ghost" disabled>Suivant &rarr;</button>
+        <button class="btn ghost" disabled>&rarr;</button>
       <?php endif; ?>
     </div>
   </div>
@@ -245,3 +273,4 @@ function questions_filter_url(string $need = '', int $level = 0): string {
 <script src="/assets/package-colors.js"></script>
 </body>
 </html>
+

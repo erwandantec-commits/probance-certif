@@ -839,6 +839,19 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.sessions-pagination .pagination-ellipsis {
+  background: transparent;
+  color: var(--muted);
+  cursor: default;
+  pointer-events: none;
+  padding: 10px 4px;
+  line-height: 1;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(8px);
+}
+
 .section-head {
   display: flex;
   justify-content: space-between;
