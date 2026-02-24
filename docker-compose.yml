@@ -9,7 +9,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - dbdata:/var/lib/mysql
+      - ./data:/var/lib/mysql
       - ./initdb:/docker-entrypoint-initdb.d
 
   web:
@@ -23,5 +23,3 @@ services:
     depends_on:
       - db
 
-volumes:
-  dbdata:

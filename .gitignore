@@ -4,3 +4,4 @@ vendor/
 .env
 .env.*
 dbdata/
+data/
