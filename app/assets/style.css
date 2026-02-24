@@ -107,6 +107,15 @@ body{
 }
 .btn:hover{ background: var(--primary2); }
 
+.btn.danger{
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn.danger:hover{
+  background: #b91c1c;
+}
+
 .btn.secondary{
   background:#111827;
 }
@@ -768,6 +777,30 @@ button:disabled {
   background: #ffe8e8;
 }
 
+.btn.ghost.cert-action-revoke{
+  background: #fff1f2;
+  color: #b91c1c;
+  border-color: #fecdd3;
+}
+
+.btn.ghost.cert-action-revoke:hover{
+  background: #ffe4e6;
+  color: #991b1b;
+  border-color: #fda4af;
+}
+
+.btn.ghost.cert-action-restore{
+  background: #ecfdf3;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.btn.ghost.cert-action-restore:hover{
+  background: #dcfce7;
+  color: #14532d;
+  border-color: #86efac;
+}
+
 .empty-state {
   margin: 0;
   padding: 14px;
@@ -998,6 +1031,30 @@ button:disabled {
   background: #334155;
 }
 
+:root[data-theme="dark"] .btn.ghost.cert-action-revoke{
+  background: #3f1d24;
+  color: #fecdd3;
+  border-color: #7f1d1d;
+}
+
+:root[data-theme="dark"] .btn.ghost.cert-action-revoke:hover{
+  background: #4c1d27;
+  color: #ffe4e6;
+  border-color: #b91c1c;
+}
+
+:root[data-theme="dark"] .btn.ghost.cert-action-restore{
+  background: #0f2c23;
+  color: #bbf7d0;
+  border-color: #166534;
+}
+
+:root[data-theme="dark"] .btn.ghost.cert-action-restore:hover{
+  background: #12362a;
+  color: #dcfce7;
+  border-color: #22c55e;
+}
+
 :root[data-theme="dark"] .table th,
 :root[data-theme="dark"] .table td{
   border-bottom-color: var(--border);
@@ -1147,8 +1204,42 @@ button:disabled {
   margin-top: 16px;
 }
 
+.dashboard-jump {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-jump-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dashboard-jump-link:hover {
+  background: var(--surface);
+}
+
+.dashboard-section-head {
+  margin-bottom: 12px;
+  align-items: center;
+}
+
 .dashboard-section-title {
   margin: 0 0 16px;
+}
+
+.dashboard-section-head .dashboard-section-title {
+  margin: 0;
 }
 
 .dashboard-active-grid {
@@ -1245,6 +1336,31 @@ button:disabled {
 
 .dashboard-cert-card-status {
   margin-top: 2px;
+}
+
+.dashboard-cert-status-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+
+.dashboard-cert-status-badge.is-valid{
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.08);
+}
+
+.dashboard-cert-status-badge.is-valid::before{
+  content: "✓";
+  margin-right: 6px;
+  font-weight: 900;
 }
 
 .dashboard-start-form {

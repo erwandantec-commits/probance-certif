@@ -170,7 +170,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   <meta charset="utf-8">
   <title>Admin &middot; Certifications</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>
@@ -279,10 +279,10 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                     <?php if (!$hasRevocationsTable): ?>
                       <?php if ((string)($r['last_session_id'] ?? '') === ''): ?>-<?php endif; ?>
                     <?php elseif ($r['status_key'] === 'REVOKED'): ?>
-                      <a class="btn ghost" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
+                      <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
                          onclick="return confirm('Retirer la r&eacute;vocation de cette certification ?');">R&eacute;tablir</a>
                     <?php else: ?>
-                      <a class="btn ghost" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
+                      <a class="btn ghost cert-action-revoke" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
                          onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>
                     <?php endif; ?>
                   </td>

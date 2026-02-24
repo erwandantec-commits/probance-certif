@@ -13,21 +13,6 @@ $uid = (int)$user['id'];
 $errKey = trim((string)($_GET['err_key'] ?? ''));
 $err = trim((string)($_GET['err'] ?? ''));
 
-$statsStmt = $pdo->prepare("
-  SELECT
-    COUNT(*) as total_attempts,
-    SUM(CASE WHEN status='TERMINATED' THEN 1 ELSE 0 END) as completed,
-    SUM(CASE WHEN status='TERMINATED' AND passed=1 THEN 1 ELSE 0 END) as passed_count
-  FROM sessions
-  WHERE user_id=?
-");
-$statsStmt->execute([$uid]);
-$stats = $statsStmt->fetch() ?: [
-  'total_attempts' => 0,
-  'completed' => 0,
-  'passed_count' => 0,
-];
-
 $pkgStmt = $pdo->query("SELECT id,name,duration_limit_minutes FROM packages ORDER BY id DESC");
 $packages = $pkgStmt->fetchAll();
 
@@ -50,15 +35,50 @@ usort($packages, static function (array $a, array $b) use ($packageOrder): int {
   return $ai <=> $bi;
 });
 
+$packageIdList = array_map(static fn(array $p): int => (int)$p['id'], $packages);
+$latestCert = (int)($_GET['latest_cert'] ?? 0);
+if ($latestCert > 0 && !in_array($latestCert, $packageIdList, true)) {
+  $latestCert = 0;
+}
+$latestType = strtoupper(trim((string)($_GET['latest_type'] ?? '')));
+if (!in_array($latestType, ['EXAM', 'TRAINING'], true)) {
+  $latestType = '';
+}
+$latestResult = strtoupper(trim((string)($_GET['latest_result'] ?? '')));
+if (!in_array($latestResult, ['PASSED', 'FAILED', 'ACTIVE', 'EXPIRED'], true)) {
+  $latestResult = '';
+}
+
+$lastConds = ["s.user_id=?"];
+$lastParams = [$uid];
+if ($latestCert > 0) {
+  $lastConds[] = "s.package_id=?";
+  $lastParams[] = $latestCert;
+}
+if ($latestType !== '') {
+  $lastConds[] = "s.session_type=?";
+  $lastParams[] = $latestType;
+}
+if ($latestResult === 'PASSED') {
+  $lastConds[] = "s.status='TERMINATED' AND s.passed=1";
+} elseif ($latestResult === 'FAILED') {
+  $lastConds[] = "s.status='TERMINATED' AND s.passed=0";
+} elseif ($latestResult === 'ACTIVE') {
+  $lastConds[] = "s.status='ACTIVE'";
+} elseif ($latestResult === 'EXPIRED') {
+  $lastConds[] = "s.status='EXPIRED'";
+}
+
+$lastWhere = implode(' AND ', $lastConds);
 $lastStmt = $pdo->prepare("
   SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
-  WHERE s.user_id=?
+  WHERE $lastWhere
   ORDER BY s.started_at DESC
   LIMIT 10
 ");
-$lastStmt->execute([$uid]);
+$lastStmt->execute($lastParams);
 $last = $lastStmt->fetchAll();
 
 $certSuccessStmt = $pdo->prepare("
@@ -346,63 +366,20 @@ function dash_remaining_label(int $seconds): string {
     </div>
   <?php endif; ?>
 
-  <div class="dashboard-stats">
-    <div class="card stat-card">
-      <div class="stat-title"><?= h(t('dash.attempts', [], $lang)) ?></div>
-      <div class="stat-value"><?= (int)$stats['total_attempts'] ?></div>
-    </div>
+  <nav class="dashboard-jump" aria-label="Dashboard sections">
+    <a class="dashboard-jump-link" href="#sec-certifications"><?= h(t('dash.certifications.title', [], $lang)) ?></a>
+    <a class="dashboard-jump-link" href="#sec-start"><?= h(t('dash.start_cert', [], $lang)) ?></a>
+    <a class="dashboard-jump-link" href="#sec-active"><?= h(t('dash.active_sessions.title', [], $lang)) ?></a>
+    <a class="dashboard-jump-link" href="#sec-latest"><?= h(t('dash.last_sessions', [], $lang)) ?></a>
+  </nav>
 
-    <div class="card stat-card">
-      <div class="stat-title"><?= h(t('dash.completed', [], $lang)) ?></div>
-      <div class="stat-value"><?= (int)$stats['completed'] ?></div>
-    </div>
-
-    <div class="card stat-card">
-      <div class="stat-title"><?= h(t('dash.passed', [], $lang)) ?></div>
-      <div class="stat-value"><?= (int)$stats['passed_count'] ?></div>
-    </div>
-  </div>
-
-  <div class="card dashboard-card">
-    <h3 class="dashboard-section-title"><?= h(t('dash.active_sessions.title', [], $lang)) ?></h3>
-    <?php if (!$activeHighlights): ?>
-      <p class="small"><?= h(t('dash.active_sessions.none', [], $lang)) ?></p>
-    <?php else: ?>
-      <div class="dashboard-active-grid">
-        <?php foreach ($activeHighlights as $a): ?>
-          <article class="dashboard-active-item">
-            <div class="dashboard-active-item-head">
-              <span style="<?= h(package_label_style((string)$a['package_name'])) ?>"><?= h(localize_text((string)$a['package_name'], $lang)) ?></span>
-              <span class="pill info"><?= h(dash_session_type_label((string)$a['session_type'], $lang)) ?></span>
-            </div>
-            <div class="dashboard-active-item-meta">
-              <?= h(t('dash.active_sessions.started', [], $lang)) ?>: <?= h(date('d/m/Y H:i', strtotime((string)$a['started_at']))) ?>
-            </div>
-            <div class="dashboard-active-item-meta">
-              <?= h(t('dash.active_sessions.remaining', [], $lang)) ?>: <b><?= h(dash_remaining_label((int)$a['remaining_seconds'])) ?></b>
-            </div>
-            <div class="dashboard-active-item-actions">
-              <a class="btn" href="/exam.php?sid=<?= h((string)$a['id']) ?>&p=<?= (int)$a['resume_p'] ?>&lang=<?= h($lang) ?>">
-                <?= h(((string)$a['session_type'] === 'TRAINING') ? t('dash.continue_current_training', [], $lang) : t('dash.continue_current_exam', [], $lang)) ?>
-              </a>
-              <a class="btn ghost icon-btn danger"
-                 href="/session_delete.php?sid=<?= h((string)$a['id']) ?>&lang=<?= h($lang) ?>"
-                 aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
-                 title="<?= h(t('dash.delete_active', [], $lang)) ?>"
-                 onclick="return confirm('<?= h(t('dash.delete_confirm', [], $lang)) ?>');">
-                <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
-                </svg>
-              </a>
-            </div>
-          </article>
-        <?php endforeach; ?>
+  <div class="card dashboard-card" id="sec-certifications">
+    <div class="section-head dashboard-section-head">
+      <div>
+        <h3 class="dashboard-section-title"><?= h(t('dash.certifications.title', [], $lang)) ?></h3>
       </div>
-    <?php endif; ?>
-  </div>
-
-  <div class="card dashboard-card">
-    <h3 class="dashboard-section-title"><?= h(t('dash.certifications.title', [], $lang)) ?></h3>
+      <span class="badge"><?= count($certCards) ?></span>
+    </div>
 
     <?php if (!$certCards): ?>
       <p class="small"><?= h(t('dash.certifications.none', [], $lang)) ?></p>
@@ -419,7 +396,7 @@ function dash_remaining_label(int $seconds): string {
               <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.valid_until', [], $lang)) ?>: <?= h((string)$card['expires_at']) ?></div>
             <?php endif; ?>
             <div class="dashboard-cert-card-status">
-              <span class="<?= h(dash_cert_status_class((string)$card['status_key'])) ?>">
+              <span class="<?= h(dash_cert_status_class((string)$card['status_key'])) ?> dashboard-cert-status-badge <?= h((string)$card['status_key'] === 'CERTIFIED' ? 'is-valid' : '') ?>">
                 <?= h(dash_cert_status_label((string)$card['status_key'], $lang)) ?>
               </span>
             </div>
@@ -429,8 +406,12 @@ function dash_remaining_label(int $seconds): string {
     <?php endif; ?>
   </div>
 
-  <div class="card dashboard-card">
-    <h3 class="dashboard-section-title"><?= h(t('dash.start_cert', [], $lang)) ?></h3>
+  <div class="card dashboard-card" id="sec-start">
+    <div class="section-head dashboard-section-head">
+      <div>
+        <h3 class="dashboard-section-title"><?= h(t('dash.start_cert', [], $lang)) ?></h3>
+      </div>
+    </div>
 
 	    <form method="post" action="/start.php" class="dashboard-start-form">
 	      <input type="hidden" name="lang" value="<?= h($lang) ?>">
@@ -527,8 +508,94 @@ function dash_remaining_label(int $seconds): string {
 		    </form>
   </div>
 
-  <div class="card dashboard-card">
-    <h3 class="dashboard-section-title"><?= h(t('dash.last_sessions', [], $lang)) ?></h3>
+  <div class="card dashboard-card" id="sec-active">
+    <div class="section-head dashboard-section-head">
+      <div>
+        <h3 class="dashboard-section-title"><?= h(t('dash.active_sessions.title', [], $lang)) ?></h3>
+      </div>
+      <span class="badge"><?= count($activeHighlights) ?></span>
+    </div>
+    <?php if (!$activeHighlights): ?>
+      <p class="small"><?= h(t('dash.active_sessions.none', [], $lang)) ?></p>
+    <?php else: ?>
+      <div class="dashboard-active-grid">
+        <?php foreach ($activeHighlights as $a): ?>
+          <article class="dashboard-active-item">
+            <div class="dashboard-active-item-head">
+              <span style="<?= h(package_label_style((string)$a['package_name'])) ?>"><?= h(localize_text((string)$a['package_name'], $lang)) ?></span>
+              <span class="pill info"><?= h(dash_session_type_label((string)$a['session_type'], $lang)) ?></span>
+            </div>
+            <div class="dashboard-active-item-meta">
+              <?= h(t('dash.active_sessions.started', [], $lang)) ?>: <?= h(date('d/m/Y H:i', strtotime((string)$a['started_at']))) ?>
+            </div>
+            <div class="dashboard-active-item-meta">
+              <?= h(t('dash.active_sessions.remaining', [], $lang)) ?>: <b><?= h(dash_remaining_label((int)$a['remaining_seconds'])) ?></b>
+            </div>
+            <div class="dashboard-active-item-actions">
+              <a class="btn" href="/exam.php?sid=<?= h((string)$a['id']) ?>&p=<?= (int)$a['resume_p'] ?>&lang=<?= h($lang) ?>">
+                <?= h(((string)$a['session_type'] === 'TRAINING') ? t('dash.continue_current_training', [], $lang) : t('dash.continue_current_exam', [], $lang)) ?>
+              </a>
+              <a class="btn ghost icon-btn danger"
+                 href="/session_delete.php?sid=<?= h((string)$a['id']) ?>&lang=<?= h($lang) ?>"
+                 aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                 title="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                 onclick="return confirm('<?= h(t('dash.delete_confirm', [], $lang)) ?>');">
+                <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                </svg>
+              </a>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </div>
+
+  <div class="card dashboard-card" id="sec-latest">
+    <div class="section-head dashboard-section-head">
+      <div>
+        <h3 class="dashboard-section-title"><?= h(t('dash.last_sessions', [], $lang)) ?></h3>
+      </div>
+      <span class="badge"><?= count($last) ?></span>
+    </div>
+
+    <form method="get" class="filters-grid" style="margin-bottom:12px;">
+      <input type="hidden" name="lang" value="<?= h($lang) ?>">
+      <div>
+        <label class="label"><?= h(t('dash.col.cert', [], $lang)) ?></label>
+        <select name="latest_cert">
+          <option value="">--</option>
+          <?php foreach ($packages as $pk): ?>
+            <?php $pkId = (int)$pk['id']; ?>
+            <option value="<?= $pkId ?>" <?= $latestCert === $pkId ? 'selected' : '' ?>>
+              <?= h(localize_text((string)$pk['name'], $lang)) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div>
+        <label class="label"><?= h(t('dash.col.type', [], $lang)) ?></label>
+        <select name="latest_type">
+          <option value="">--</option>
+          <option value="EXAM" <?= $latestType === 'EXAM' ? 'selected' : '' ?>><?= h(t('dash.session_type.exam', [], $lang)) ?></option>
+          <option value="TRAINING" <?= $latestType === 'TRAINING' ? 'selected' : '' ?>><?= h(t('dash.session_type.training', [], $lang)) ?></option>
+        </select>
+      </div>
+      <div>
+        <label class="label"><?= h(t('dash.col.result', [], $lang)) ?></label>
+        <select name="latest_result">
+          <option value="">--</option>
+          <option value="PASSED" <?= $latestResult === 'PASSED' ? 'selected' : '' ?>><?= h(t('dash.result.passed', [], $lang)) ?></option>
+          <option value="FAILED" <?= $latestResult === 'FAILED' ? 'selected' : '' ?>><?= h(t('dash.result.failed', [], $lang)) ?></option>
+          <option value="ACTIVE" <?= $latestResult === 'ACTIVE' ? 'selected' : '' ?>><?= h(t('dash.status.active', [], $lang)) ?></option>
+          <option value="EXPIRED" <?= $latestResult === 'EXPIRED' ? 'selected' : '' ?>><?= h(t('dash.status.expired', [], $lang)) ?></option>
+        </select>
+      </div>
+      <div class="filters-actions">
+        <button class="btn ghost" type="submit">Filtrer</button>
+        <a class="btn ghost" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?>#sec-latest">Reinitialiser</a>
+      </div>
+    </form>
 
     <?php if (!$last): ?>
       <p class="small"><?= h(t('dash.none', [], $lang)) ?></p>

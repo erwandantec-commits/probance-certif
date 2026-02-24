@@ -248,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <form method="post">
         <div class="package-edit-grid">
           <div>
-            <label class="label">Seuil de rÃ©ussite (%)</label>
+            <label class="label">Seuil de réussite (%)</label>
             <input
               class="input"
               type="number"
@@ -261,7 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
 
           <div>
-            <label class="label">DurÃ©e max (minutes)</label>
+            <label class="label">Durée max (minutes)</label>
             <input
               class="input"
               type="number"
@@ -274,7 +274,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
 
           <div>
-            <label class="label">Nombre de questions tirÃ©es</label>
+            <label class="label">Nombre de questions tirées</label>
             <input
               class="input"
               type="number"
@@ -300,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
       </div>
       <p class="small">
-        RÃ©partition par connaissances requises et niveau (banque globale, utilisÃ©e pour le tirage de ce package).
+        Répartition par connaissances requises et niveau (banque globale, utilisée pour le tirage de ce package).
         <?php if ($filterNeed !== '' || $filterLevel > 0): ?>
           <span class="small" style="margin-left:8px;">
             Filtre: <b><?= h($filterNeed ?: 'Tous') ?></b><?= $filterLevel > 0 ? ' - L' . (int)$filterLevel : '' ?>
@@ -345,7 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Ã‰noncÃ©</th>
+                <th>Énoncé</th>
 	                <th>Connaissances requises</th>
 	                <th>Niveau</th>
                 <th>Type</th>

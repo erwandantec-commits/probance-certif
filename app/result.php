@@ -30,7 +30,11 @@ if (!$s) {
 }
 
 if (session_is_expired($s)) {
-  mark_session_expired($pdo, $sid);
+  $scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
+  $score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
+  $threshold = (int)$s['pass_threshold_percent'];
+  $passed = ($score >= $threshold) ? 1 : 0;
+  mark_session_terminated($pdo, $sid, round($score, 2), $passed, 'TIMEOUT');
 
   $stmt = $pdo->prepare("
     SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent, pk.duration_limit_minutes

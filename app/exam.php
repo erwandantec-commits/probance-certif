@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/services/session_service.php';
 
@@ -8,6 +9,8 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
 $pdo = db();
 $lang = get_lang();
+$viewer = current_user();
+$isAdminViewer = ($viewer && (($viewer['role'] ?? 'USER') === 'ADMIN'));
 
 $sid = $_GET['sid'] ?? '';
 $p = (int)($_GET['p'] ?? 1);
@@ -66,12 +69,6 @@ if (!$hasPausedRemaining && isset($_SESSION['paused_remaining'][$sid])) {
 }
 
 if ($sess['status'] !== 'ACTIVE') {
-  header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
-  exit;
-}
-
-if (session_is_expired($sess)) {
-  mark_session_expired($pdo, $sid);
   header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
   exit;
 }
@@ -151,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $lang = get_lang();
   $navigationOnlyFromFeedback =
     $showFeedback &&
-    (isset($_POST['next']) || isset($_POST['pause']) || isset($_POST['finish']));
+    (isset($_POST['next']) || ($isAdminViewer && isset($_POST['pause'])) || isset($_POST['finish']));
   $mustAnswerValidationError = false;
 
   if ($isTraining && isset($_POST['check'])) {
@@ -210,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 
-  if (isset($_POST['pause'])) {
+  if ($isAdminViewer && isset($_POST['pause'])) {
     if ($hasPausedRemaining) {
       $savePause = $pdo->prepare("
         UPDATE sessions
@@ -278,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <span class="badge" id="t"></span>
     </div>
 
-    <form method="post">
+    <form method="post" id="exam-form">
       <input type="hidden" name="lang" value="<?= h($lang) ?>">
 
 	      <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border);">
@@ -351,10 +348,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </button>
             <?php endif; ?>
           <?php endif; ?>
-	        <button class="btn ghost" type="submit" name="pause" value="1"><?= h(t('exam.pause', [], $lang)) ?></button>
-	        <?php if ((int)$p === (int)$total && (!$isTraining || $showFeedback)): ?>
-	          <button class="btn" name="finish" style="margin-left:auto;"><?= h(t('exam.finish', [], $lang)) ?></button>
-	        <?php endif; ?>
+          <?php if ($isAdminViewer): ?>
+	        <button class="btn ghost" type="submit" name="pause" value="1" formnovalidate><?= h(t('exam.pause', [], $lang)) ?></button>
+          <?php endif; ?>
+
+          <button
+            class="btn danger"
+            type="submit"
+            name="finish"
+            value="1"
+            formnovalidate
+            data-confirm-message="<?= h(t($isTraining ? 'exam.finish_confirm_training' : 'exam.finish_confirm_exam', [], $lang)) ?>"
+            style="margin-left:auto;"
+          >
+            <?= h(t('exam.finish_qcm', [], $lang)) ?>
+          </button>
 	      </div>
 
       <p class="small" style="margin-top:12px;"><?= h(t('exam.score_hint', [], $lang)) ?></p>
@@ -363,6 +371,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+  (function () {
+    var form = document.getElementById('exam-form');
+    if (!form) return;
+
+    form.addEventListener('submit', function (e) {
+      var submitter = e.submitter;
+      if (!submitter) return;
+      if (submitter.name !== 'finish') return;
+
+      var message = submitter.getAttribute('data-confirm-message') || 'Confirmer ?';
+      if (!window.confirm(message)) {
+        e.preventDefault();
+      }
+    });
+  })();
+
   let remaining = <?= (int)$remainingSeconds ?>;
   function tick() {
     const m = Math.floor(remaining / 60);

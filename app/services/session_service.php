@@ -284,16 +284,26 @@ function create_session_record(
   $pdo->prepare($sql)->execute([$sessionId, $contactId, $userId, $packageId, $sessionType]);
 }
 
-function mark_session_terminated(PDO $pdo, string $sessionId, float $scorePercent, int $passed): void {
+function mark_session_terminated(
+  PDO $pdo,
+  string $sessionId,
+  float $scorePercent,
+  int $passed,
+  string $terminationType = 'MANUAL'
+): void {
   $hasEndedAt = sessions_column_exists($pdo, 'ended_at');
   $hasTerminationType = sessions_column_exists($pdo, 'termination_type');
+  $terminationType = strtoupper(trim($terminationType));
+  if (!in_array($terminationType, ['MANUAL', 'TIMEOUT'], true)) {
+    $terminationType = 'MANUAL';
+  }
 
   $sets = ["status='TERMINATED'", "submitted_at=NOW()", "score_percent=?", "passed=?"];
   if ($hasEndedAt) {
     $sets[] = "ended_at=NOW()";
   }
   if ($hasTerminationType) {
-    $sets[] = "termination_type='MANUAL'";
+    $sets[] = "termination_type='" . $terminationType . "'";
   }
 
   $sql = "UPDATE sessions SET " . implode(', ', $sets) . " WHERE id=?";
