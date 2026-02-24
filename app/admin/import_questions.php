@@ -229,8 +229,28 @@ function mapping_fields(): array {
     'answer5' => ['label' => 'Reponse 5', 'required' => false, 'aliases' => ['reponse5', 'response5', 'answer5']],
     'answer6' => ['label' => 'Reponse 6', 'required' => false, 'aliases' => ['reponse6', 'response6', 'answer6']],
     'correct' => ['label' => 'Bonnes reponses', 'required' => true, 'aliases' => ['bonnesreponses', 'bonnereponse', 'correctanswers', 'goodanswers', 'correct']],
+    'open_to_client' => ['label' => 'Ouvert au client', 'required' => false, 'aliases' => ['ouvertauclient', 'open_to_client', 'opentoclient', 'clientopen', 'openedtoclient']],
     'explanation' => ['label' => 'Explication', 'required' => false, 'aliases' => ['explicationdetailleedelabonneresponse', 'explicationdetaillee', 'explanation']],
   ];
+}
+
+function parse_open_to_client_value(string $raw): ?int {
+  $v = normalize_boolean_token($raw);
+  $vNorm = normalize_header($raw);
+  if ($v === '') {
+    return null;
+  }
+
+  $trueValues = ['1', 'true', 'vrai', 'oui', 'o', 'yes', 'y', 'open', 'ouvert'];
+  $falseValues = ['0', 'false', 'faux', 'non', 'n', 'no', 'closed', 'ferme', 'fermee'];
+
+  if (in_array($v, $trueValues, true) || in_array($vNorm, $trueValues, true)) {
+    return 1;
+  }
+  if (in_array($v, $falseValues, true) || in_array($vNorm, $falseValues, true)) {
+    return 0;
+  }
+  return null;
 }
 
 function parse_knowledge_required(string $raw): array {
@@ -333,7 +353,9 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     $knowledgeRequiredRaw = cell_value($cells, $map['knowledge_required'] ?? null);
     $levelRaw = cell_value($cells, $map['level'] ?? null);
     $correctRaw = cell_value($cells, $map['correct'] ?? null);
+    $openToClientRaw = cell_value($cells, $map['open_to_client'] ?? null);
     $explanation = cell_value($cells, $map['explanation'] ?? null);
+    $openToClient = parse_open_to_client_value($openToClientRaw);
 
     $rowErrors = [];
     if ($externalIdRaw === '' || !preg_match('/^\d+$/', $externalIdRaw)) {
@@ -377,6 +399,9 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     }
     if ($correctRaw === '') {
       $rowErrors[] = "Bonnes reponses vide.";
+    }
+    if ($openToClientRaw !== '' && $openToClient === null) {
+      $rowErrors[] = "Ouvert au client invalide (attendu: oui/non, true/false, 1/0).";
     }
 
     $correctIndexes = [];
@@ -472,6 +497,7 @@ function validate_and_prepare_rows(array $rows, array $map): array {
       'level' => (int)$levelRaw,
       'question_type' => $questionType,
       'allow_skip' => 1,
+      'open_to_client' => $openToClient,
       'explanation' => $explanation !== '' ? $explanation : null,
       'meta_json' => json_encode($meta, JSON_UNESCAPED_UNICODE),
       'responses' => $responses,
@@ -483,29 +509,73 @@ function validate_and_prepare_rows(array $rows, array $map): array {
 }
 
 function run_import(PDO $pdo, array $prepared, array $report): array {
+  $hasOpenToClientColumn = db_column_exists($pdo, 'questions', 'open_to_client');
   $selectQ = $pdo->prepare("SELECT id FROM questions WHERE external_id=? LIMIT 1");
-  $insertQ = $pdo->prepare("
-    INSERT INTO questions(
-      external_id, package_id, text, need, level, question_type, allow_skip,
-      knowledge_required_csv, theme, category, profile, explanation, meta_json, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
-  ");
-  $updateQ = $pdo->prepare("
-    UPDATE questions SET
-      text=?,
-      need=?,
-      level=?,
-      question_type=?,
-      allow_skip=?,
-      knowledge_required_csv=?,
-      theme=?,
-      category=?,
-      profile=?,
-      explanation=?,
-      meta_json=?,
-      updated_at=NOW()
-    WHERE external_id=?
-  ");
+  if ($hasOpenToClientColumn) {
+    $insertQ = $pdo->prepare("
+      INSERT INTO questions(
+        external_id, package_id, text, need, level, question_type, allow_skip,
+        knowledge_required_csv, theme, category, profile, open_to_client, explanation, meta_json, created_at, updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+    ");
+    $updateQ = $pdo->prepare("
+      UPDATE questions SET
+        text=?,
+        need=?,
+        level=?,
+        question_type=?,
+        allow_skip=?,
+        knowledge_required_csv=?,
+        theme=?,
+        category=?,
+        profile=?,
+        explanation=?,
+        meta_json=?,
+        updated_at=NOW()
+      WHERE external_id=?
+    ");
+    $updateQWithOpen = $pdo->prepare("
+      UPDATE questions SET
+        text=?,
+        need=?,
+        level=?,
+        question_type=?,
+        allow_skip=?,
+        knowledge_required_csv=?,
+        theme=?,
+        category=?,
+        profile=?,
+        open_to_client=?,
+        explanation=?,
+        meta_json=?,
+        updated_at=NOW()
+      WHERE external_id=?
+    ");
+  } else {
+    $insertQ = $pdo->prepare("
+      INSERT INTO questions(
+        external_id, package_id, text, need, level, question_type, allow_skip,
+        knowledge_required_csv, theme, category, profile, explanation, meta_json, created_at, updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+    ");
+    $updateQ = $pdo->prepare("
+      UPDATE questions SET
+        text=?,
+        need=?,
+        level=?,
+        question_type=?,
+        allow_skip=?,
+        knowledge_required_csv=?,
+        theme=?,
+        category=?,
+        profile=?,
+        explanation=?,
+        meta_json=?,
+        updated_at=NOW()
+      WHERE external_id=?
+    ");
+    $updateQWithOpen = null;
+  }
   $deleteOpts = $pdo->prepare("DELETE FROM question_options WHERE question_id=?");
   $insertOpt = $pdo->prepare("
     INSERT INTO question_options(question_id, label, option_text, is_correct, score_value)
@@ -524,39 +594,76 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
       $existingQid = $selectQ->fetchColumn();
 
       if ($existingQid === false) {
-        $insertQ->execute([
-          $externalId,
-          null,
-          $row['text'],
-          $row['need'],
-          $row['level'],
-          $row['question_type'],
-          $row['allow_skip'],
-          $row['knowledge_required_csv'],
-          $row['theme'],
-          $row['category'],
-          $row['profile'],
-          $row['explanation'],
-          $row['meta_json'],
-        ]);
+        if ($hasOpenToClientColumn) {
+          $insertQ->execute([
+            $externalId,
+            null,
+            $row['text'],
+            $row['need'],
+            $row['level'],
+            $row['question_type'],
+            $row['allow_skip'],
+            $row['knowledge_required_csv'],
+            $row['theme'],
+            $row['category'],
+            $row['profile'],
+            $row['open_to_client'] ?? 0,
+            $row['explanation'],
+            $row['meta_json'],
+          ]);
+        } else {
+          $insertQ->execute([
+            $externalId,
+            null,
+            $row['text'],
+            $row['need'],
+            $row['level'],
+            $row['question_type'],
+            $row['allow_skip'],
+            $row['knowledge_required_csv'],
+            $row['theme'],
+            $row['category'],
+            $row['profile'],
+            $row['explanation'],
+            $row['meta_json'],
+          ]);
+        }
         $qid = (int)$pdo->lastInsertId();
         $report['created']++;
       } else {
         $qid = (int)$existingQid;
-        $updateQ->execute([
-          $row['text'],
-          $row['need'],
-          $row['level'],
-          $row['question_type'],
-          $row['allow_skip'],
-          $row['knowledge_required_csv'],
-          $row['theme'],
-          $row['category'],
-          $row['profile'],
-          $row['explanation'],
-          $row['meta_json'],
-          $externalId,
-        ]);
+        if ($hasOpenToClientColumn && $row['open_to_client'] !== null) {
+          $updateQWithOpen->execute([
+            $row['text'],
+            $row['need'],
+            $row['level'],
+            $row['question_type'],
+            $row['allow_skip'],
+            $row['knowledge_required_csv'],
+            $row['theme'],
+            $row['category'],
+            $row['profile'],
+            $row['open_to_client'],
+            $row['explanation'],
+            $row['meta_json'],
+            $externalId,
+          ]);
+        } else {
+          $updateQ->execute([
+            $row['text'],
+            $row['need'],
+            $row['level'],
+            $row['question_type'],
+            $row['allow_skip'],
+            $row['knowledge_required_csv'],
+            $row['theme'],
+            $row['category'],
+            $row['profile'],
+            $row['explanation'],
+            $row['meta_json'],
+            $externalId,
+          ]);
+        }
         $report['updated']++;
       }
 

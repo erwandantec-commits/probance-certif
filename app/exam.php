@@ -92,7 +92,7 @@ if ($p > $total) {
 }
 
 $qstmt = $pdo->prepare("
-  SELECT q.id, q.text, q.question_type, q.allow_skip
+  SELECT q.id, q.text, q.explanation, q.question_type, q.allow_skip
   FROM session_questions sq
   JOIN questions q ON q.id = sq.question_id
   WHERE sq.session_id=? AND sq.position=?
@@ -106,6 +106,7 @@ if (!$q) {
 }
 
 $qid = (int)$q['id'];
+$questionExplanation = trim(localize_text((string)($q['explanation'] ?? ''), $lang));
 $qType = (string)($q['question_type'] ?? 'MULTI');
 if (!in_array($qType, ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
   $qType = 'MULTI';
@@ -319,6 +320,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p class="<?= $isQuestionCorrect ? 'exam-feedback exam-feedback-ok' : 'exam-feedback exam-feedback-bad' ?>">
               <?= h($isQuestionCorrect ? t('exam.feedback.correct', [], $lang) : t('exam.feedback.incorrect', [], $lang)) ?>
             </p>
+            <?php if ($questionExplanation !== ''): ?>
+              <div class="exam-explanation">
+                <p class="exam-explanation-title"><?= h(t('exam.explanation', [], $lang)) ?></p>
+                <p class="exam-explanation-text"><?= h($questionExplanation) ?></p>
+              </div>
+            <?php endif; ?>
           <?php endif; ?>
 
 	        <?php if ($allowSkip && !$showFeedback && !$isTraining): ?>

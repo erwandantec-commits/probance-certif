@@ -86,6 +86,7 @@ CREATE TABLE questions (
 
   -- L'utilisateur peut soumettre sans sélectionner (score 0)
   allow_skip TINYINT(1) NOT NULL DEFAULT 1,
+  open_to_client TINYINT(1) NOT NULL DEFAULT 0,
   explanation TEXT NULL,
   meta_json LONGTEXT NULL,
 
