@@ -194,6 +194,7 @@ $stats = $pdo->query("
   <title>Admin &middot; Sessions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>
   <div class="container admin-container">
@@ -365,7 +366,11 @@ $stats = $pdo->query("
                     <?php endif; ?>
                   </td>
                   <td class="actions-cell">
-                    <a class="btn ghost" href="/admin/session.php?sid=<?= h($s['id']) ?>">Voir</a>
+                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?>" aria-label="Voir le detail" title="Voir le detail">
+                      <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+                      </svg>
+                    </a>
                   </td>
                 </tr>
               <?php endforeach; ?>

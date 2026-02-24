@@ -128,6 +128,7 @@ if ($canShowReview) {
   <meta charset="utf-8">
   <title><?= h(t('result.title', [], $lang)) ?></title>
   <link rel="stylesheet" href="/assets/style.css?v=9">
+  <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 
 <body>

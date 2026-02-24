@@ -224,6 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title>Admin &middot; Modifier package</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>
   <div class="container admin-container">

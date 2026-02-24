@@ -54,6 +54,21 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $rawRows = $stmt->fetchAll();
 
+$latestSessionStmt = $pdo->prepare("
+  SELECT s.id
+  FROM sessions s
+  WHERE s.contact_id = ?
+    AND s.package_id = ?
+    AND s.session_type = 'EXAM'
+    AND s.status = 'TERMINATED'
+    AND s.passed = 1
+  ORDER BY
+    EXISTS(SELECT 1 FROM session_questions sq WHERE sq.session_id = s.id) DESC,
+    $sessionEndExpr DESC,
+    s.id DESC
+  LIMIT 1
+");
+
 $stats = [
   'CERTIFIED' => 0,
   'SOON' => 0,
@@ -124,6 +139,12 @@ usort($rows, static function (array $a, array $b): int {
   return strcmp($a['expires_at'], $b['expires_at']);
 });
 
+foreach ($rows as &$row) {
+  $latestSessionStmt->execute([(int)$row['contact_id'], (int)$row['package_id']]);
+  $row['last_session_id'] = (string)($latestSessionStmt->fetchColumn() ?: '');
+}
+unset($row);
+
 if (isset($_GET['export']) && $_GET['export'] === '1') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename="certifications_export.csv"');
@@ -150,6 +171,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   <title>Admin &middot; Certifications</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>
   <div class="container admin-container">
@@ -157,7 +179,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Certifications</h2>
-          <p class="sub">Vue des certifications et de leurs échéances</p>
+          <p class="sub">Vue des certifications et de leurs &eacute;ch&eacute;ances</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('certifications'); ?>
@@ -188,10 +210,10 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
           <label class="label" for="cert_status">Statut</label>
           <select id="cert_status" name="cert_status">
             <option value="ALL" <?= $certStatus === 'ALL' ? 'selected' : '' ?>>Tous</option>
-            <option value="CERTIFIED" <?= $certStatus === 'CERTIFIED' ? 'selected' : '' ?>>Certifiés</option>
-            <option value="SOON" <?= $certStatus === 'SOON' ? 'selected' : '' ?>>Expire bientôt</option>
-            <option value="EXPIRED" <?= $certStatus === 'EXPIRED' ? 'selected' : '' ?>>Expirés</option>
-            <option value="REVOKED" <?= $certStatus === 'REVOKED' ? 'selected' : '' ?>>Révoquées</option>
+            <option value="CERTIFIED" <?= $certStatus === 'CERTIFIED' ? 'selected' : '' ?>>Certifi&eacute;s</option>
+            <option value="SOON" <?= $certStatus === 'SOON' ? 'selected' : '' ?>>Expire bient&ocirc;t</option>
+            <option value="EXPIRED" <?= $certStatus === 'EXPIRED' ? 'selected' : '' ?>>Expir&eacute;s</option>
+            <option value="REVOKED" <?= $certStatus === 'REVOKED' ? 'selected' : '' ?>>R&eacute;voqu&eacute;es</option>
           </select>
         </div>
 
@@ -203,19 +225,19 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       </form>
 
       <div class="row sessions-stats">
-        <span class="badge ok">Certifiés: <?= (int)$stats['CERTIFIED'] ?></span>
-        <span class="badge">Expire bientôt: <?= (int)$stats['SOON'] ?></span>
-        <span class="badge bad">Expirés: <?= (int)$stats['EXPIRED'] ?></span>
-        <span class="badge muted-dark">Révoquées: <?= (int)$stats['REVOKED'] ?></span>
+        <span class="badge ok">Certifi&eacute;s: <?= (int)$stats['CERTIFIED'] ?></span>
+        <span class="badge">Expire bient&ocirc;t: <?= (int)$stats['SOON'] ?></span>
+        <span class="badge bad">Expir&eacute;s: <?= (int)$stats['EXPIRED'] ?></span>
+        <span class="badge muted-dark">R&eacute;voqu&eacute;es: <?= (int)$stats['REVOKED'] ?></span>
       </div>
 
-      <p class="sub sessions-meta"><?= count($rows) ?> résultat(s)</p>
+      <p class="sub sessions-meta"><?= count($rows) ?> r&eacute;sultat(s)</p>
 
       <div class="table-wrap">
         <?php if (!$rows): ?>
-          <p class="empty-state">Aucune certification trouvée.</p>
+          <p class="empty-state">Aucune certification trouv&eacute;e.</p>
         <?php else: ?>
-          <table class="table questions-table certifications-table">
+          <table class="table certifications-table">
             <colgroup>
               <col class="cert-col-email">
               <col class="cert-col-name">
@@ -228,7 +250,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
               <tr>
                 <th>Email</th>
                 <th>Certification</th>
-                <th>Dernière réussite</th>
+                <th>Derni&egrave;re r&eacute;ussite</th>
                 <th>Expire le</th>
                 <th>Statut</th>
                 <th>Action</th>
@@ -247,11 +269,18 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                   <td><?= h($r['expires_at']) ?></td>
                   <td><span class="<?= h($r['status_class']) ?>"><?= h($r['status_label']) ?></span></td>
                   <td class="actions-cell">
+	                    <?php if ((string)($r['last_session_id'] ?? '') !== ''): ?>
+	                      <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= urlencode((string)$r['last_session_id']) ?>" aria-label="Voir le detail" title="Voir le detail">
+	                        <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+	                          <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+	                        </svg>
+	                      </a>
+	                    <?php endif; ?>
                     <?php if (!$hasRevocationsTable): ?>
-                      -
+                      <?php if ((string)($r['last_session_id'] ?? '') === ''): ?>-<?php endif; ?>
                     <?php elseif ($r['status_key'] === 'REVOKED'): ?>
                       <a class="btn ghost" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
-                         onclick="return confirm('Retirer la révocation de cette certification ?');">Rétablir</a>
+                         onclick="return confirm('Retirer la r&eacute;vocation de cette certification ?');">R&eacute;tablir</a>
                     <?php else: ?>
                       <a class="btn ghost" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
                          onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>

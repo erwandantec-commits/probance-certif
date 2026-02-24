@@ -715,6 +715,7 @@ $mapping = $state['mapping'] ?? $mapping;
   <title>Admin &middot; Import questions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>
 <div class="container admin-container">

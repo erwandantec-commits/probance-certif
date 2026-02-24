@@ -44,6 +44,28 @@ $rows = $pdo->prepare("
 $rows->execute([$sid]);
 $items = $rows->fetchAll();
 
+$goodCount = 0;
+$badCount = 0;
+$unansweredCount = 0;
+foreach ($items as &$it) {
+  $picked = trim((string)($it['picked_labels'] ?? ''));
+  $correct = trim((string)($it['correct_labels'] ?? ''));
+  if ($picked === '') {
+    $it['answer_status'] = 'Non repondue';
+    $it['answer_status_class'] = 'badge';
+    $unansweredCount++;
+  } elseif ($picked === $correct) {
+    $it['answer_status'] = 'Bonne reponse';
+    $it['answer_status_class'] = 'badge ok';
+    $goodCount++;
+  } else {
+    $it['answer_status'] = 'Mauvaise reponse';
+    $it['answer_status_class'] = 'badge bad';
+    $badCount++;
+  }
+}
+unset($it);
+
 $terminationType = strtoupper(trim((string)($s['termination_type'] ?? '')));
 $statusLabel = match ((string)$s['status']) {
   'TERMINATED' => ($terminationType === 'TIMEOUT' ? 'Temps écoulé' : 'Terminé'),
@@ -66,6 +88,7 @@ $statusClass = match ((string)$s['status']) {
   <title>Admin &middot; Detail session</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>
   <div class="container admin-container">
@@ -87,11 +110,17 @@ $statusClass = match ((string)$s['status']) {
         <span class="badge">Package: <span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></span>
         <span class="<?= h($statusClass) ?>">Statut: <?= h($statusLabel) ?></span>
         <span class="badge">Score: <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></span>
+        <span class="badge ok">Bonnes: <?= (int)$goodCount ?></span>
+        <span class="badge bad">Mauvaises: <?= (int)$badCount ?></span>
+        <span class="badge">Non repondues: <?= (int)$unansweredCount ?></span>
       </div>
 
       <div class="table-wrap">
         <?php if (!$items): ?>
-          <p class="empty-state">Aucune question dans cette session.</p>
+          <p class="empty-state">
+            Aucune question detaillee disponible pour cette session.
+            Les questions liees ont probablement ete supprimees apres import/reset.
+          </p>
         <?php else: ?>
           <table class="table questions-table">
             <thead>
@@ -100,6 +129,7 @@ $statusClass = match ((string)$s['status']) {
                 <th>Question</th>
                 <th>Reponse candidat</th>
                 <th>Reponse correcte</th>
+                <th>Statut</th>
               </tr>
             </thead>
             <tbody>
@@ -109,6 +139,7 @@ $statusClass = match ((string)$s['status']) {
                   <td><?= h($it['text']) ?></td>
                   <td><?= h($it['picked_labels'] ?: '-') ?></td>
                   <td><?= h($it['correct_labels'] ?: '-') ?></td>
+                  <td><span class="<?= h($it['answer_status_class']) ?>"><?= h($it['answer_status']) ?></span></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
