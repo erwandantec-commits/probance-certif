@@ -7,6 +7,11 @@ require_once __DIR__ . '/i18n.php';
 $pdo = db();
 $lang = get_lang();
 $errorKey = '';
+$alreadyLogged = current_user();
+if ($alreadyLogged) {
+  header("Location: /dashboard.php?lang=" . urlencode($lang));
+  exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $lang = get_lang();
