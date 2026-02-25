@@ -190,7 +190,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
   <meta charset="utf-8">
   <title><?= "Modifier question #".(int)$question['id'] ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>

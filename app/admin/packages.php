@@ -105,7 +105,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
   <meta charset="utf-8">
   <title>Admin &middot; Packages</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1" defer></script>
 </head>
 <body>

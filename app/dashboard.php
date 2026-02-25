@@ -48,6 +48,7 @@ $latestResult = strtoupper(trim((string)($_GET['latest_result'] ?? '')));
 if (!in_array($latestResult, ['PASSED', 'FAILED', 'ACTIVE', 'EXPIRED'], true)) {
   $latestResult = '';
 }
+$hasTerminationType = sessions_column_exists($pdo, 'termination_type');
 
 $lastConds = ["s.user_id=?"];
 $lastParams = [$uid];
@@ -60,18 +61,34 @@ if ($latestType !== '') {
   $lastParams[] = $latestType;
 }
 if ($latestResult === 'PASSED') {
-  $lastConds[] = "s.status='TERMINATED' AND s.passed=1";
+  if ($hasTerminationType) {
+    $lastConds[] = "s.status='TERMINATED' AND s.passed=1 AND COALESCE(s.termination_type,'MANUAL') <> 'TIMEOUT'";
+  } else {
+    $lastConds[] = "s.status='TERMINATED' AND s.passed=1";
+  }
 } elseif ($latestResult === 'FAILED') {
-  $lastConds[] = "s.status='TERMINATED' AND s.passed=0";
+  if ($hasTerminationType) {
+    $lastConds[] = "s.status='TERMINATED' AND s.passed=0 AND COALESCE(s.termination_type,'MANUAL') <> 'TIMEOUT'";
+  } else {
+    $lastConds[] = "s.status='TERMINATED' AND s.passed=0";
+  }
 } elseif ($latestResult === 'ACTIVE') {
   $lastConds[] = "s.status='ACTIVE'";
 } elseif ($latestResult === 'EXPIRED') {
-  $lastConds[] = "s.status='EXPIRED'";
+  if ($hasTerminationType) {
+    $lastConds[] = "(s.status='EXPIRED' OR (s.status='TERMINATED' AND s.termination_type='TIMEOUT'))";
+  } else {
+    $lastConds[] = "s.status='EXPIRED'";
+  }
 }
 
 $lastWhere = implode(' AND ', $lastConds);
+$lastTerminationTypeSelect = $hasTerminationType
+  ? ", s.termination_type"
+  : ", 'MANUAL' AS termination_type";
 $lastStmt = $pdo->prepare("
   SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name
+    $lastTerminationTypeSelect
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE $lastWhere
@@ -242,6 +259,21 @@ foreach ($activeRows as $row) {
   }
 }
 
+function dash_is_timeout_session(array $s): bool {
+  return (string)($s['status'] ?? '') === 'EXPIRED'
+    || (
+      (string)($s['status'] ?? '') === 'TERMINATED'
+      && strtoupper(trim((string)($s['termination_type'] ?? 'MANUAL'))) === 'TIMEOUT'
+    );
+}
+
+function dash_display_status(array $s): string {
+  if (dash_is_timeout_session($s)) {
+    return 'EXPIRED';
+  }
+  return (string)($s['status'] ?? '');
+}
+
 function dash_status_label(string $status, string $lang): string {
   return match ($status) {
     'TERMINATED' => t('dash.status.terminated', [], $lang),
@@ -268,14 +300,14 @@ function dash_score_fmt($v, string $lang): string {
 }
 
 function dash_result_label(array $s, string $lang): string {
-  if ($s['status'] !== 'TERMINATED' || $s['passed'] === null) {
+  if ((string)dash_display_status($s) !== 'TERMINATED' || $s['passed'] === null) {
     return t('dash.na', [], $lang);
   }
   return ((int)$s['passed'] === 1) ? t('dash.result.passed', [], $lang) : t('dash.result.failed', [], $lang);
 }
 
 function dash_result_badge_class(array $s): string {
-  if ($s['status'] !== 'TERMINATED' || $s['passed'] === null) {
+  if ((string)dash_display_status($s) !== 'TERMINATED' || $s['passed'] === null) {
     return 'pill';
   }
   return ((int)$s['passed'] === 1) ? 'pill success' : 'pill danger';
@@ -615,13 +647,14 @@ function dash_remaining_label(int $seconds): string {
 	        </thead>
         <tbody>
         <?php foreach ($last as $s): ?>
+          <?php $displayStatus = dash_display_status($s); ?>
           <tr>
 	            <td><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span></td>
             <td><?= h(dash_session_type_label((string)$s['session_type'], $lang)) ?></td>
             <td><?= date('d/m/Y H:i', strtotime($s['started_at'])) ?></td>
             <td>
-              <span class="<?= h(dash_status_badge_class($s['status'])) ?>">
-                <?= h(dash_status_label($s['status'], $lang)) ?>
+              <span class="<?= h(dash_status_badge_class($displayStatus)) ?>">
+                <?= h(dash_status_label($displayStatus, $lang)) ?>
               </span>
             </td>
             <td><?= h(dash_score_fmt($s['score_percent'], $lang)) ?></td>
