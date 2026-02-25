@@ -385,7 +385,12 @@ function dash_remaining_label(int $seconds): string {
         <?php if (($user['role'] ?? 'USER') === 'ADMIN'): ?>
           <a class="btn ghost" href="/admin/"><?= h(t('dash.admin', [], $lang)) ?></a>
         <?php endif; ?>
-        <a class="btn ghost dashboard-logout-btn" href="/logout.php"><?= h(t('dash.logout', [], $lang)) ?></a>
+        <a class="btn ghost dashboard-logout-btn" href="/logout.php">
+          <svg class="logout-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 16l4-4-4-4M19 12H9"/>
+          </svg>
+          <span><?= h(t('dash.logout', [], $lang)) ?></span>
+        </a>
       </div>
     </div>
   </div>

@@ -338,8 +338,15 @@ button:disabled {
 }
 
 body.admin-with-sidebar .admin-container {
-  max-width: 1460px;
-  padding-left: 324px;
+  max-width: none;
+  margin: 0 20px 40px 308px;
+  width: calc(100% - 328px);
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body.admin-with-sidebar .admin-card {
+  margin-top: 20px;
 }
 
 body.admin-with-sidebar .admin-tabs {
@@ -394,7 +401,7 @@ body.admin-with-sidebar .admin-tab {
   height: 18px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -1081,6 +1088,41 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   margin-bottom: 10px;
 }
 
+.users-create {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-soft);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.users-create-title {
+  font-size: 18px;
+}
+
+.users-create-form {
+  margin-top: 10px;
+}
+
+.users-create-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1500px) {
+  .users-create-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.users-create-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .users-table {
   min-width: 1120px;
 }
@@ -1229,6 +1271,11 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   background: #4c1d27;
 }
 
+:root[data-theme="dark"] .users-create {
+  background: #0f172a;
+  border-color: #334155;
+}
+
 :root[data-theme="dark"] .table th,
 :root[data-theme="dark"] .table td{
   border-bottom-color: var(--border);
@@ -1336,6 +1383,20 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   background: #f9fafb;
   border-color: #d1d5db;
   box-shadow: 0 2px 6px rgba(17,24,39,.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logout-inline-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 16px;
 }
 
 .dashboard-alert {
@@ -1828,7 +1889,9 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
 @media (max-width: 900px) {
   body.admin-with-sidebar .admin-container {
-    padding-left: 16px;
+    max-width: 1180px;
+    margin: 40px auto;
+    padding: 0 16px;
   }
 
   body.admin-with-sidebar .admin-tabs {
@@ -1889,6 +1952,10 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   }
 
   .filters-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .users-create-grid {
     grid-template-columns: 1fr;
   }
 

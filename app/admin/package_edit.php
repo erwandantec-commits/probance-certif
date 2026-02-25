@@ -221,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Admin &middot; Modifier package</title>
+  <title>Admin &middot; Modifier pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1" defer></script>
@@ -231,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card admin-card">
       <div class="admin-head">
         <div class="admin-head-copy">
-          <h2 class="h1">Admin &middot; Modifier package</h2>
+          <h2 class="h1">Admin &middot; Modifier pack</h2>
           <p class="sub"><span style="<?= h(package_label_style((string)$pk['name'])) ?>"><?= h($pk['name']) ?></span></p>
         </div>
         <div class="admin-head-actions">
@@ -295,12 +295,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <hr class="separator">
 
-      <h3 class="distribution-title">Questions du package</h3>
+      <h3 class="distribution-title">Questions du pack</h3>
       <div style="margin: 0 0 10px; display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
       </div>
       <p class="small">
-        Répartition par connaissances requises et niveau (banque globale, utilisée pour le tirage de ce package).
+        Répartition par connaissances requises et niveau (banque globale, utilisée pour le tirage de ce pack).
         <?php if ($filterNeed !== '' || $filterLevel > 0): ?>
           <span class="small" style="margin-left:8px;">
             Filtre: <b><?= h($filterNeed ?: 'Tous') ?></b><?= $filterLevel > 0 ? ' - L' . (int)$filterLevel : '' ?>

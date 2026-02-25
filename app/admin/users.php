@@ -29,14 +29,100 @@ function admin_users_set_notice(string $type, string $text): void {
   ];
 }
 
+function admin_users_set_create_form(array $data): void {
+  $_SESSION['admin_users_create_form'] = $data;
+}
+
+function admin_users_clear_create_form(): void {
+  unset($_SESSION['admin_users_create_form']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $postedToken = (string)($_POST['csrf_token'] ?? '');
   if ($postedToken === '' || !hash_equals($csrfToken, $postedToken)) {
-    admin_users_set_notice('bad', 'Action refusee: token de securite invalide.');
+    admin_users_set_notice('bad', 'Action refusée: token de sécurité invalide.');
     admin_users_redirect();
   }
 
   $action = (string)($_POST['action'] ?? '');
+  if ($action === 'create_user') {
+    $firstName = trim((string)($_POST['first_name'] ?? ''));
+    $lastName = trim((string)($_POST['last_name'] ?? ''));
+    $email = trim((string)($_POST['email'] ?? ''));
+    $password = (string)($_POST['password'] ?? '');
+    $password2 = (string)($_POST['password2'] ?? '');
+    $newRole = strtoupper(trim((string)($_POST['new_role'] ?? 'USER')));
+    if (!in_array($newRole, ['USER', 'ADMIN'], true)) {
+      $newRole = 'USER';
+    }
+
+    admin_users_set_create_form([
+      'first_name' => $firstName,
+      'last_name' => $lastName,
+      'email' => $email,
+      'new_role' => $newRole,
+    ]);
+
+    if ($firstName === '' || $lastName === '' || $email === '' || $password === '' || $password2 === '') {
+      admin_users_set_notice('bad', 'Tous les champs de création sont obligatoires.');
+      admin_users_redirect(['open_create' => '1']);
+    }
+    if (strlen($firstName) > 100 || strlen($lastName) > 100) {
+      admin_users_set_notice('bad', 'Prénom/nom trop longs (max 100 caractères).');
+      admin_users_redirect(['open_create' => '1']);
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      admin_users_set_notice('bad', 'Email invalide.');
+      admin_users_redirect(['open_create' => '1']);
+    }
+    if (strlen($password) < 8) {
+      admin_users_set_notice('bad', 'Mot de passe trop court (min 8 caractères).');
+      admin_users_redirect(['open_create' => '1']);
+    }
+    if ($password !== $password2) {
+      admin_users_set_notice('bad', 'Les mots de passe ne correspondent pas.');
+      admin_users_redirect(['open_create' => '1']);
+    }
+
+    try {
+      $pdo->beginTransaction();
+
+      $existsStmt = $pdo->prepare("SELECT id FROM users WHERE email=? FOR UPDATE");
+      $existsStmt->execute([$email]);
+      if ($existsStmt->fetch()) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', 'Un utilisateur existe déjà avec cet email.');
+        admin_users_redirect(['open_create' => '1']);
+      }
+
+      $fullName = trim($firstName . ' ' . $lastName);
+      $hash = password_hash($password, PASSWORD_DEFAULT);
+
+      $ins = $pdo->prepare("INSERT INTO users(email, password_hash, name, role) VALUES(?, ?, ?, ?)");
+      $ins->execute([$email, $hash, $fullName, $newRole]);
+
+      $contactUpsert = $pdo->prepare("
+        INSERT INTO contacts(email, first_name, last_name)
+        VALUES(?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          first_name = VALUES(first_name),
+          last_name = VALUES(last_name)
+      ");
+      $contactUpsert->execute([$email, $firstName, $lastName]);
+
+      $pdo->commit();
+      admin_users_clear_create_form();
+      admin_users_set_notice('ok', 'Utilisateur créé: ' . $email . ' (' . $newRole . ').');
+      admin_users_redirect(['search' => $email]);
+    } catch (Throwable $e) {
+      if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+      }
+      admin_users_set_notice('bad', "Erreur serveur pendant la création de l'utilisateur.");
+      admin_users_redirect(['open_create' => '1']);
+    }
+  }
+
   $targetId = (int)($_POST['user_id'] ?? 0);
   if (!in_array($action, ['grant_admin', 'revoke_admin'], true) || $targetId <= 0) {
     admin_users_set_notice('bad', 'Action invalide.');
@@ -62,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'grant_admin') {
       if ($targetRole === 'ADMIN') {
         $pdo->commit();
-        admin_users_set_notice('ok', 'Aucune modification: ' . $targetEmail . ' est deja admin.');
+        admin_users_set_notice('ok', 'Aucune modification: ' . $targetEmail . ' est déjà admin.');
         admin_users_redirect();
       }
 
@@ -81,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($targetId === $currentAdminId) {
       $pdo->rollBack();
-      admin_users_set_notice('bad', 'Action refusee: vous ne pouvez pas retirer vos propres droits admin.');
+      admin_users_set_notice('bad', 'Action refusée: vous ne pouvez pas retirer vos propres droits admin.');
       admin_users_redirect();
     }
 
@@ -95,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $upd = $pdo->prepare("UPDATE users SET role='USER' WHERE id=?");
     $upd->execute([$targetId]);
     $pdo->commit();
-    admin_users_set_notice('ok', 'Droits admin retires pour ' . $targetEmail . '.');
+    admin_users_set_notice('ok', 'Droits admin retirés pour ' . $targetEmail . '.');
     admin_users_redirect();
   } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
@@ -214,6 +300,18 @@ $users = $listStmt->fetchAll() ?: [];
 
 $notice = $_SESSION['admin_users_notice'] ?? null;
 unset($_SESSION['admin_users_notice']);
+$createForm = $_SESSION['admin_users_create_form'] ?? null;
+unset($_SESSION['admin_users_create_form']);
+if (!is_array($createForm)) {
+  $createForm = [];
+}
+$createFirstName = trim((string)($createForm['first_name'] ?? ''));
+$createLastName = trim((string)($createForm['last_name'] ?? ''));
+$createEmail = trim((string)($createForm['email'] ?? ''));
+$createRole = strtoupper(trim((string)($createForm['new_role'] ?? 'USER')));
+if (!in_array($createRole, ['USER', 'ADMIN'], true)) {
+  $createRole = 'USER';
+}
 
 function admin_users_sort_link(array $qs, string $key): string {
   $currentSort = (string)($qs['sort'] ?? 'created_at');
@@ -244,7 +342,7 @@ function admin_users_sort_link(array $qs, string $key): string {
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Utilisateurs</h2>
-          <p class="sub">Gestion des comptes, roles et habilitations administration</p>
+          <p class="sub">Gestion des comptes, rôles et habilitations administration</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('users'); ?>
@@ -258,6 +356,53 @@ function admin_users_sort_link(array $qs, string $key): string {
           <?= h((string)$notice['text']) ?>
         </div>
       <?php endif; ?>
+
+      <div class="users-create">
+        <div class="section-head">
+          <div>
+            <h3 class="h1 users-create-title">Créer un utilisateur</h3>
+            <p class="sub">Création immédiate d'un compte avec rôle USER ou ADMIN.</p>
+          </div>
+        </div>
+        <form method="post" class="users-create-form">
+          <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+          <input type="hidden" name="action" value="create_user">
+          <div class="users-create-grid">
+            <div>
+              <label class="label" for="create-first-name">Prénom</label>
+              <input class="input" id="create-first-name" name="first_name" type="text" maxlength="100" required value="<?= h($createFirstName) ?>" autocomplete="given-name">
+            </div>
+            <div>
+              <label class="label" for="create-last-name">Nom</label>
+              <input class="input" id="create-last-name" name="last_name" type="text" maxlength="100" required value="<?= h($createLastName) ?>" autocomplete="family-name">
+            </div>
+            <div>
+              <label class="label" for="create-email">Email</label>
+              <input class="input" id="create-email" name="email" type="email" required value="<?= h($createEmail) ?>" autocomplete="email">
+            </div>
+            <div>
+              <label class="label" for="create-role">Rôle initial</label>
+              <select class="input" id="create-role" name="new_role">
+                <option value="USER" <?= $createRole === 'USER' ? 'selected' : '' ?>>USER</option>
+                <option value="ADMIN" <?= $createRole === 'ADMIN' ? 'selected' : '' ?>>ADMIN</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="create-password">Mot de passe</label>
+              <input class="input" id="create-password" name="password" type="password" minlength="8" required autocomplete="new-password">
+            </div>
+            <div>
+              <label class="label" for="create-password2">Confirmer le mot de passe</label>
+              <input class="input" id="create-password2" name="password2" type="password" minlength="8" required autocomplete="new-password">
+            </div>
+          </div>
+          <div class="users-create-actions">
+            <button class="btn" type="submit">Créer utilisateur</button>
+          </div>
+        </form>
+      </div>
+
+      <hr class="separator">
 
       <form method="get" class="filters-grid users-filters">
         <div>
@@ -284,11 +429,11 @@ function admin_users_sort_link(array $qs, string $key): string {
         <span class="badge">Utilisateurs: <?= (int)$stats['total_standard'] ?></span>
       </div>
 
-      <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> resultats)</p>
+      <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> résultats)</p>
 
       <div class="table-wrap">
         <?php if (!$users): ?>
-          <p class="empty-state">Aucun utilisateur trouve.</p>
+          <p class="empty-state">Aucun utilisateur trouvé.</p>
         <?php else: ?>
           <table class="table questions-table users-table">
             <thead>
@@ -306,7 +451,7 @@ function admin_users_sort_link(array $qs, string $key): string {
                 </th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'created_at')) ?>">
-                    Date creation<?php if ($sort === 'created_at'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    Date création<?php if ($sort === 'created_at'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
                 <th>
@@ -316,12 +461,12 @@ function admin_users_sort_link(array $qs, string $key): string {
                 </th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'passed_exam_count')) ?>">
-                    Exams reussis<?php if ($sort === 'passed_exam_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    Exams réussis<?php if ($sort === 'passed_exam_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'last_session_at')) ?>">
-                    Derniere session<?php if ($sort === 'last_session_at'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    Dernière session<?php if ($sort === 'last_session_at'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
                 <th>Actions</th>

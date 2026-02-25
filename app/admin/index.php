@@ -222,7 +222,7 @@ $stats = $pdo->query("
         </div>
 
         <div>
-          <label class="label" for="package">Package</label>
+          <label class="label" for="package">Pack</label>
           <select class="input" id="package" name="package">
             <option value="ALL" <?= $package==='ALL'?'selected':'' ?>>Tous</option>
             <?php foreach ($packages as $pkg): ?>
@@ -304,7 +304,7 @@ $stats = $pdo->query("
 	                <th>Date fin</th>
 	                <th>Email</th>
 	                <th>Type</th>
-                <th>Package</th>
+                <th>Pack</th>
                 <th>Statut</th>
                 <th>
                   <?php

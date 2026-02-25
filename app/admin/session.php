@@ -107,7 +107,7 @@ $statusClass = match ((string)$s['status']) {
 
       <div class="row sessions-stats">
         <span class="badge">Email: <?= h($s['email']) ?></span>
-        <span class="badge">Package: <span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></span>
+        <span class="badge">Pack: <span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></span>
         <span class="<?= h($statusClass) ?>">Statut: <?= h($statusLabel) ?></span>
         <span class="badge">Score: <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></span>
         <span class="badge ok">Bonnes: <?= (int)$goodCount ?></span>

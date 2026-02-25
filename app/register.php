@@ -18,13 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $password2 = (string)($_POST['password2'] ?? '');
 
   if ($firstName === '' || $lastName === '') {
-    $error = 'Prenom et nom obligatoires.';
+    $error = 'Prénom et nom obligatoires.';
   } elseif (strlen($firstName) > 100 || strlen($lastName) > 100) {
-    $error = 'Prenom/nom trop longs (max 100 caracteres).';
+    $error = 'Prénom/nom trop longs (max 100 caractères).';
   } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $error = 'Email invalide.';
   } elseif (strlen($password) < 8) {
-    $error = 'Mot de passe trop court (min 8 caracteres).';
+    $error = 'Mot de passe trop court (min 8 caractères).';
   } elseif ($password !== $password2) {
     $error = 'Les mots de passe ne correspondent pas.';
   } else {
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$email]);
 
     if ($stmt->fetch()) {
-      $error = 'Un compte existe deja avec cet email.';
+      $error = 'Un compte existe déjà avec cet email.';
     } else {
       $fullName = trim($firstName . ' ' . $lastName);
       $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pdo->inTransaction()) {
           $pdo->rollBack();
         }
-        $error = "Impossible de creer le compte pour l'instant.";
+        $error = "Impossible de créer le compte pour l'instant.";
       }
     }
   }
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Creer un compte</title>
+  <title>Créer un compte</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1" defer></script>
@@ -85,15 +85,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 <div class="container">
   <div class="card">
-    <h2 class="h1">Creer un compte</h2>
-    <p class="sub">Inscris-toi pour acceder a tes certifications.</p>
+    <h2 class="h1">Créer un compte</h2>
+    <p class="sub">Inscris-toi pour accéder à tes certifications.</p>
 
     <?php if ($error): ?>
       <p class="error"><?= h($error) ?></p>
     <?php endif; ?>
 
     <form method="post">
-      <label class="label">Prenom</label>
+      <label class="label">Prénom</label>
       <input class="input" name="first_name" type="text" required maxlength="100" value="<?= h($firstName) ?>" autocomplete="given-name">
 
       <div style="height:10px"></div>
@@ -118,10 +118,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <div style="height:14px"></div>
 
-      <button class="btn" type="submit">Creer mon compte</button>
+      <button class="btn" type="submit">Créer mon compte</button>
 
       <p class="small" style="margin-top:10px;">
-        Deja un compte ? <a href="/login.php">Se connecter</a>
+        Déjà un compte ? <a href="/login.php">Se connecter</a>
       </p>
     </form>
   </div>
