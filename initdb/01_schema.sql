@@ -33,6 +33,7 @@ CREATE TABLE users (
 CREATE TABLE packages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  name_color_hex CHAR(7) NULL,
   pass_threshold_percent INT NOT NULL DEFAULT 80,
   duration_limit_minutes INT NOT NULL DEFAULT 120,
   selection_count INT NOT NULL DEFAULT 10,

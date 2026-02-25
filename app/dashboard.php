@@ -13,7 +13,7 @@ $uid = (int)$user['id'];
 $errKey = trim((string)($_GET['err_key'] ?? ''));
 $err = trim((string)($_GET['err'] ?? ''));
 
-$pkgStmt = $pdo->query("SELECT id,name,duration_limit_minutes FROM packages ORDER BY id DESC");
+$pkgStmt = $pdo->query("SELECT id,name,name_color_hex,duration_limit_minutes FROM packages ORDER BY id DESC");
 $packages = $pkgStmt->fetchAll();
 
 $packageOrder = [
@@ -87,7 +87,7 @@ $lastTerminationTypeSelect = $hasTerminationType
   ? ", s.termination_type"
   : ", 'MANUAL' AS termination_type";
 $lastStmt = $pdo->prepare("
-  SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name
+  SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name, pk.name_color_hex AS package_color_hex
     $lastTerminationTypeSelect
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
@@ -99,7 +99,7 @@ $lastStmt->execute($lastParams);
 $last = $lastStmt->fetchAll();
 
 $certSuccessStmt = $pdo->prepare("
-  SELECT s.id, s.contact_id, s.package_id, s.started_at, s.submitted_at, pk.name AS package_name
+  SELECT s.id, s.contact_id, s.package_id, s.started_at, s.submitted_at, pk.name AS package_name, pk.name_color_hex AS package_color_hex
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.user_id=?
@@ -151,7 +151,7 @@ foreach ($certSuccessStmt->fetchAll() as $row) {
     'sid' => (string)$row['id'],
     'package_name' => (string)$row['package_name'],
     'badge' => $badgeByPackage[$pkgName] ?? '/assets/badges/user-badge-blue.png',
-    'tone' => package_color_hex((string)$row['package_name']),
+    'tone' => package_color_hex((string)$row['package_name'], (string)($row['package_color_hex'] ?? '')),
     'started_at' => (string)$row['started_at'],
     'expires_at' => $statusInfo['expires_at'] instanceof DateTimeImmutable ? $statusInfo['expires_at']->format('d/m/Y') : '',
     'status_key' => isset($revokedMap[$revocationKey]) ? 'REVOKED' : (string)$statusInfo['status_key'],
@@ -185,7 +185,7 @@ $activePausedSelect = sessions_column_exists($pdo, 'paused_remaining_seconds')
   ? ", s.paused_remaining_seconds"
   : ", NULL AS paused_remaining_seconds";
 $activeStmt = $pdo->prepare("
-  SELECT s.id, s.package_id, s.session_type, s.started_at, pk.name AS package_name, pk.duration_limit_minutes
+  SELECT s.id, s.package_id, s.session_type, s.started_at, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.duration_limit_minutes
     $activePausedSelect
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
@@ -241,6 +241,7 @@ foreach ($activeRows as $row) {
   $activeHighlights[] = [
     'id' => $sid,
     'package_name' => (string)($row['package_name'] ?? ''),
+    'package_color_hex' => (string)($row['package_color_hex'] ?? ''),
     'session_type' => $stype,
     'started_at' => (string)$row['started_at'],
     'resume_p' => $resumePos,
@@ -467,7 +468,7 @@ function dash_remaining_label(int $seconds): string {
 		              <?php foreach ($packages as $pk): ?>
 		                <?php
 		                  $pkName = localize_text((string)$pk['name'], $lang);
-		                  $pkTone = package_color_hex((string)$pk['name']);
+		                  $pkTone = package_color_hex((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''));
 	                  $pkDuration = (int)$pk['duration_limit_minutes'];
 	                  $isFirst = ((int)$pk['id'] === (int)$firstPkg['id']);
 	                ?>
@@ -559,7 +560,7 @@ function dash_remaining_label(int $seconds): string {
         <?php foreach ($activeHighlights as $a): ?>
           <article class="dashboard-active-item">
             <div class="dashboard-active-item-head">
-              <span style="<?= h(package_label_style((string)$a['package_name'])) ?>"><?= h(localize_text((string)$a['package_name'], $lang)) ?></span>
+              <span style="<?= h(package_label_style((string)$a['package_name'], (string)($a['package_color_hex'] ?? ''))) ?>"><?= h(localize_text((string)$a['package_name'], $lang)) ?></span>
               <span class="pill info"><?= h(dash_session_type_label((string)$a['session_type'], $lang)) ?></span>
             </div>
             <div class="dashboard-active-item-meta">
@@ -654,7 +655,7 @@ function dash_remaining_label(int $seconds): string {
         <?php foreach ($last as $s): ?>
           <?php $displayStatus = dash_display_status($s); ?>
           <tr>
-	            <td><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span></td>
+	            <td><span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span></td>
             <td><?= h(dash_session_type_label((string)$s['session_type'], $lang)) ?></td>
             <td><?= date('d/m/Y H:i', strtotime($s['started_at'])) ?></td>
             <td>

@@ -11,7 +11,7 @@ $sid = $_GET['sid'] ?? '';
 if (!$sid) { http_response_code(400); echo "Missing sid"; exit; }
 
 $stmt = $pdo->prepare("
-  SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent
+  SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
@@ -107,7 +107,7 @@ $statusClass = match ((string)$s['status']) {
 
       <div class="row sessions-stats">
         <span class="badge">Email: <?= h($s['email']) ?></span>
-        <span class="badge">Pack: <span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></span>
+        <span class="badge">Pack: <span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h($s['package_name']) ?></span></span>
         <span class="<?= h($statusClass) ?>">Statut: <?= h($statusLabel) ?></span>
         <span class="badge">Score: <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></span>
         <span class="badge ok">Bonnes: <?= (int)$goodCount ?></span>

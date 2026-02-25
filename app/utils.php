@@ -9,7 +9,20 @@ function uuidv4(): string {
 
 function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
-function package_color_hex(string $packageName): string {
+function normalize_hex_color(?string $color): ?string {
+  if (!is_string($color)) return null;
+  $value = strtoupper(trim($color));
+  if (!preg_match('/^#[0-9A-F]{6}$/', $value)) {
+    return null;
+  }
+  return $value;
+}
+
+function package_color_hex(string $packageName, ?string $customColor = null): string {
+  $custom = normalize_hex_color($customColor);
+  if ($custom !== null) {
+    return $custom;
+  }
   $name = strtoupper(trim($packageName));
   return match ($name) {
     'GREEN' => '#16a34a',
@@ -22,8 +35,8 @@ function package_color_hex(string $packageName): string {
   };
 }
 
-function package_label_style(string $packageName): string {
-  return 'color:' . package_color_hex($packageName) . ';font-weight:700;';
+function package_label_style(string $packageName, ?string $customColor = null): string {
+  return 'color:' . package_color_hex($packageName, $customColor) . ';font-weight:700;';
 }
 
 

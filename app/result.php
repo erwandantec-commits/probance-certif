@@ -15,7 +15,7 @@ if (!$sid) {
 }
 
 $stmt = $pdo->prepare("
-  SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent, pk.duration_limit_minutes
+  SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent, pk.duration_limit_minutes
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
@@ -37,7 +37,7 @@ if (session_is_expired($s)) {
   mark_session_terminated($pdo, $sid, round($score, 2), $passed, 'TIMEOUT');
 
   $stmt = $pdo->prepare("
-    SELECT s.*, c.email, pk.name AS package_name, pk.pass_threshold_percent, pk.duration_limit_minutes
+    SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent, pk.duration_limit_minutes
     FROM sessions s
     JOIN contacts c ON c.id = s.contact_id
     JOIN packages pk ON pk.id = s.package_id
@@ -45,6 +45,21 @@ if (session_is_expired($s)) {
   ");
 $stmt->execute([$sid]);
 $s = $stmt->fetch();
+}
+
+function result_is_timeout_session(array $s): bool {
+  return (string)($s['status'] ?? '') === 'EXPIRED'
+    || (
+      (string)($s['status'] ?? '') === 'TERMINATED'
+      && strtoupper(trim((string)($s['termination_type'] ?? 'MANUAL'))) === 'TIMEOUT'
+    );
+}
+
+function result_display_status(array $s): string {
+  if (result_is_timeout_session($s)) {
+    return 'EXPIRED';
+  }
+  return (string)($s['status'] ?? '');
 }
 
 function result_status_label(string $status, string $lang): string {
@@ -57,11 +72,12 @@ function result_status_label(string $status, string $lang): string {
 }
 
 $isTrainingSession = (($s['session_type'] ?? 'EXAM') === 'TRAINING');
-$canShowReview = $isTrainingSession && in_array((string)$s['status'], ['TERMINATED', 'EXPIRED'], true);
+$displayStatus = result_display_status($s);
+$canShowReview = $isTrainingSession && in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true);
 $reviewItems = [];
 $isTerminatedExam = (
   (string)($s['session_type'] ?? '') === 'EXAM' &&
-  (string)($s['status'] ?? '') === 'TERMINATED'
+  $displayStatus === 'TERMINATED'
 );
 $isPassedTerminatedExam = $isTerminatedExam && (int)($s['passed'] ?? 0) === 1;
 $validUntil = '';
@@ -89,7 +105,7 @@ $passedBadge = $badgeByPackage[$packageCode] ?? 'user-badge-blue.png';
 $heroImagePath = ((int)($s['passed'] ?? 0) === 1)
   ? '/assets/badges/' . $passedBadge
   : '/assets/badges/failed.png';
-$heroScoreColor = package_color_hex((string)($s['package_name'] ?? ''));
+$heroScoreColor = package_color_hex((string)($s['package_name'] ?? ''), (string)($s['package_color_hex'] ?? ''));
 
 if ($canShowReview) {
   $reviewStmt = $pdo->prepare("
@@ -151,16 +167,16 @@ if ($canShowReview) {
       <div class="header">
         <div>
           <h2 class="h1"><?= h(t('result.title', [], $lang)) ?></h2>
-          <p class="sub"><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span> - <?= h($s['email']) ?></p>
+          <p class="sub"><span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span> - <?= h($s['email']) ?></p>
         </div>
 
-        <?php if ($s['status'] === 'TERMINATED'): ?>
+        <?php if ($displayStatus === 'TERMINATED'): ?>
           <?php if ((int)$s['passed'] === 1): ?>
             <span class="badge ok"><?= h(t('result.badge.passed', [], $lang)) ?></span>
           <?php else: ?>
             <span class="badge bad"><?= h(t('result.badge.failed', [], $lang)) ?></span>
           <?php endif; ?>
-        <?php elseif ($s['status'] === 'EXPIRED'): ?>
+        <?php elseif ($displayStatus === 'EXPIRED'): ?>
           <span class="badge bad"><?= h(t('result.badge.expired', [], $lang)) ?></span>
         <?php else: ?>
           <span class="badge"><?= h(t('result.badge.active', [], $lang)) ?></span>
@@ -168,7 +184,7 @@ if ($canShowReview) {
       </div>
 
       <div class="row" style="margin-bottom:12px;">
-        <span class="badge"><?= h(t('result.status_label', [], $lang)) ?>: <?= h(result_status_label((string)$s['status'], $lang)) ?></span>
+        <span class="badge"><?= h(t('result.status_label', [], $lang)) ?>: <?= h(result_status_label($displayStatus, $lang)) ?></span>
         <?php if (!empty($s['started_at'])): ?>
           <span class="badge"><?= h(t('result.started', [], $lang)) ?>: <?= h($s['started_at']) ?></span>
         <?php endif; ?>
@@ -177,7 +193,7 @@ if ($canShowReview) {
         <?php endif; ?>
       </div>
 
-	      <?php if ($s['status'] === 'TERMINATED'): ?>
+	      <?php if ($displayStatus === 'TERMINATED'): ?>
           <?php if ($isTerminatedExam): ?>
             <div class="result-blue-hero">
               <img class="result-blue-hero-badge" src="<?= h($heroImagePath) ?>" alt="Badge Resultat">
@@ -210,7 +226,7 @@ if ($canShowReview) {
 	          <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
         </div>
 
-      <?php elseif ($s['status'] === 'EXPIRED'): ?>
+      <?php elseif ($displayStatus === 'EXPIRED'): ?>
         <p class="error"><?= h(t('result.expired_message', [], $lang)) ?></p>
 
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">

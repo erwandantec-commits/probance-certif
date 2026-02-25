@@ -24,6 +24,24 @@ function package_edit_questions_column_exists(PDO $pdo, string $column): bool {
   return $cache[$column];
 }
 
+function package_edit_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  $key = 'pkg:' . $column;
+  if (isset($cache[$key])) {
+    return $cache[$key];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$key] = ((int)$st->fetchColumn() > 0);
+  return $cache[$key];
+}
+
 
 $id = (int)($_GET['id'] ?? 0);
 $filterNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
@@ -39,6 +57,8 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $stmt = $pdo->prepare("SELECT * FROM packages WHERE id=?");
 $stmt->execute([$id]);
 $pk = $stmt->fetch();
+$hasNameColorColumn = package_edit_package_column_exists($pdo, 'name_color_hex');
+$packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
 
 if (!$pk) {
   http_response_code(404);
@@ -195,6 +215,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 5);
+  $postedColor = trim((string)($_POST['name_color_hex'] ?? ''));
+  $normalizedColor = normalize_hex_color($postedColor);
+  if ($normalizedColor !== null) {
+    $packNameColor = $normalizedColor;
+  }
 
   if ($threshold < 0 || $threshold > 100) {
     $error = "Seuil invalide";
@@ -202,16 +227,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = "Duree invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
+  } elseif ($hasNameColorColumn && $normalizedColor === null) {
+    $error = "Couleur invalide";
   } else {
-    $update = $pdo->prepare("
-      UPDATE packages
-      SET pass_threshold_percent=?,
-          duration_limit_minutes=?,
-          selection_count=?
-      WHERE id=?
-    ");
-
-    $update->execute([$threshold, $duration, $count, $id]);
+    if ($hasNameColorColumn) {
+      $update = $pdo->prepare("
+        UPDATE packages
+        SET pass_threshold_percent=?,
+            duration_limit_minutes=?,
+            selection_count=?,
+            name_color_hex=?
+        WHERE id=?
+      ");
+      $update->execute([$threshold, $duration, $count, $packNameColor, $id]);
+    } else {
+      $update = $pdo->prepare("
+        UPDATE packages
+        SET pass_threshold_percent=?,
+            duration_limit_minutes=?,
+            selection_count=?
+        WHERE id=?
+      ");
+      $update->execute([$threshold, $duration, $count, $id]);
+    }
     header("Location: /admin/packages.php");
     exit;
   }
@@ -232,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Modifier pack</h2>
-          <p class="sub"><span style="<?= h(package_label_style((string)$pk['name'])) ?>"><?= h($pk['name']) ?></span></p>
+          <p class="sub"><span style="<?= h(package_label_style((string)$pk['name'], $packNameColor)) ?>"><?= h($pk['name']) ?></span></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>
@@ -285,6 +323,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               required
             >
           </div>
+          <?php if ($hasNameColorColumn): ?>
+            <div>
+              <label class="label">Couleur du nom</label>
+              <input
+                class="input"
+                type="color"
+                name="name_color_hex"
+                value="<?= h($packNameColor) ?>"
+              >
+            </div>
+          <?php endif; ?>
         </div>
 
         <div style="margin-top:14px; display:flex; gap:10px;">

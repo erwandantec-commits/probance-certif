@@ -100,7 +100,7 @@ $offset = ($page - 1) * $limit;
 
 $sql = "
   SELECT s.id, s.started_at, s.submitted_at, s.status, s.termination_type, s.score_percent, s.passed,
-         c.email, pk.name AS package_name, s.session_type
+         c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, s.session_type
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
@@ -342,7 +342,7 @@ $stats = $pdo->query("
                     </a>
                   </td>
                   <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
-	                  <td><span style="<?= h(package_label_style((string)$s['package_name'])) ?>"><?= h($s['package_name']) ?></span></td>
+	                  <td><span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h($s['package_name']) ?></span></td>
 	                  <td>
                       <?php $isTimeout = strtoupper(trim((string)($s['termination_type'] ?? ''))) === 'TIMEOUT'; ?>
 	                    <?php if ($s['status'] === 'TERMINATED' && !$isTimeout): ?>

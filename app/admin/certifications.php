@@ -15,7 +15,7 @@ if (!in_array($certStatus, ['ALL', 'CERTIFIED', 'SOON', 'EXPIRED', 'REVOKED'], t
   $certStatus = 'ALL';
 }
 
-$packages = $pdo->query("SELECT id, name FROM packages ORDER BY id DESC")->fetchAll();
+$packages = $pdo->query("SELECT id, name, name_color_hex FROM packages ORDER BY id DESC")->fetchAll();
 $sessionEndExpr = sessions_column_exists($pdo, 'ended_at')
   ? "COALESCE(s.ended_at, s.submitted_at, s.started_at)"
   : "COALESCE(s.submitted_at, s.started_at)";
@@ -42,12 +42,13 @@ $sql = "
     c.email,
     s.package_id,
     pk.name AS package_name,
+    pk.name_color_hex AS package_color_hex,
     MAX($sessionEndExpr) AS last_cert_date
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
   WHERE " . implode(' AND ', $where) . "
-  GROUP BY c.id, c.email, s.package_id, pk.name
+  GROUP BY c.id, c.email, s.package_id, pk.name, pk.name_color_hex
 ";
 
 $stmt = $pdo->prepare($sql);
@@ -127,6 +128,7 @@ foreach ($rawRows as $r) {
     'package_id' => $pkgId,
     'email' => (string)$r['email'],
     'package_name' => (string)$r['package_name'],
+    'package_color_hex' => (string)($r['package_color_hex'] ?? ''),
     'last_cert_date' => (string)$r['last_cert_date'],
     'expires_at' => $expires instanceof DateTimeImmutable ? $expires->format('Y-m-d') : '-',
     'status_key' => $statusKey,
@@ -199,7 +201,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 	          <select id="package_id" name="package_id">
 	            <option value="0">Toutes</option>
 	            <?php foreach ($packages as $p): ?>
-	              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style((string)$p['name'])) ?>">
+	              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style((string)$p['name'], (string)($p['name_color_hex'] ?? ''))) ?>">
 	                <?= h($p['name']) ?>
 	              </option>
 	            <?php endforeach; ?>
@@ -264,7 +266,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                       <?= h($r['email']) ?>
                     </a>
                   </td>
-	                  <td><span style="<?= h(package_label_style((string)$r['package_name'])) ?>"><?= h($r['package_name']) ?></span></td>
+	                  <td><span style="<?= h(package_label_style((string)$r['package_name'], (string)($r['package_color_hex'] ?? ''))) ?>"><?= h($r['package_name']) ?></span></td>
                   <td><?= h($r['last_cert_date']) ?></td>
                   <td><?= h($r['expires_at']) ?></td>
                   <td><span class="<?= h($r['status_class']) ?>"><?= h($r['status_label']) ?></span></td>

@@ -22,7 +22,7 @@ if (!$sid) {
 }
 
 $stmt = $pdo->prepare("
-  SELECT s.*, pk.duration_limit_minutes, pk.name AS package_name
+  SELECT s.*, pk.duration_limit_minutes, pk.name AS package_name, pk.name_color_hex AS package_color_hex
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.id=?
@@ -269,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="header">
       <div>
-        <h2 class="h1"><span style="<?= h(package_label_style((string)$sess['package_name'])) ?>"><?= h(localize_text((string)$sess['package_name'], $lang)) ?></span></h2>
+        <h2 class="h1"><span style="<?= h(package_label_style((string)$sess['package_name'], (string)($sess['package_color_hex'] ?? ''))) ?>"><?= h(localize_text((string)$sess['package_name'], $lang)) ?></span></h2>
         <p class="sub"><?= h(t('exam.title', ['p' => (int)$p, 'total' => (int)$total], $lang)) ?></p>
       </div>
       <span class="badge" id="t"></span>
@@ -330,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	        <?php endif; ?>
 	      </div>
 
-	      <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+	      <div class="exam-actions" style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
           <?php if ($isTraining): ?>
             <?php if (!$showFeedback): ?>
               <button type="submit" class="btn" name="check" value="1">
