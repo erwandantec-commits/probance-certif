@@ -397,7 +397,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($threshold < 0 || $threshold > 100) {
     $error = "Seuil invalide";
   } elseif ($duration < 1 || $duration > 600) {
-    $error = "Duree invalide";
+    $error = "Durée invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
   } elseif ($hasRulesColumn && !empty($ruleRows) && count($ruleRows) > 20) {
@@ -409,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($hasRulesColumn && !empty($ruleRows)) {
       $selectionRulesJson = package_rule_rows_to_json($ruleRows, $count);
       if ($selectionRulesJson === '') {
-        $error = "Regles de tirage invalides.";
+        $error = "Règles de tirage invalides.";
       }
     }
 
@@ -550,15 +550,15 @@ $formCount = isset($count) ? $count : (int)$pk['selection_count'];
         </div>
 
         <?php if ($hasRulesColumn): ?>
-          <div style="margin-top:16px; border:1px solid var(--line); border-radius:14px; padding:12px;">
-            <h3 class="distribution-title" style="margin:0 0 6px;">Regles de tirage des questions</h3>
-            <p class="small" style="margin:0 0 10px;">
-              Definis l'ordre des paliers. Chaque ligne prend "jusqu'a X" questions. La colonne "Cible cumulee" permet de stopper un palier quand le total atteint la cible.
+          <section class="rule-builder">
+            <h3 class="distribution-title rule-builder-title">R&egrave;gles de tirage des questions</h3>
+            <p class="small rule-builder-sub">
+              D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions. La colonne "Cible cumul&eacute;e" permet de stopper un palier quand le total atteint la cible.
             </p>
 
-            <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:10px;">
-              <div>
-                <label class="label" for="rule-template">Modele</label>
+            <div class="rule-toolbar">
+              <div class="rule-template-group">
+                <label class="label" for="rule-template">Mod&egrave;le</label>
                 <select class="input" id="rule-template" name="rule_template">
                   <option value="">Aucun</option>
                   <?php foreach (array_keys($ruleTemplates) as $tplName): ?>
@@ -566,18 +566,20 @@ $formCount = isset($count) ? $count : (int)$pk['selection_count'];
                   <?php endforeach; ?>
                 </select>
               </div>
-              <button class="btn ghost" type="button" id="apply-rule-template">Appliquer le modele</button>
-              <button class="btn ghost" type="button" id="add-rule-row">+ Ajouter un palier</button>
+              <div class="rule-toolbar-actions">
+                <button class="btn ghost rule-action-btn rule-action-apply" type="button" id="apply-rule-template">Appliquer le mod&egrave;le</button>
+                <button class="btn ghost rule-action-btn rule-action-add" type="button" id="add-rule-row">Ajouter un palier</button>
+              </div>
             </div>
 
-            <div style="overflow:auto;">
-              <table class="table questions-table" id="rule-rows-table">
+            <div class="table-wrap rule-table-wrap">
+              <table class="table questions-table rules-table" id="rule-rows-table">
                 <thead>
                   <tr>
-                    <th>Need</th>
+                    <th>Connaissances requises</th>
                     <th>Niveaux</th>
                     <th>Prendre (max)</th>
-                    <th>Cible cumulee</th>
+                    <th>Cible cumul&eacute;e</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -597,23 +599,23 @@ $formCount = isset($count) ? $count : (int)$pk['selection_count'];
                           <?php endforeach; ?>
                         </select>
                       </td>
-                      <td style="white-space:nowrap;">
+                      <td class="rule-levels-cell">
                         <input type="hidden" class="rule-level-1-input" value="<?= !empty($levelsMap[1]) ? '1' : '0' ?>">
-                        <label style="margin-right:8px;"><input type="checkbox" class="rule-level-1-check" <?= !empty($levelsMap[1]) ? 'checked' : '' ?>> L1</label>
+                        <label class="rule-level-check"><input type="checkbox" class="rule-level-1-check" <?= !empty($levelsMap[1]) ? 'checked' : '' ?>> L1</label>
                         <input type="hidden" class="rule-level-2-input" value="<?= !empty($levelsMap[2]) ? '1' : '0' ?>">
-                        <label style="margin-right:8px;"><input type="checkbox" class="rule-level-2-check" <?= !empty($levelsMap[2]) ? 'checked' : '' ?>> L2</label>
+                        <label class="rule-level-check"><input type="checkbox" class="rule-level-2-check" <?= !empty($levelsMap[2]) ? 'checked' : '' ?>> L2</label>
                         <input type="hidden" class="rule-level-3-input" value="<?= !empty($levelsMap[3]) ? '1' : '0' ?>">
-                        <label><input type="checkbox" class="rule-level-3-check" <?= !empty($levelsMap[3]) ? 'checked' : '' ?>> L3</label>
+                        <label class="rule-level-check"><input type="checkbox" class="rule-level-3-check" <?= !empty($levelsMap[3]) ? 'checked' : '' ?>> L3</label>
                       </td>
                       <td><input class="input rule-take" type="number" name="rule_take[]" min="1" max="200" value="<?= (int)($row['take'] ?? 0) ?>"></td>
                       <td><input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>"></td>
-                      <td><button class="btn ghost rule-remove" type="button">Supprimer</button></td>
+                      <td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
         <?php endif; ?>
 
         <div style="margin-top:14px; display:flex; gap:10px;">
@@ -826,17 +828,17 @@ $formCount = isset($count) ? $count : (int)$pk['selection_count'];
               '<option value="PPM"' + (need === 'PPM' ? ' selected' : '') + '>PPM</option>' +
             '</select>' +
           '</td>' +
-          '<td style="white-space:nowrap;">' +
+          '<td class="rule-levels-cell">' +
             '<input type="hidden" class="rule-level-1-input" value="' + (hasL1 ? '1' : '0') + '">' +
-            '<label style="margin-right:8px;"><input type="checkbox" class="rule-level-1-check"' + (hasL1 ? ' checked' : '') + '> L1</label>' +
+            '<label class="rule-level-check"><input type="checkbox" class="rule-level-1-check"' + (hasL1 ? ' checked' : '') + '> L1</label>' +
             '<input type="hidden" class="rule-level-2-input" value="' + (hasL2 ? '1' : '0') + '">' +
-            '<label style="margin-right:8px;"><input type="checkbox" class="rule-level-2-check"' + (hasL2 ? ' checked' : '') + '> L2</label>' +
+            '<label class="rule-level-check"><input type="checkbox" class="rule-level-2-check"' + (hasL2 ? ' checked' : '') + '> L2</label>' +
             '<input type="hidden" class="rule-level-3-input" value="' + (hasL3 ? '1' : '0') + '">' +
-            '<label><input type="checkbox" class="rule-level-3-check"' + (hasL3 ? ' checked' : '') + '> L3</label>' +
+            '<label class="rule-level-check"><input type="checkbox" class="rule-level-3-check"' + (hasL3 ? ' checked' : '') + '> L3</label>' +
           '</td>' +
           '<td><input class="input rule-take" type="number" min="1" max="200" value="' + take + '"></td>' +
           '<td><input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '"></td>' +
-          '<td><button class="btn ghost rule-remove" type="button">Supprimer</button></td>' +
+          '<td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>' +
         '</tr>';
     }
 

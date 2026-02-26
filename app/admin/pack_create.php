@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($threshold < 0 || $threshold > 100) {
     $error = 'Seuil invalide (0 a 100).';
   } elseif ($duration < 1 || $duration > 600) {
-    $error = 'Duree invalide (1 a 600 minutes).';
+    $error = 'Durée invalide (1 à 600 minutes).';
   } elseif ($count < 1 || $count > 200) {
     $error = 'Nombre de questions invalide (1 a 200).';
   } elseif ($hasRulesColumn && !empty($ruleRows) && count($ruleRows) > 20) {
@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($hasRulesColumn && !empty($ruleRows)) {
         $selectionRulesJson = pack_create_rule_rows_to_json($ruleRows, $count);
         if ($selectionRulesJson === '') {
-          $error = 'Regles de tirage invalides.';
+          $error = 'Règles de tirage invalides.';
         }
       }
 
@@ -246,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Admin &middot; Creer un pack</title>
+  <title>Admin &middot; Cr&eacute;er un pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1" defer></script>
@@ -256,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card admin-card">
       <div class="admin-head">
         <div class="admin-head-copy">
-          <h2 class="h1">Admin &middot; Creer un pack</h2>
+          <h2 class="h1">Admin &middot; Cr&eacute;er un pack</h2>
           <p class="sub">Ajout d'un nouveau pack de certification.</p>
         </div>
         <div class="admin-head-actions">
@@ -281,7 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input class="input" id="create-pack-threshold" name="pass_threshold_percent" type="number" min="0" max="100" required value="<?= (int)$threshold ?>">
           </div>
           <div>
-            <label class="label" for="create-pack-duration">Duree (minutes)</label>
+            <label class="label" for="create-pack-duration">Dur&eacute;e (minutes)</label>
             <input class="input" id="create-pack-duration" name="duration_limit_minutes" type="number" min="1" max="600" required value="<?= (int)$duration ?>">
           </div>
           <div>
@@ -304,14 +304,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <?php if ($hasRulesColumn): ?>
-          <div style="margin-top:16px; border:1px solid var(--line); border-radius:14px; padding:12px;">
-            <h3 class="distribution-title" style="margin:0 0 6px;">Regles de tirage des questions</h3>
-            <p class="small" style="margin:0 0 10px;">
-              Definis l'ordre des paliers. Chaque ligne prend "jusqu'a X" questions. La colonne "Cible cumulee" permet de stopper un palier quand le total atteint la cible.
+          <section class="rule-builder">
+            <h3 class="distribution-title rule-builder-title">R&egrave;gles de tirage des questions</h3>
+            <p class="small rule-builder-sub">
+              D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions. La colonne "Cible cumul&eacute;e" permet de stopper un palier quand le total atteint la cible.
             </p>
-            <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:10px;">
-              <div>
-                <label class="label" for="rule-template">Modele</label>
+            <div class="rule-toolbar">
+              <div class="rule-template-group">
+                <label class="label" for="rule-template">Mod&egrave;le</label>
                 <select class="input" id="rule-template" name="rule_template">
                   <option value="">Aucun</option>
                   <?php foreach (array_keys($ruleTemplates) as $tplName): ?>
@@ -319,18 +319,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <?php endforeach; ?>
                 </select>
               </div>
-              <button class="btn ghost" type="button" id="apply-rule-template">Appliquer le modele</button>
-              <button class="btn ghost" type="button" id="add-rule-row">+ Ajouter un palier</button>
+              <div class="rule-toolbar-actions">
+                <button class="btn ghost rule-action-btn rule-action-apply" type="button" id="apply-rule-template">Appliquer le mod&egrave;le</button>
+                <button class="btn ghost rule-action-btn rule-action-add" type="button" id="add-rule-row">Ajouter un palier</button>
+              </div>
             </div>
 
-            <div style="overflow:auto;">
-              <table class="table questions-table" id="rule-rows-table">
+            <div class="table-wrap rule-table-wrap">
+              <table class="table questions-table rules-table" id="rule-rows-table">
                 <thead>
                   <tr>
-                    <th>Need</th>
+                    <th>Connaissances requises</th>
                     <th>Niveaux</th>
                     <th>Prendre (max)</th>
-                    <th>Cible cumulee</th>
+                    <th>Cible cumul&eacute;e</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -350,27 +352,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                           <?php endforeach; ?>
                         </select>
                       </td>
-                      <td style="white-space:nowrap;">
+                      <td class="rule-levels-cell">
                         <input type="hidden" class="rule-level-1-input" value="<?= !empty($levelsMap[1]) ? '1' : '0' ?>">
-                        <label style="margin-right:8px;"><input type="checkbox" class="rule-level-1-check" <?= !empty($levelsMap[1]) ? 'checked' : '' ?>> L1</label>
+                        <label class="rule-level-check"><input type="checkbox" class="rule-level-1-check" <?= !empty($levelsMap[1]) ? 'checked' : '' ?>> L1</label>
                         <input type="hidden" class="rule-level-2-input" value="<?= !empty($levelsMap[2]) ? '1' : '0' ?>">
-                        <label style="margin-right:8px;"><input type="checkbox" class="rule-level-2-check" <?= !empty($levelsMap[2]) ? 'checked' : '' ?>> L2</label>
+                        <label class="rule-level-check"><input type="checkbox" class="rule-level-2-check" <?= !empty($levelsMap[2]) ? 'checked' : '' ?>> L2</label>
                         <input type="hidden" class="rule-level-3-input" value="<?= !empty($levelsMap[3]) ? '1' : '0' ?>">
-                        <label><input type="checkbox" class="rule-level-3-check" <?= !empty($levelsMap[3]) ? 'checked' : '' ?>> L3</label>
+                        <label class="rule-level-check"><input type="checkbox" class="rule-level-3-check" <?= !empty($levelsMap[3]) ? 'checked' : '' ?>> L3</label>
                       </td>
                       <td><input class="input rule-take" type="number" name="rule_take[]" min="1" max="200" value="<?= (int)($row['take'] ?? 0) ?>"></td>
                       <td><input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>"></td>
-                      <td><button class="btn ghost rule-remove" type="button">Supprimer</button></td>
+                      <td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
         <?php endif; ?>
 
         <div class="users-create-actions">
-          <button class="btn" type="submit">Creer le pack</button>
+          <button class="btn" type="submit">Cr&eacute;er le pack</button>
           <a class="btn ghost" href="/admin/packages.php">Annuler</a>
         </div>
       </form>
@@ -414,17 +416,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               '<option value="PPM"' + (need === 'PPM' ? ' selected' : '') + '>PPM</option>' +
             '</select>' +
           '</td>' +
-          '<td style="white-space:nowrap;">' +
+          '<td class="rule-levels-cell">' +
             '<input type="hidden" class="rule-level-1-input" value="' + (hasL1 ? '1' : '0') + '">' +
-            '<label style="margin-right:8px;"><input type="checkbox" class="rule-level-1-check"' + (hasL1 ? ' checked' : '') + '> L1</label>' +
+            '<label class="rule-level-check"><input type="checkbox" class="rule-level-1-check"' + (hasL1 ? ' checked' : '') + '> L1</label>' +
             '<input type="hidden" class="rule-level-2-input" value="' + (hasL2 ? '1' : '0') + '">' +
-            '<label style="margin-right:8px;"><input type="checkbox" class="rule-level-2-check"' + (hasL2 ? ' checked' : '') + '> L2</label>' +
+            '<label class="rule-level-check"><input type="checkbox" class="rule-level-2-check"' + (hasL2 ? ' checked' : '') + '> L2</label>' +
             '<input type="hidden" class="rule-level-3-input" value="' + (hasL3 ? '1' : '0') + '">' +
-            '<label><input type="checkbox" class="rule-level-3-check"' + (hasL3 ? ' checked' : '') + '> L3</label>' +
+            '<label class="rule-level-check"><input type="checkbox" class="rule-level-3-check"' + (hasL3 ? ' checked' : '') + '> L3</label>' +
           '</td>' +
           '<td><input class="input rule-take" type="number" min="1" max="200" value="' + take + '"></td>' +
           '<td><input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '"></td>' +
-          '<td><button class="btn ghost rule-remove" type="button">Supprimer</button></td>' +
+          '<td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>' +
         '</tr>';
     }
 
