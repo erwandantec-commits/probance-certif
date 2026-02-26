@@ -249,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title>Admin &middot; Cr&eacute;er un pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
   <div class="container admin-container">
@@ -257,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Cr&eacute;er un pack</h2>
-          <p class="sub">Ajout d'un nouveau pack de certification.</p>
+          <p class="sub">Ajout d'un nouveau pack d Exam.</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>

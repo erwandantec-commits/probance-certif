@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ");
     $ins->execute([$user_id, $token_hash, $expires]);
 
-    // ⚠️ En prod → envoyer email
+    // En prod: envoyer email
     $reset_link = "http://localhost:8080/reset-password.php?token=$token";
 
     $message = "Lien de réinitialisation : <br><a href='$reset_link'>$reset_link</a>";
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="utf-8">
   <link rel="stylesheet" href="/assets/style.css">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">

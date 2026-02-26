@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $isCorrect = isset($correct[$label]) ? 1 : 0;
-    $scoreValue = $isCorrect ? 1 : -1;
+    $scoreValue = $isCorrect ? 1 : 0;
 
     if (mb_strtoupper($text, 'UTF-8') === 'NSP') {
       $scoreValue = 0;
@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($score[$label]) && $score[$label] !== '') {
       $manual = filter_var($score[$label], FILTER_VALIDATE_INT);
       if ($manual !== false) {
-        $scoreValue = (int)$manual;
+        $scoreValue = max(0, (int)$manual);
       }
     }
 
@@ -191,7 +191,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
   <title><?= "Modifier question #".(int)$question['id'] ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container admin-container">

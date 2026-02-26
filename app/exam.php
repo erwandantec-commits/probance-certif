@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $lang = get_lang();
   $navigationOnlyFromFeedback =
     $showFeedback &&
-    (isset($_POST['next']) || ($isAdminViewer && isset($_POST['pause'])) || isset($_POST['finish']));
+    (isset($_POST['next']) || ($isAdminViewer && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
   $mustAnswerValidationError = false;
 
   if ($isTraining && isset($_POST['check'])) {
@@ -205,6 +205,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $pdo->rollBack();
       throw $e;
     }
+
+    // Keep a live score snapshot during the session.
+    refresh_active_session_score($pdo, $sid);
   }
 
   if ($isAdminViewer && isset($_POST['pause'])) {
@@ -222,6 +225,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $_SESSION['paused_remaining'][$sid] = max(0, (int)$remainingSeconds);
     }
     header("Location: /dashboard.php?lang=" . urlencode($lang));
+    exit;
+  }
+  if (isset($_POST['abandon'])) {
+    $scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
+    $score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
+    // Business rule: an abandoned session is always failed.
+    mark_session_terminated($pdo, $sid, round($score, 2), 0, 'MANUAL');
+    header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
     exit;
   }
   if ($isTraining && isset($_POST['check'])) {
@@ -252,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title>Exam</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
@@ -346,6 +357,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <button type="submit" class="btn" name="next" value="1">
                 <?= h(t('exam.validate', [], $lang)) ?>
               </button>
+            <?php else: ?>
+              <button type="submit" class="btn" name="finish" value="1">
+                <?= h(t('exam.validate', [], $lang)) ?>
+              </button>
             <?php endif; ?>
           <?php endif; ?>
           <?php if ($isAdminViewer): ?>
@@ -355,7 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <button
             class="btn danger"
             type="submit"
-            name="finish"
+            name="abandon"
             value="1"
             formnovalidate
             data-confirm-message="<?= h(t($isTraining ? 'exam.finish_confirm_training' : 'exam.finish_confirm_exam', [], $lang)) ?>"
@@ -378,7 +393,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     form.addEventListener('submit', function (e) {
       var submitter = e.submitter;
       if (!submitter) return;
-      if (submitter.name !== 'finish') return;
+      if (submitter.name !== 'abandon') return;
 
       var message = submitter.getAttribute('data-confirm-message') || 'Confirmer ?';
       if (!window.confirm(message)) {

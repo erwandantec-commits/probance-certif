@@ -172,11 +172,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       admin_users_redirect();
     }
     if ($firstName === '' || $lastName === '' || $email === '') {
-      admin_users_set_notice('bad', 'PrÃ©nom, nom et email sont obligatoires.');
+      admin_users_set_notice('bad', 'Prénom, nom et email sont obligatoires.');
       admin_users_redirect(['open_edit' => $targetId]);
     }
     if (strlen($firstName) > 100 || strlen($lastName) > 100) {
-      admin_users_set_notice('bad', 'PrÃ©nom/nom trop longs (max 100 caractÃ¨res).');
+      admin_users_set_notice('bad', 'Prénom/nom trop longs (max 100 caractères).');
       admin_users_redirect(['open_edit' => $targetId]);
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($newPassword !== '' || $newPassword2 !== '') {
       if (strlen($newPassword) < 8) {
-        admin_users_set_notice('bad', 'Mot de passe trop court (min 8 caractÃ¨res).');
+        admin_users_set_notice('bad', 'Mot de passe trop court (min 8 caractères).');
         admin_users_redirect(['open_edit' => $targetId]);
       }
       if ($newPassword !== $newPassword2) {
@@ -210,13 +210,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $existsStmt->execute([$email, $targetId]);
       if ($existsStmt->fetch()) {
         $pdo->rollBack();
-        admin_users_set_notice('bad', 'Un autre utilisateur existe dÃ©jÃ  avec cet email.');
+        admin_users_set_notice('bad', 'Un autre utilisateur existe déjà avec cet email.');
         admin_users_redirect(['open_edit' => $targetId]);
       }
 
       if ($targetId === $currentAdminId && $newRole !== 'ADMIN') {
         $pdo->rollBack();
-        admin_users_set_notice('bad', 'Action refusÃ©e: vous ne pouvez pas retirer vos propres droits admin.');
+        admin_users_set_notice('bad', 'Action refusée: vous ne pouvez pas retirer vos propres droits admin.');
         admin_users_redirect(['open_edit' => $targetId]);
       }
 
@@ -489,7 +489,7 @@ function admin_users_sort_link(array $qs, string $key): string {
   <title>Admin &middot; Utilisateurs</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
   <div class="container admin-container">

@@ -41,7 +41,7 @@ if ($package !== 'ALL' && !in_array($package, $packageIds, true)) {
 
 function admin_session_type_label(string $type): string {
   return match ($type) {
-    'EXAM' => 'Certification',
+    'EXAM' => 'Exam',
     'TRAINING' => 'Test',
     default => $type,
   };
@@ -194,7 +194,7 @@ $stats = $pdo->query("
   <title>Admin &middot; Sessions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
   <div class="container admin-container">
@@ -202,7 +202,7 @@ $stats = $pdo->query("
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Sessions</h2>
-          <p class="sub">Pilotage des sessions et certifications</p>
+          <p class="sub">Pilotage des sessions et Exams</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('sessions'); ?>
@@ -216,7 +216,7 @@ $stats = $pdo->query("
           <label class="label" for="type">Type</label>
           <select class="input" id="type" name="type">
             <option value="ALL" <?= $type==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>Certification</option>
+            <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>Exam</option>
             <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>>Test</option>
           </select>
         </div>

@@ -29,7 +29,7 @@ if (!in_array($hresult, $allowedResults, true)) $hresult = 'ALL';
 
 function admin_session_type_label(string $type): string {
   return match ($type) {
-    'EXAM' => 'Certification',
+    'EXAM' => 'Exam',
     'TRAINING' => 'Test',
     default => $type,
   };
@@ -102,7 +102,7 @@ $hist = $histStmt->fetchAll();
   <title>Admin &middot; Profil candidat</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
   <div class="container admin-container">
@@ -122,25 +122,25 @@ $hist = $histStmt->fetchAll();
       <div class="row sessions-stats">
         <span class="badge">Sessions: <?= (int)$summary['total_sessions'] ?></span>
         <span class="badge">Derniere activite: <?= h($summary['last_activity'] ?: '-') ?></span>
-        <span class="badge ok">Certifications reussies: <?= (int)$summary['passed_exam_count'] ?></span>
-        <span class="badge">Score moyen certification: <?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></span>
+        <span class="badge ok">Exams reussis: <?= (int)$summary['passed_exam_count'] ?></span>
+        <span class="badge">Score moyen Exam: <?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></span>
       </div>
 
       <div class="section-head">
         <div>
-          <h2 class="h1">Certifications</h2>
-          <p class="sub">Derniere session EXAM reussie par certification.</p>
+          <h2 class="h1">Exams</h2>
+          <p class="sub">Derniere session EXAM reussie par Exam.</p>
         </div>
       </div>
 
       <div class="table-wrap">
         <?php if (!$certs): ?>
-          <p class="empty-state">Aucune certification reussie.</p>
+          <p class="empty-state">Aucun Exam reussi.</p>
         <?php else: ?>
           <table class="table questions-table">
             <thead>
               <tr>
-                <th>Certification</th>
+                <th>Exam</th>
                 <th>Derniere reussite</th>
                 <th>Statut</th>
               </tr>

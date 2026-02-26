@@ -1025,8 +1025,12 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .sessions-filters {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 120px 160px 150px 150px minmax(220px, 1fr) auto;
   margin-bottom: 10px;
+}
+
+.sessions-filters .filters-actions {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 900px) {
@@ -2020,6 +2024,12 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 .dashboard-table td:last-child {
   width: 1%;
   white-space: nowrap;
+}
+
+.dashboard-table-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .result-blue-hero {

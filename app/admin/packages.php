@@ -108,7 +108,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
   <title>Admin &middot; Packs</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
   <div class="container admin-container">
@@ -116,7 +116,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Packs</h2>
-          <p class="sub">Param&egrave;tres de certification</p>
+          <p class="sub">Param&egrave;tres d Exam</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>

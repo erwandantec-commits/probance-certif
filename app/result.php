@@ -77,7 +77,7 @@ $canShowReview = $isTrainingSession && in_array($displayStatus, ['TERMINATED', '
 $reviewItems = [];
 $isTerminatedExam = (
   (string)($s['session_type'] ?? '') === 'EXAM' &&
-  $displayStatus === 'TERMINATED'
+  in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)
 );
 $isPassedTerminatedExam = $isTerminatedExam && (int)($s['passed'] ?? 0) === 1;
 $validUntil = '';
@@ -102,10 +102,13 @@ $badgeByPackage = [
   'gold' => 'user-badge-gold.png',
 ];
 $passedBadge = $badgeByPackage[$packageCode] ?? 'user-badge-blue.png';
+$badgeVersion = (string)time();
 $heroImagePath = ((int)($s['passed'] ?? 0) === 1)
-  ? '/assets/badges/' . $passedBadge
-  : '/assets/badges/failed.png';
-$heroScoreColor = package_color_hex((string)($s['package_name'] ?? ''), (string)($s['package_color_hex'] ?? ''));
+  ? '/assets/badges/' . $passedBadge . '?v=' . urlencode($badgeVersion)
+  : '/assets/badges/failed.png?v=' . urlencode($badgeVersion);
+$heroScoreColor = ((int)($s['passed'] ?? 0) === 1)
+  ? package_color_hex((string)($s['package_name'] ?? ''), (string)($s['package_color_hex'] ?? ''))
+  : '#C7C5B1';
 
 if ($canShowReview) {
   $reviewStmt = $pdo->prepare("
@@ -148,7 +151,7 @@ if ($canShowReview) {
   <meta charset="utf-8">
   <title><?= h(t('result.title', [], $lang)) ?></title>
   <link rel="stylesheet" href="/assets/style.css?v=9">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 
 <body>
@@ -193,7 +196,7 @@ if ($canShowReview) {
         <?php endif; ?>
       </div>
 
-	      <?php if ($displayStatus === 'TERMINATED'): ?>
+	      <?php if (in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)): ?>
           <?php if ($isTerminatedExam): ?>
             <div class="result-blue-hero">
               <img class="result-blue-hero-badge" src="<?= h($heroImagePath) ?>" alt="Badge Resultat">
@@ -221,16 +224,12 @@ if ($canShowReview) {
 	            </p>
 	          </div>
           <?php endif; ?>
+          <?php if ($displayStatus === 'EXPIRED'): ?>
+            <p class="error" style="margin-top:12px;"><?= h(t('result.expired_message', [], $lang)) ?></p>
+          <?php endif; ?>
 
 	        <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
 	          <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
-        </div>
-
-      <?php elseif ($displayStatus === 'EXPIRED'): ?>
-        <p class="error"><?= h(t('result.expired_message', [], $lang)) ?></p>
-
-        <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
         </div>
 
       <?php else: ?>

@@ -61,17 +61,9 @@ if ($latestType !== '') {
   $lastParams[] = $latestType;
 }
 if ($latestResult === 'PASSED') {
-  if ($hasTerminationType) {
-    $lastConds[] = "s.status='TERMINATED' AND s.passed=1 AND COALESCE(s.termination_type,'MANUAL') <> 'TIMEOUT'";
-  } else {
-    $lastConds[] = "s.status='TERMINATED' AND s.passed=1";
-  }
+  $lastConds[] = "s.status='TERMINATED' AND s.passed=1";
 } elseif ($latestResult === 'FAILED') {
-  if ($hasTerminationType) {
-    $lastConds[] = "s.status='TERMINATED' AND s.passed=0 AND COALESCE(s.termination_type,'MANUAL') <> 'TIMEOUT'";
-  } else {
-    $lastConds[] = "s.status='TERMINATED' AND s.passed=0";
-  }
+  $lastConds[] = "s.status='TERMINATED' AND s.passed=0";
 } elseif ($latestResult === 'ACTIVE') {
   $lastConds[] = "s.status='ACTIVE'";
 } elseif ($latestResult === 'EXPIRED') {
@@ -129,13 +121,14 @@ if ($hasRevocationsTable) {
   }
 }
 
+$badgeVersion = urlencode((string)time());
 $badgeByPackage = [
-  'GREEN' => '/assets/badges/user-badge-green.png?v=2',
-  'BLUE' => '/assets/badges/user-badge-blue.png',
-  'RED' => '/assets/badges/user-badge-red.png',
-  'BLACK' => '/assets/badges/user-badge-black.png',
-  'SILVER' => '/assets/badges/user-badge-silver.png',
-  'GOLD' => '/assets/badges/user-badge-gold.png',
+  'GREEN' => '/assets/badges/user-badge-green.png?v=' . $badgeVersion,
+  'BLUE' => '/assets/badges/user-badge-blue.png?v=' . $badgeVersion,
+  'RED' => '/assets/badges/user-badge-red.png?v=' . $badgeVersion,
+  'BLACK' => '/assets/badges/user-badge-black.png?v=' . $badgeVersion,
+  'SILVER' => '/assets/badges/user-badge-silver.png?v=' . $badgeVersion,
+  'GOLD' => '/assets/badges/user-badge-gold.png?v=' . $badgeVersion,
 ];
 foreach ($certSuccessStmt->fetchAll() as $row) {
   $pkgId = (int)$row['package_id'];
@@ -150,7 +143,7 @@ foreach ($certSuccessStmt->fetchAll() as $row) {
   $certCards[$pkgId] = [
     'sid' => (string)$row['id'],
     'package_name' => (string)$row['package_name'],
-    'badge' => $badgeByPackage[$pkgName] ?? '/assets/badges/user-badge-blue.png',
+    'badge' => $badgeByPackage[$pkgName] ?? ('/assets/badges/user-badge-blue.png?v=' . $badgeVersion),
     'tone' => package_color_hex((string)$row['package_name'], (string)($row['package_color_hex'] ?? '')),
     'started_at' => (string)$row['started_at'],
     'expires_at' => $statusInfo['expires_at'] instanceof DateTimeImmutable ? $statusInfo['expires_at']->format('d/m/Y') : '',
@@ -301,14 +294,14 @@ function dash_score_fmt($v, string $lang): string {
 }
 
 function dash_result_label(array $s, string $lang): string {
-  if ((string)dash_display_status($s) !== 'TERMINATED' || $s['passed'] === null) {
+  if ((string)dash_display_status($s) === 'ACTIVE' || $s['passed'] === null) {
     return t('dash.na', [], $lang);
   }
   return ((int)$s['passed'] === 1) ? t('dash.result.passed', [], $lang) : t('dash.result.failed', [], $lang);
 }
 
 function dash_result_badge_class(array $s): string {
-  if ((string)dash_display_status($s) !== 'TERMINATED' || $s['passed'] === null) {
+  if ((string)dash_display_status($s) === 'ACTIVE' || $s['passed'] === null) {
     return 'pill';
   }
   return ((int)$s['passed'] === 1) ? 'pill success' : 'pill danger';
@@ -362,7 +355,7 @@ function dash_remaining_label(int $seconds): string {
   <title><?= h(t('dash.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container dashboard-container">
@@ -670,20 +663,22 @@ function dash_remaining_label(int $seconds): string {
               </span>
             </td>
 	            <td>
-	              <?php if ($s['status'] === 'ACTIVE'): ?>
-	                <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=<?= (int)($resumePosBySession[(string)$s['id']] ?? 1) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.resume', [], $lang)) ?></a>
-                  <a class="btn ghost icon-btn danger"
-                     href="/session_delete.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"
-                     aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
-                     title="<?= h(t('dash.delete_active', [], $lang)) ?>"
-                     onclick="return confirm('<?= h(t('dash.delete_confirm', [], $lang)) ?>');">
-                    <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                      <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
-                    </svg>
-                  </a>
-	              <?php else: ?>
-	                <a class="btn ghost" href="/result.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.view', [], $lang)) ?></a>
-	              <?php endif; ?>
+                <div class="dashboard-table-actions">
+	                <?php if ($s['status'] === 'ACTIVE'): ?>
+	                  <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=<?= (int)($resumePosBySession[(string)$s['id']] ?? 1) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.resume', [], $lang)) ?></a>
+                    <a class="btn ghost icon-btn danger"
+                       href="/session_delete.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"
+                       aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                       title="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                       onclick="return confirm('<?= h(t('dash.delete_confirm', [], $lang)) ?>');">
+                      <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                      </svg>
+                    </a>
+	                <?php else: ?>
+	                  <a class="btn ghost" href="/result.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.view', [], $lang)) ?></a>
+	                <?php endif; ?>
+                </div>
 	            </td>
           </tr>
         <?php endforeach; ?>

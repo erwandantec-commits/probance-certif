@@ -91,8 +91,8 @@ function validateAnswerSelection(array $question, array $selectedOptionIds): arr
 
 /**
  * Compute score:
- * - sum score_value for selected options
- * - if score_value missing: correct => +1, incorrect => -1
+ * - sum by selected options with fixed policy:
+ *   correct => +1, incorrect => 0
  * - skip => 0
  */
 function computeScore(array $question, array $selectedOptionIds): int {
@@ -101,17 +101,13 @@ function computeScore(array $question, array $selectedOptionIds): int {
 
   $selectedOptionIds = array_values(array_unique(array_map('intval', $selectedOptionIds)));
 
-  // Build score map option_id => score_value
+  // Build score map option_id => points
   $scoreMap = [];
   foreach (($question['options'] ?? []) as $opt) {
     $id = (int)($opt['id'] ?? 0);
     if ($id <= 0) continue;
 
-    if (array_key_exists('score_value', $opt)) {
-      $scoreMap[$id] = (int)$opt['score_value']; // +1 / -1 / 0
-    } else {
-      $scoreMap[$id] = !empty($opt['is_correct']) ? 1 : -1;
-    }
+    $scoreMap[$id] = !empty($opt['is_correct']) ? 1 : 0;
   }
 
   $score = 0;

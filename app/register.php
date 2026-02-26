@@ -80,13 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title>Créer un compte</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
   <div class="card">
     <h2 class="h1">Créer un compte</h2>
-    <p class="sub">Inscris-toi pour accéder à tes certifications.</p>
+    <p class="sub">Inscris-toi pour accéder à tes Exams.</p>
 
     <?php if ($error): ?>
       <p class="error"><?= h($error) ?></p>

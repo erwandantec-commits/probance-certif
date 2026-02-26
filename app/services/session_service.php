@@ -231,14 +231,12 @@ function compute_session_score_snapshot(PDO $pdo, string $sessionId): array {
   $maxPoints = (int)($maxStmt->fetch()['max_points'] ?? 0);
 
   // Raw score follows business rules aligned with correction feedback:
-  // correct = +1, wrong = -1, neutral option (score_value=0) = 0, unanswered = 0.
-  // We prioritize is_correct so legacy rows with bad score_value still score correctly.
+  // correct = +1, wrong = 0, unanswered = 0.
   $rawStmt = $pdo->prepare("
     SELECT COALESCE(SUM(
       CASE
         WHEN qo.is_correct = 1 THEN 1
-        WHEN qo.score_value = 0 THEN 0
-        ELSE -1
+        ELSE 0
       END
     ), 0) AS raw_score
     FROM answer_options ao
@@ -255,6 +253,14 @@ function compute_session_score_snapshot(PDO $pdo, string $sessionId): array {
     'max_points' => $maxPoints,
     'score_percent' => $scorePercent,
   ];
+}
+
+function refresh_active_session_score(PDO $pdo, string $sessionId): float {
+  $snapshot = compute_session_score_snapshot($pdo, $sessionId);
+  $scorePercent = round((float)($snapshot['score_percent'] ?? 0.0), 2);
+  $pdo->prepare("UPDATE sessions SET score_percent=? WHERE id=? AND status='ACTIVE'")
+      ->execute([$scorePercent, $sessionId]);
+  return $scorePercent;
 }
 
 function create_session_record(

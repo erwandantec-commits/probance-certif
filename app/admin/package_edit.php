@@ -475,7 +475,7 @@ $formCount = isset($count) ? $count : (int)$pk['selection_count'];
   <title>Admin &middot; Modifier pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
-  <script src="/assets/theme-toggle.js?v=1" defer></script>
+  <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
   <div class="container admin-container">
