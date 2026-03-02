@@ -9,6 +9,8 @@ $pdo = db();
 $created = ((string)($_GET['created'] ?? '') === '1');
 $deleted = ((string)($_GET['deleted'] ?? '') === '1');
 $deleteError = trim((string)($_GET['delete_error'] ?? ''));
+$reordered = ((string)($_GET['reordered'] ?? '') === '1');
+$reorderError = trim((string)($_GET['reorder_error'] ?? ''));
 
 $hasProfileColumn = (bool)$pdo->query("
   SELECT COUNT(*)
@@ -24,6 +26,55 @@ $hasDisplayOrderColumn = (bool)$pdo->query("
     AND TABLE_NAME = 'packages'
     AND COLUMN_NAME = 'display_order'
 ")->fetchColumn();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ((string)($_POST['action'] ?? '') === 'move_pack')) {
+  if (!$hasDisplayOrderColumn) {
+    header('Location: /admin/packages.php?reorder_error=' . urlencode("Colonne display_order indisponible."));
+    exit;
+  }
+
+  $moveId = (int)($_POST['id'] ?? 0);
+  $direction = strtolower(trim((string)($_POST['direction'] ?? '')));
+  if ($moveId <= 0 || !in_array($direction, ['up', 'down'], true)) {
+    header('Location: /admin/packages.php?reorder_error=' . urlencode("Demande de tri invalide."));
+    exit;
+  }
+
+  $ids = array_map(
+    static fn(array $row): int => (int)$row['id'],
+    $pdo->query("SELECT id FROM packages ORDER BY display_order ASC, id ASC")->fetchAll()
+  );
+  $index = array_search($moveId, $ids, true);
+  if ($index === false) {
+    header('Location: /admin/packages.php?reorder_error=' . urlencode("Pack introuvable."));
+    exit;
+  }
+
+  $target = ($direction === 'up') ? ($index - 1) : ($index + 1);
+  if ($target < 0 || $target >= count($ids)) {
+    header('Location: /admin/packages.php');
+    exit;
+  }
+
+  [$ids[$index], $ids[$target]] = [$ids[$target], $ids[$index]];
+  $up = $pdo->prepare("UPDATE packages SET display_order=? WHERE id=?");
+  try {
+    $pdo->beginTransaction();
+    foreach ($ids as $pos => $id) {
+      $up->execute([($pos + 1) * 10, (int)$id]);
+    }
+    $pdo->commit();
+    header('Location: /admin/packages.php?reordered=1');
+    exit;
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    header('Location: /admin/packages.php?reorder_error=' . urlencode("Impossible de changer l'ordre des packs."));
+    exit;
+  }
+}
+
 $packagesOrderSql = $hasDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id ASC";
 $packages = $pdo->query("SELECT * FROM packages $packagesOrderSql")->fetchAll();
 
@@ -149,33 +200,67 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <?php if ($deleteError !== ''): ?>
         <p class="error" style="margin:0 0 12px;"><?= h($deleteError) ?></p>
       <?php endif; ?>
+      <?php if ($reordered): ?>
+        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;">Ordre des packs mis a jour.</p>
+      <?php endif; ?>
+      <?php if ($reorderError !== ''): ?>
+        <p class="error" style="margin:0 0 12px;"><?= h($reorderError) ?></p>
+      <?php endif; ?>
 
       <div style="margin: 0 0 12px; display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn admin-primary-action-btn" href="/admin/pack_create.php">+ Cr&eacute;er un pack</a>
       </div>
-
       <div class="table-wrap">
         <table class="table questions-table packages-table">
           <thead>
             <tr>
               <th>Nom</th>
               <?php if ($hasProfileColumn): ?><th>Profil</th><?php endif; ?>
-              <?php if ($hasDisplayOrderColumn): ?><th>Ordre</th><?php endif; ?>
+              <?php if ($hasDisplayOrderColumn): ?>
+                <th>
+                  <span class="order-help-wrap">
+                    <span>Ordre</span>
+                    <span class="order-help-tip" tabindex="0" aria-label="Aide sur l'ordre des packs">
+                      i
+                      <span class="order-help-bubble">Definit l'ordre d'affichage des packs: le premier apparait en haut a gauche dans l'espace candidat.</span>
+                    </span>
+                  </span>
+                </th>
+              <?php endif; ?>
               <th>Seuil (%)</th>
               <th>Dur&eacute;e (min)</th>
               <th>Questions</th>
               <th>Statut</th>
-              <th>Disponibilit&eacute;</th>
+              <th>
+                <span class="order-help-wrap">
+                  <span>Disponibilit&eacute;</span>
+                  <span class="order-help-tip" tabindex="0" aria-label="Aide sur la disponibilite des packs">
+                    i
+                    <span class="order-help-bubble">Indique si le pack a suffisamment de questions configurees pour etre lance en examen.</span>
+                  </span>
+                </span>
+              </th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($packages as $pk): ?>
+            <?php foreach ($packages as $idx => $pk): ?>
               <?php [$avail, $req, $ok] = compute_availability($pk, $counts, $legacyCounts); ?>
               <tr>
                 <td><span style="<?= h(package_label_style((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''))) ?>"><?= h($pk['name']) ?></span></td>
                 <?php if ($hasProfileColumn): ?><td><?= h((string)($pk['profile'] ?? '-')) ?></td><?php endif; ?>
-                <?php if ($hasDisplayOrderColumn): ?><td><?= (int)($pk['display_order'] ?? 100) ?></td><?php endif; ?>
+                <?php if ($hasDisplayOrderColumn): ?>
+                  <td>
+                    <div style="display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap;">
+                      <form method="post" style="display:flex; gap:6px; margin:0;">
+                        <input type="hidden" name="action" value="move_pack">
+                        <input type="hidden" name="id" value="<?= (int)$pk['id'] ?>">
+                        <button class="btn ghost" type="submit" name="direction" value="up" <?= $idx === 0 ? 'disabled' : '' ?> title="Monter">&uarr;</button>
+                        <button class="btn ghost" type="submit" name="direction" value="down" <?= $idx === (count($packages) - 1) ? 'disabled' : '' ?> title="Descendre">&darr;</button>
+                      </form>
+                    </div>
+                  </td>
+                <?php endif; ?>
                 <td><?= (int)$pk['pass_threshold_percent'] ?></td>
                 <td><?= (int)$pk['duration_limit_minutes'] ?></td>
                 <td><?= (int)$pk['selection_count'] ?></td>

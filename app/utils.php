@@ -36,6 +36,10 @@ function package_color_hex(string $packageName, ?string $customColor = null): st
 }
 
 function package_label_style(string $packageName, ?string $customColor = null): string {
+  $name = strtoupper(trim($packageName));
+  if ($name === 'BLACK' && normalize_hex_color($customColor) === null) {
+    return 'color:var(--pack-black-text,#111827);font-weight:700;';
+  }
   return 'color:' . package_color_hex($packageName, $customColor) . ';font-weight:700;';
 }
 

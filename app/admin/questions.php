@@ -96,8 +96,7 @@ if (!empty($activeNeeds) || !empty($activeNeedLevels)) {
   }
 }
 if ($idFilter !== null) {
-  $conds[] = '(q.id = ? OR q.external_id = ?)';
-  $params[] = $idFilter;
+  $conds[] = 'q.external_id = ?';
   $params[] = $idFilter;
 }
 
@@ -150,6 +149,9 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
 function package_label_style_local(string $packageName): string {
   $name = strtoupper(trim($packageName));
+  if ($name === 'BLACK') {
+    return 'color:var(--pack-black-text,#111827);font-weight:700;';
+  }
   $color = match ($name) {
     'GREEN' => '#16a34a',
     'BLUE' => '#2563eb',
@@ -231,7 +233,7 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
       <?php endforeach; ?>
       <div>
         <label class="label" for="id_question">ID question</label>
-        <input class="input" id="id_question" name="id_question" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="ID interne ou ID question" value="<?= h($idFilterRaw) ?>">
+        <input class="input" id="id_question" name="id_question" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="ID question" value="<?= h($idFilterRaw) ?>">
       </div>
       <div class="filters-actions">
         <button class="btn" type="submit">Rechercher</button>

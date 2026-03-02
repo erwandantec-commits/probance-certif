@@ -207,7 +207,10 @@ if (!empty($certCards)) {
     $ai = (int)($a['display_order'] ?? 100);
     $bi = (int)($b['display_order'] ?? 100);
     if ($ai === $bi) {
-      return strcmp((string)($a['package_name'] ?? ''), (string)($b['package_name'] ?? ''));
+      return strcmp(
+        (string)($a['package_name'] ?? ''),
+        (string)($b['package_name'] ?? '')
+      );
     }
     return $ai <=> $bi;
   });
@@ -466,9 +469,10 @@ function dash_remaining_label(int $seconds): string {
     <?php else: ?>
       <div class="dashboard-certifications-grid">
         <?php foreach ($certCards as $card): ?>
+          <?php $cardPkgClass = 'pkg-' . strtolower((string)$card['package_name']); ?>
           <a class="dashboard-cert-card dashboard-cert-card-link" href="/result.php?sid=<?= h((string)$card['sid']) ?>&lang=<?= h($lang) ?>">
             <img class="dashboard-cert-card-badge" src="<?= h($card['badge']) ?>" alt="<?= h(localize_text((string)$card['package_name'], $lang)) ?>">
-            <div class="dashboard-cert-card-name" style="color:<?= h($card['tone']) ?>;">
+            <div class="dashboard-cert-card-name <?= h($cardPkgClass) ?>" style="color:<?= h($card['tone']) ?>;">
               <?= h(localize_text((string)$card['package_name'], $lang)) ?>
             </div>
             <?php if ((string)($card['package_profile'] ?? '') !== ''): ?>

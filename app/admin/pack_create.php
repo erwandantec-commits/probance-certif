@@ -239,10 +239,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_anti_repeat']) && $_GET['draft_anti_repeat'] !== '') {
     $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
   }
-  if (isset($_GET['draft_order']) && $_GET['draft_order'] !== '') {
-    $displayOrder = (int)$_GET['draft_order'];
-  }
-
   $threshold = max(0, min(100, $threshold));
   $duration = max(1, min(600, $duration));
   $count = max(1, min(200, $count));
@@ -311,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $count = (int)($_POST['selection_count'] ?? 10);
   $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? 4);
   $profile = trim((string)($_POST['profile'] ?? ''));
-  $displayOrder = (int)($_POST['display_order'] ?? 100);
+  $displayOrder = (int)($_POST['display_order'] ?? $displayOrder);
   $badgeImageFilename = trim((string)($_POST['badge_image_filename'] ?? $badgeImageFilename));
   $isActive = ((int)($_POST['is_active'] ?? 1) === 1) ? 1 : 0;
   $selectedTemplate = strtoupper(trim((string)($_POST['rule_template'] ?? '')));
@@ -458,12 +454,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <option value="0" <?= $isActive === 0 ? 'selected' : '' ?>>Inactif</option>
                   </select>
                 </div>
-                <?php if ($hasDisplayOrderColumn): ?>
-                  <div>
-                    <label class="label" for="create-pack-order">Ordre d'affichage</label>
-                    <input class="input" id="create-pack-order" name="display_order" type="number" min="0" max="9999" required value="<?= (int)$displayOrder ?>">
-                  </div>
-                <?php endif; ?>
               </div>
             </article>
 
@@ -479,12 +469,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <input class="input" id="create-pack-duration" name="duration_limit_minutes" type="number" min="1" max="600" required value="<?= (int)$duration ?>">
                 </div>
                 <div>
-                  <label class="label" for="create-pack-count">Questions</label>
+                  <label class="label" for="create-pack-count">Nombre de questions tir&eacute;es</label>
                   <input class="input" id="create-pack-count" name="selection_count" type="number" min="1" max="200" required value="<?= (int)$count ?>">
                 </div>
                 <?php if ($hasAntiRepeatSessionsColumn): ?>
                   <div>
-                    <label class="label" for="create-pack-anti-repeat">Anti-r&eacute;p&eacute;tition (sessions)</label>
+                    <label class="label" for="create-pack-anti-repeat">
+                      <span class="order-help-wrap">
+                        <span>Nombre de sessions</span>
+                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur les sessions anti-repetition">
+                          i
+                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur.</span>
+                        </span>
+                      </span>
+                    </label>
                     <input class="input" id="create-pack-anti-repeat" name="anti_repeat_sessions" type="number" min="0" max="20" required value="<?= (int)$antiRepeatSessions ?>">
                   </div>
                 <?php endif; ?>
@@ -535,10 +533,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?php if ($hasRulesColumn): ?>
           <section class="rule-builder">
-            <h3 class="distribution-title rule-builder-title">R&egrave;gles de tirage des questions</h3>
-            <p class="small rule-builder-sub">
-              D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions. La colonne "Cible cumul&eacute;e" permet de stopper un palier quand le total atteint la cible.
-            </p>
+            <h3 class="distribution-title rule-builder-title">
+              <span class="order-help-wrap">
+                <span>R&egrave;gles de tirage des questions</span>
+                <span class="order-help-tip" tabindex="0" aria-label="Aide sur les regles de tirage">
+                  i
+                  <span class="order-help-bubble">D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions.</span>
+                </span>
+              </span>
+            </h3>
             <div class="rule-toolbar">
               <div class="rule-template-group">
                 <label class="label" for="rule-template">Mod&egrave;le</label>
@@ -561,8 +564,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <tr>
                     <th>Connaissances requises</th>
                     <th>Niveaux</th>
-                    <th>Prendre (max)</th>
-                    <th>Cible cumul&eacute;e</th>
+                    <th>Nb de questions (max)</th>
+                    <th>
+                      <span class="order-help-wrap">
+                        <span>Cible cumul&eacute;e</span>
+                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur la cible cumulee">
+                          i
+                          <span class="order-help-bubble">Stoppe le palier quand le total cumul&eacute; de questions atteint cette cible.</span>
+                        </span>
+                      </span>
+                    </th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -658,7 +669,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           returnUrl.searchParams.set('draft_duration', fieldValue('duration_limit_minutes') || '120');
           returnUrl.searchParams.set('draft_count', fieldValue('selection_count') || '10');
           returnUrl.searchParams.set('draft_anti_repeat', fieldValue('anti_repeat_sessions') || '4');
-          returnUrl.searchParams.set('draft_order', fieldValue('display_order') || '100');
           returnUrl.searchParams.set('draft_color', fieldValue('name_color_hex') || '#334155');
           returnUrl.searchParams.set('draft_template', fieldValue('rule_template'));
           var draftRules = buildDraftRules();

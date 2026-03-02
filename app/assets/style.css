@@ -17,6 +17,7 @@ html{
   --surface:#f3f4f6;
   --shadow: 0 10px 20px rgba(0,0,0,.04);
   --focus-ring: rgba(37,99,235,.2);
+  --pack-black-text: #111827;
 }
 
 :root[data-theme="dark"]{
@@ -34,6 +35,7 @@ html{
   --surface:#1f2937;
   --shadow: 0 12px 22px rgba(2,6,23,.5);
   --focus-ring: rgba(59,130,246,.35);
+  --pack-black-text: #e2e8f0;
 }
 
 *{ box-sizing:border-box; }
@@ -1125,6 +1127,64 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   text-align: center;
 }
 
+.order-help-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.order-help-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid #94a3b8;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: help;
+}
+
+.order-help-bubble {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 360px;
+  max-width: 460px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #8fa0af;
+  color: #fff;
+  text-align: left;
+  font-weight: 500;
+  line-height: 1.35;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.22);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.order-help-tip:hover .order-help-bubble,
+.order-help-tip:focus-visible .order-help-bubble {
+  visibility: visible;
+  opacity: 1;
+}
+
+:root[data-theme="dark"] .order-help-tip {
+  border-color: #64748b;
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .order-help-bubble {
+  background: #475569;
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.55);
+}
+
 .packages-table .actions-cell,
 .questions-admin-table .actions-cell,
 .package-questions-table .actions-cell,
@@ -1921,6 +1981,10 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
 :root[data-theme="dark"] .dashboard-cert-card-meta {
   color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .dashboard-cert-card-name.pkg-black {
+  color: #e2e8f0 !important;
 }
 
 :root[data-theme="dark"] select option,

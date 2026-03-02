@@ -314,7 +314,22 @@ if (!in_array($role, $allowedRoles, true)) {
   $role = 'ALL';
 }
 
+$emailFilter = trim((string)($_GET['email'] ?? ''));
+$nameFilter = trim((string)($_GET['name'] ?? ''));
+$lastNameFilter = trim((string)($_GET['last_name'] ?? ''));
+$firstNameFilter = trim((string)($_GET['first_name'] ?? ''));
 $search = trim((string)($_GET['search'] ?? ''));
+if ($search !== '') {
+  if ($emailFilter === '') {
+    $emailFilter = $search;
+  }
+  if ($nameFilter === '' && $lastNameFilter === '' && $firstNameFilter === '') {
+    $nameFilter = $search;
+  }
+}
+if ($nameFilter === '') {
+  $nameFilter = trim($lastNameFilter . ' ' . $firstNameFilter);
+}
 $sort = trim((string)($_GET['sort'] ?? 'created_at'));
 $dir = strtoupper(trim((string)($_GET['dir'] ?? 'DESC')));
 
@@ -334,12 +349,15 @@ if ($role !== 'ALL') {
   $where[] = 'u.role = ?';
   $params[] = $role;
 }
-if ($search !== '') {
-  $where[] = '(u.email LIKE ? OR u.name LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ?)';
-  $params[] = '%' . $search . '%';
-  $params[] = '%' . $search . '%';
-  $params[] = '%' . $search . '%';
-  $params[] = '%' . $search . '%';
+if ($emailFilter !== '') {
+  $where[] = 'u.email LIKE ?';
+  $params[] = '%' . $emailFilter . '%';
+}
+if ($nameFilter !== '') {
+  $where[] = '(c.last_name LIKE ? OR c.first_name LIKE ? OR u.name LIKE ?)';
+  $params[] = '%' . $nameFilter . '%';
+  $params[] = '%' . $nameFilter . '%';
+  $params[] = '%' . $nameFilter . '%';
 }
 
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
@@ -549,16 +567,20 @@ function admin_users_sort_link(array $qs, string $key): string {
 
       <form method="get" class="filters-grid users-filters">
         <div>
+          <label class="label" for="email">Email</label>
+          <input class="input" id="email" type="text" name="email" value="<?= h($emailFilter) ?>" placeholder="Email">
+        </div>
+        <div>
+          <label class="label" for="name">Nom / Prenom</label>
+          <input class="input" id="name" type="text" name="name" value="<?= h($nameFilter) ?>" placeholder="Nom ou prenom">
+        </div>
+        <div>
           <label class="label" for="role">Role</label>
           <select class="input" id="role" name="role">
             <option value="ALL" <?= $role === 'ALL' ? 'selected' : '' ?>>Tous</option>
             <option value="ADMIN" <?= $role === 'ADMIN' ? 'selected' : '' ?>>Administrateurs</option>
             <option value="USER" <?= $role === 'USER' ? 'selected' : '' ?>>Utilisateurs</option>
           </select>
-        </div>
-        <div>
-          <label class="label" for="search">Recherche</label>
-          <input class="input" id="search" type="text" name="search" value="<?= h($search) ?>" placeholder="Email ou nom">
         </div>
         <div class="filters-actions">
           <button class="btn" type="submit">Filtrer</button>

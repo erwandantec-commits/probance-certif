@@ -42,6 +42,33 @@ function package_edit_package_column_exists(PDO $pdo, string $column): bool {
   return $cache[$key];
 }
 
+function package_edit_filter_url(int $id, array $needs, array $needLevels): string {
+  $needs = array_values(array_unique(array_map(
+    static fn($v) => strtoupper(trim((string)$v)),
+    $needs
+  )));
+  $needs = array_values(array_filter($needs, static fn($v) => in_array($v, ['PONE', 'PHM', 'PPM'], true)));
+
+  $cleanNeedLevels = [];
+  foreach ($needLevels as $pair) {
+    $pair = strtoupper(trim((string)$pair));
+    if (!preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
+      continue;
+    }
+    $cleanNeedLevels[] = $pair;
+  }
+  $cleanNeedLevels = array_values(array_unique($cleanNeedLevels));
+
+  $qs = ['id' => $id];
+  if (!empty($needs)) {
+    $qs['needs'] = $needs;
+  }
+  if (!empty($cleanNeedLevels)) {
+    $qs['need_levels'] = $cleanNeedLevels;
+  }
+  return '/admin/package_edit.php?' . http_build_query($qs);
+}
+
 function package_rule_templates(): array {
   return [
     'GREEN' => [
@@ -227,13 +254,73 @@ function package_edit_badge_file_options(): array {
 
 
 $id = (int)($_GET['id'] ?? 0);
-$filterNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
-$filterLevel = (int)($_GET['level'] ?? 0);
-if (!in_array($filterNeed, ['PONE', 'PHM', 'PPM'], true)) {
-  $filterNeed = '';
+$rawNeeds = $_GET['needs'] ?? [];
+if (!is_array($rawNeeds)) {
+  $rawNeeds = [$rawNeeds];
 }
-if ($filterLevel < 1 || $filterLevel > 3) {
-  $filterLevel = 0;
+$filterNeeds = [];
+foreach ($rawNeeds as $needRaw) {
+  $need = strtoupper(trim((string)$needRaw));
+  if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
+    $filterNeeds[] = $need;
+  }
+}
+$filterNeeds = array_values(array_unique($filterNeeds));
+
+$rawLevels = $_GET['levels'] ?? [];
+if (!is_array($rawLevels)) {
+  $rawLevels = [$rawLevels];
+}
+$legacyFilterLevels = [];
+foreach ($rawLevels as $lvRaw) {
+  $lv = (int)$lvRaw;
+  if ($lv >= 1 && $lv <= 3) {
+    $legacyFilterLevels[] = $lv;
+  }
+}
+$legacyFilterLevels = array_values(array_unique($legacyFilterLevels));
+sort($legacyFilterLevels);
+
+$rawNeedLevels = $_GET['need_levels'] ?? [];
+if (!is_array($rawNeedLevels)) {
+  $rawNeedLevels = [$rawNeedLevels];
+}
+$filterNeedLevels = [];
+foreach ($rawNeedLevels as $pairRaw) {
+  $pair = strtoupper(trim((string)$pairRaw));
+  if (preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
+    $filterNeedLevels[] = $pair;
+  }
+}
+$filterNeedLevels = array_values(array_unique($filterNeedLevels));
+
+// backward compatibility with old single filter params
+$legacyNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
+if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true) && empty($filterNeeds)) {
+  $filterNeeds[] = $legacyNeed;
+}
+$legacyLevel = (int)($_GET['level'] ?? 0);
+if ($legacyLevel >= 1 && $legacyLevel <= 3 && empty($filterNeedLevels)) {
+  if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true)) {
+    $filterNeedLevels[] = $legacyNeed . ':' . $legacyLevel;
+  } else {
+    foreach (['PONE', 'PHM', 'PPM'] as $legacyAnyNeed) {
+      $filterNeedLevels[] = $legacyAnyNeed . ':' . $legacyLevel;
+    }
+  }
+}
+if (empty($filterNeedLevels) && !empty($filterNeeds) && !empty($legacyFilterLevels)) {
+  foreach ($filterNeeds as $n) {
+    foreach ($legacyFilterLevels as $lv) {
+      $filterNeedLevels[] = $n . ':' . $lv;
+    }
+  }
+}
+$filterNeedLevels = array_values(array_unique($filterNeedLevels));
+$filterNeedLevelMap = [];
+foreach ($filterNeedLevels as $pair) {
+  [$n, $lv] = explode(':', $pair, 2);
+  $filterNeedLevelMap[$n][(int)$lv] = true;
 }
 $page = max(1, (int)($_GET['page'] ?? 1));
 
@@ -273,6 +360,9 @@ if ($hasBadgeImageColumn) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  if (isset($_GET['draft_name'])) {
+    $name = trim((string)$_GET['draft_name']);
+  }
   if (isset($_GET['draft_profile'])) {
     $profile = trim((string)$_GET['draft_profile']);
   }
@@ -290,10 +380,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_anti_repeat']) && $_GET['draft_anti_repeat'] !== '') {
     $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
   }
-  if (isset($_GET['draft_order']) && $_GET['draft_order'] !== '') {
-    $displayOrder = (int)$_GET['draft_order'];
-  }
-
   if (isset($threshold)) $threshold = max(0, min(100, (int)$threshold));
   if (isset($duration)) $duration = max(1, min(600, (int)$duration));
   if (isset($count)) $count = max(1, min(200, (int)$count));
@@ -381,9 +467,10 @@ if (empty($allowedByNeed)) {
   ];
 }
 
-if ($filterNeed !== '' && !isset($allowedByNeed[$filterNeed])) {
-  $filterNeed = '';
-}
+$filterNeeds = array_values(array_filter(
+  $filterNeeds,
+  static fn(string $need): bool => isset($allowedByNeed[$need])
+));
 
 $dist = [
   'PONE' => [1 => 0, 2 => 0, 3 => 0],
@@ -437,13 +524,21 @@ $qCountSql = "
   WHERE $eligibleSql
 ";
 $qCountParams = $eligibleParams;
-if ($filterNeed !== '') {
-  $qCountSql .= " AND q.need = ? ";
-  $qCountParams[] = $filterNeed;
-}
-if ($filterLevel > 0) {
-  $qCountSql .= " AND q.level = ? ";
-  $qCountParams[] = $filterLevel;
+if (!empty($filterNeeds) || !empty($filterNeedLevels)) {
+  $orParts = [];
+  foreach ($filterNeeds as $need) {
+    $orParts[] = "(q.need = ?)";
+    $qCountParams[] = $need;
+  }
+  foreach ($filterNeedLevels as $pair) {
+    [$pairNeed, $pairLevel] = explode(':', $pair, 2);
+    $orParts[] = "(q.need = ? AND q.level = ?)";
+    $qCountParams[] = $pairNeed;
+    $qCountParams[] = (int)$pairLevel;
+  }
+  if (!empty($orParts)) {
+    $qCountSql .= " AND (" . implode(' OR ', $orParts) . ") ";
+  }
 }
 $qCountStmt = $pdo->prepare($qCountSql);
 $qCountStmt->execute($qCountParams);
@@ -470,13 +565,21 @@ $qSql = "
   WHERE $eligibleSql
 ";
 $qParams = $eligibleParams;
-if ($filterNeed !== '') {
-  $qSql .= " AND q.need = ? ";
-  $qParams[] = $filterNeed;
-}
-if ($filterLevel > 0) {
-  $qSql .= " AND q.level = ? ";
-  $qParams[] = $filterLevel;
+if (!empty($filterNeeds) || !empty($filterNeedLevels)) {
+  $orParts = [];
+  foreach ($filterNeeds as $need) {
+    $orParts[] = "(q.need = ?)";
+    $qParams[] = $need;
+  }
+  foreach ($filterNeedLevels as $pair) {
+    [$pairNeed, $pairLevel] = explode(':', $pair, 2);
+    $orParts[] = "(q.need = ? AND q.level = ?)";
+    $qParams[] = $pairNeed;
+    $qParams[] = (int)$pairLevel;
+  }
+  if (!empty($orParts)) {
+    $qSql .= " AND (" . implode(' OR ', $orParts) . ") ";
+  }
 }
 $qSql .= "
 	  GROUP BY q.id, q.text, q.need, q.knowledge_required_csv, q.level, q.question_type, q.allow_skip
@@ -496,6 +599,7 @@ $questions = $qStmt->fetchAll();
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $name = trim((string)($_POST['name'] ?? (string)($pk['name'] ?? '')));
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 5);
@@ -515,7 +619,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $packNameColor = $normalizedColor;
   }
 
-  if ($threshold < 0 || $threshold > 100) {
+  if ($name === '') {
+    $error = "Nom du pack obligatoire";
+  } elseif ((function_exists('mb_strlen') ? mb_strlen($name) : strlen($name)) > 255) {
+    $error = "Nom du pack trop long";
+  } elseif ($threshold < 0 || $threshold > 100) {
     $error = "Seuil invalide";
   } elseif ($duration < 1 || $duration > 600) {
     $error = "Durée invalide";
@@ -546,12 +654,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       // Keep form state and display error.
     } else {
       $sets = [
+        'name=?',
         'pass_threshold_percent=?',
         'duration_limit_minutes=?',
         'selection_count=?',
         'is_active=?',
       ];
-      $values = [$threshold, $duration, $count, $isActive];
+      $values = [$name, $threshold, $duration, $count, $isActive];
       if ($hasAntiRepeatSessionsColumn) {
         $sets[] = 'anti_repeat_sessions=?';
         $values[] = $antiRepeatSessions;
@@ -597,6 +706,7 @@ $formDuration = isset($duration) ? $duration : (int)$pk['duration_limit_minutes'
 $formCount = isset($count) ? $count : (int)$pk['selection_count'];
 $formAntiRepeatSessions = isset($antiRepeatSessions) ? $antiRepeatSessions : (int)($pk['anti_repeat_sessions'] ?? 4);
 $formIsActive = isset($isActive) ? $isActive : (((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0);
+$formName = isset($name) && $name !== '' ? $name : (string)($pk['name'] ?? '');
 $formProfile = isset($profile) ? $profile : (string)($pk['profile'] ?? '');
 $formDisplayOrder = isset($displayOrder) ? $displayOrder : (int)($pk['display_order'] ?? 100);
 $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((string)($pk['badge_image_filename'] ?? 'user-badge-blue.png'));
@@ -616,7 +726,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Modifier pack</h2>
-          <p class="sub"><span style="<?= h(package_label_style((string)$pk['name'], $packNameColor)) ?>"><?= h($pk['name']) ?></span></p>
+          <p class="sub"><span style="<?= h(package_label_style((string)$formName, $packNameColor)) ?>"><?= h($formName) ?></span></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>
@@ -636,6 +746,17 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
             <article class="pack-config-card">
               <h4 class="pack-config-card-title">Informations</h4>
               <div class="pack-config-fields">
+                <div>
+                  <label class="label">Nom du pack</label>
+                  <input
+                    class="input"
+                    type="text"
+                    name="name"
+                    maxlength="255"
+                    value="<?= h($formName) ?>"
+                    required
+                  >
+                </div>
                 <?php if ($hasProfileColumn): ?>
                   <div>
                     <label class="label">Profil</label>
@@ -655,20 +776,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     <option value="0" <?= $formIsActive === 0 ? 'selected' : '' ?>>Inactif</option>
                   </select>
                 </div>
-                <?php if ($hasDisplayOrderColumn): ?>
-                  <div>
-                    <label class="label">Ordre d'affichage</label>
-                    <input
-                      class="input"
-                      type="number"
-                      name="display_order"
-                      min="0"
-                      max="9999"
-                      value="<?= (int)$formDisplayOrder ?>"
-                      required
-                    >
-                  </div>
-                <?php endif; ?>
               </div>
             </article>
 
@@ -713,7 +820,15 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                 </div>
                 <?php if ($hasAntiRepeatSessionsColumn): ?>
                   <div>
-                    <label class="label">Anti-r&eacute;p&eacute;tition (sessions)</label>
+                    <label class="label">
+                      <span class="order-help-wrap">
+                        <span>Nombre de sessions</span>
+                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur les sessions anti-repetition">
+                          i
+                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur.</span>
+                        </span>
+                      </span>
+                    </label>
                     <input
                       class="input"
                       type="number"
@@ -779,10 +894,15 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
         <?php if ($hasRulesColumn): ?>
           <section class="rule-builder">
-            <h3 class="distribution-title rule-builder-title">R&egrave;gles de tirage des questions</h3>
-            <p class="small rule-builder-sub">
-              D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions. La colonne "Cible cumul&eacute;e" permet de stopper un palier quand le total atteint la cible.
-            </p>
+            <h3 class="distribution-title rule-builder-title">
+              <span class="order-help-wrap">
+                <span>R&egrave;gles de tirage des questions</span>
+                <span class="order-help-tip" tabindex="0" aria-label="Aide sur les regles de tirage">
+                  i
+                  <span class="order-help-bubble">D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions.</span>
+                </span>
+              </span>
+            </h3>
 
             <div class="rule-toolbar">
               <div class="rule-template-group">
@@ -806,8 +926,16 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   <tr>
                     <th>Connaissances requises</th>
                     <th>Niveaux</th>
-                    <th>Prendre (max)</th>
-                    <th>Cible cumul&eacute;e</th>
+                    <th>Nb de questions (max)</th>
+                    <th>
+                      <span class="order-help-wrap">
+                        <span>Cible cumul&eacute;e</span>
+                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur la cible cumulee">
+                          i
+                          <span class="order-help-bubble">Stoppe le palier quand le total cumul&eacute; de questions atteint cette cible.</span>
+                        </span>
+                      </span>
+                    </th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -860,9 +988,20 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       </div>
       <p class="small">
         Répartition par connaissances requises et niveau (banque globale, utilisée pour le tirage de ce pack).
-        <?php if ($filterNeed !== '' || $filterLevel > 0): ?>
+        <?php if (!empty($filterNeeds) || !empty($filterNeedLevels)): ?>
           <span class="small" style="margin-left:8px;">
-            Filtre: <b><?= h($filterNeed ?: 'Tous') ?></b><?= $filterLevel > 0 ? ' - L' . (int)$filterLevel : '' ?>
+            Filtre:
+            <b><?= h(!empty($filterNeeds) ? implode(', ', $filterNeeds) : 'Tous besoins') ?></b>
+            <?php if (!empty($filterNeedLevels)): ?>
+              <?php
+                $pairLabels = [];
+                foreach ($filterNeedLevels as $pair) {
+                  [$pn, $pl] = explode(':', $pair, 2);
+                  $pairLabels[] = $pn . ' L' . (int)$pl;
+                }
+              ?>
+              <?= ' - ' . h(implode(', ', $pairLabels)) ?>
+            <?php endif; ?>
             <a href="/admin/package_edit.php?id=<?= (int)$id ?>" style="margin-left:8px;">Reset</a>
           </span>
         <?php endif; ?>
@@ -871,21 +1010,47 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 	      <div class="distribution-grid" style="margin-top:10px;">
 	        <?php foreach (['PONE', 'PHM', 'PPM'] as $need): ?>
           <?php if (!isset($allowedByNeed[$need])) continue; ?>
+          <?php
+            $needIsActive = in_array($need, $filterNeeds, true);
+            $nextNeeds = $filterNeeds;
+            if ($needIsActive) {
+              $nextNeeds = array_values(array_filter($nextNeeds, static fn($v) => $v !== $need));
+            } else {
+              $nextNeeds[] = $need;
+            }
+            $nextNeedLevels = $filterNeedLevels;
+            if ($needIsActive) {
+              $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => strpos($pair, $need . ':') !== 0));
+            }
+            $needToggleUrl = package_edit_filter_url($id, $nextNeeds, $nextNeedLevels);
+          ?>
 	          <div class="distribution-card distribution-card-clickable"
-	               data-filter-need-url="/admin/package_edit.php?id=<?= (int)$id ?>&need=<?= urlencode($need) ?>"
+	               data-filter-need-url="<?= h($needToggleUrl) ?>"
                role="link"
                tabindex="0"
-               aria-label="Filtrer sur <?= h($need) ?>">
+               aria-label="<?= h(($needIsActive ? 'Retirer' : 'Ajouter') . ' le filtre ' . $need) ?>">
             <p class="distribution-need">
-              <a class="distribution-need-link <?= $filterNeed === $need && $filterLevel === 0 ? 'is-active' : '' ?>"
-                 href="/admin/package_edit.php?id=<?= (int)$id ?>&need=<?= urlencode($need) ?>">
+              <a class="distribution-need-link <?= $needIsActive ? 'is-active' : '' ?>"
+                 href="<?= h($needToggleUrl) ?>">
                 <?= h($need) ?>
               </a>
             </p>
             <div class="distribution-levels">
               <?php for ($lv = 1; $lv <= 3; $lv++): ?>
-                <a class="distribution-chip distribution-chip-link <?= $filterNeed === $need && $filterLevel === $lv ? 'is-active' : '' ?>"
-                   href="/admin/package_edit.php?id=<?= (int)$id ?>&need=<?= urlencode($need) ?>&level=<?= (int)$lv ?>">
+                <?php
+                  $pairKey = $need . ':' . $lv;
+                  $levelIsActive = !empty($filterNeedLevelMap[$need][$lv]);
+                  $nextNeedLevels = $filterNeedLevels;
+                  if ($levelIsActive) {
+                    $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => $pair !== $pairKey));
+                  } else {
+                    $nextNeedLevels[] = $pairKey;
+                  }
+                  $nextNeedsForLevel = array_values(array_filter($filterNeeds, static fn($n) => $n !== $need));
+                  $levelToggleUrl = package_edit_filter_url($id, $nextNeedsForLevel, $nextNeedLevels);
+                ?>
+                <a class="distribution-chip distribution-chip-link <?= $levelIsActive ? 'is-active' : '' ?>"
+                   href="<?= h($levelToggleUrl) ?>">
                   L<?= $lv ?> <b><?= (int)$dist[$need][$lv] ?></b>
                 </a>
               <?php endfor; ?>
@@ -1043,13 +1208,13 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         var baseReturn = editBadgePickerLink.getAttribute('data-base-return') || '/admin/package_edit.php?id=<?= (int)$id ?>';
         try {
           var returnUrl = new URL(baseReturn, window.location.origin);
+          returnUrl.searchParams.set('draft_name', editFieldValue('name'));
           returnUrl.searchParams.set('draft_profile', editFieldValue('profile'));
           returnUrl.searchParams.set('draft_active', editFieldValue('is_active') || '1');
           returnUrl.searchParams.set('draft_threshold', editFieldValue('pass_threshold_percent') || String(<?= (int)$formThreshold ?>));
           returnUrl.searchParams.set('draft_duration', editFieldValue('duration_limit_minutes') || String(<?= (int)$formDuration ?>));
           returnUrl.searchParams.set('draft_count', editFieldValue('selection_count') || String(<?= (int)$formCount ?>));
           returnUrl.searchParams.set('draft_anti_repeat', editFieldValue('anti_repeat_sessions') || String(<?= (int)$formAntiRepeatSessions ?>));
-          returnUrl.searchParams.set('draft_order', editFieldValue('display_order') || String(<?= (int)$formDisplayOrder ?>));
           returnUrl.searchParams.set('draft_color', editFieldValue('name_color_hex') || '<?= h($packNameColor) ?>');
           returnUrl.searchParams.set('draft_template', editFieldValue('rule_template'));
           var draftRules = buildEditDraftRules();
