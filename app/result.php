@@ -7,6 +7,30 @@ require_once __DIR__ . '/services/session_service.php';
 $pdo = db();
 $lang = get_lang();
 
+function result_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+
+$resultBadgeImageSelect = result_package_column_exists($pdo, 'badge_image_filename')
+  ? ", pk.badge_image_filename AS package_badge_image"
+  : ", NULL AS package_badge_image";
+$resultProfileSelect = result_package_column_exists($pdo, 'profile')
+  ? ", pk.profile AS package_profile"
+  : ", NULL AS package_profile";
+
 $sid = $_GET['sid'] ?? '';
 if (!$sid) {
   http_response_code(400);
@@ -16,6 +40,8 @@ if (!$sid) {
 
 $stmt = $pdo->prepare("
   SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent, pk.duration_limit_minutes
+    $resultBadgeImageSelect
+    $resultProfileSelect
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
@@ -38,6 +64,8 @@ if (session_is_expired($s)) {
 
   $stmt = $pdo->prepare("
     SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent, pk.duration_limit_minutes
+      $resultBadgeImageSelect
+      $resultProfileSelect
     FROM sessions s
     JOIN contacts c ON c.id = s.contact_id
     JOIN packages pk ON pk.id = s.package_id
@@ -100,8 +128,13 @@ $badgeByPackage = [
   'black' => 'user-badge-black.png',
   'silver' => 'user-badge-silver.png',
   'gold' => 'user-badge-gold.png',
+  'vermeil' => 'user-badge-gold.png',
 ];
-$passedBadge = $badgeByPackage[$packageCode] ?? 'user-badge-blue.png';
+$passedBadge = trim((string)($s['package_badge_image'] ?? ''));
+if ($passedBadge === '') {
+  $passedBadge = $badgeByPackage[$packageCode] ?? 'user-badge-blue.png';
+}
+$passedBadge = basename($passedBadge);
 $badgeVersion = (string)time();
 $heroImagePath = ((int)($s['passed'] ?? 0) === 1)
   ? '/assets/badges/' . $passedBadge . '?v=' . urlencode($badgeVersion)
@@ -109,6 +142,10 @@ $heroImagePath = ((int)($s['passed'] ?? 0) === 1)
 $heroScoreColor = ((int)($s['passed'] ?? 0) === 1)
   ? package_color_hex((string)($s['package_name'] ?? ''), (string)($s['package_color_hex'] ?? ''))
   : '#C7C5B1';
+$heroProfile = trim((string)($s['package_profile'] ?? ''));
+if ($heroProfile === '') {
+  $heroProfile = localize_text((string)($s['package_name'] ?? ''), $lang);
+}
 
 if ($canShowReview) {
   $reviewStmt = $pdo->prepare("
@@ -208,6 +245,7 @@ if ($canShowReview) {
               <img class="result-blue-hero-badge" src="<?= h($heroImagePath) ?>" alt="Badge Resultat">
               <?php if ((int)$s['passed'] === 1): ?>
                 <p class="result-blue-hero-title"><?= h(t('result.hero_passed_title', ['cert' => localize_text((string)$s['package_name'], $lang)], $lang)) ?></p>
+                <p class="result-blue-hero-valid"><?= h(t('result.hero_profile_mention', ['profile' => $heroProfile], $lang)) ?></p>
               <?php else: ?>
                 <p class="result-blue-hero-title"><?= h(t('result.hero_failed_title', [], $lang)) ?></p>
               <?php endif; ?>

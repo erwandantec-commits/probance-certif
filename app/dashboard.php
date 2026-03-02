@@ -10,30 +10,40 @@ $user = require_auth();
 $lang = get_lang();
 $uid = (int)$user['id'];
 
+function dashboard_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+
+$hasPackageProfileColumn = dashboard_package_column_exists($pdo, 'profile');
+$hasPackageDisplayOrderColumn = dashboard_package_column_exists($pdo, 'display_order');
+$hasPackageBadgeImageColumn = dashboard_package_column_exists($pdo, 'badge_image_filename');
+
 $errKey = trim((string)($_GET['err_key'] ?? ''));
 $err = trim((string)($_GET['err'] ?? ''));
 
-$pkgStmt = $pdo->query("SELECT id,name,name_color_hex,duration_limit_minutes FROM packages ORDER BY id DESC");
+$pkgCols = "id,name,name_color_hex,duration_limit_minutes";
+if ($hasPackageProfileColumn) {
+  $pkgCols .= ", profile";
+}
+if ($hasPackageDisplayOrderColumn) {
+  $pkgCols .= ", display_order";
+}
+$pkgOrder = $hasPackageDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id DESC";
+$pkgStmt = $pdo->query("SELECT $pkgCols FROM packages $pkgOrder");
 $packages = $pkgStmt->fetchAll();
-
-$packageOrder = [
-  'GREEN' => 1,
-  'BLUE' => 2,
-  'RED' => 3,
-  'BLACK' => 4,
-  'SILVER' => 5,
-  'GOLD' => 6,
-];
-usort($packages, static function (array $a, array $b) use ($packageOrder): int {
-  $an = strtoupper(trim((string)($a['name'] ?? '')));
-  $bn = strtoupper(trim((string)($b['name'] ?? '')));
-  $ai = $packageOrder[$an] ?? 999;
-  $bi = $packageOrder[$bn] ?? 999;
-  if ($ai === $bi) {
-    return strcmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
-  }
-  return $ai <=> $bi;
-});
 
 $packageIdList = array_map(static fn(array $p): int => (int)$p['id'], $packages);
 $latestCert = (int)($_GET['latest_cert'] ?? 0);
@@ -90,8 +100,14 @@ $lastStmt = $pdo->prepare("
 $lastStmt->execute($lastParams);
 $last = $lastStmt->fetchAll();
 
+$certProfileSelect = $hasPackageProfileColumn ? ", pk.profile AS package_profile" : ", NULL AS package_profile";
+$certDisplayOrderSelect = $hasPackageDisplayOrderColumn ? ", pk.display_order AS package_display_order" : ", 100 AS package_display_order";
+$certBadgeImageSelect = $hasPackageBadgeImageColumn ? ", pk.badge_image_filename AS package_badge_image" : ", NULL AS package_badge_image";
 $certSuccessStmt = $pdo->prepare("
   SELECT s.id, s.contact_id, s.package_id, s.started_at, s.submitted_at, pk.name AS package_name, pk.name_color_hex AS package_color_hex
+    $certProfileSelect
+    $certDisplayOrderSelect
+    $certBadgeImageSelect
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.user_id=?
@@ -129,6 +145,7 @@ $badgeByPackage = [
   'BLACK' => '/assets/badges/user-badge-black.png?v=' . $badgeVersion,
   'SILVER' => '/assets/badges/user-badge-silver.png?v=' . $badgeVersion,
   'GOLD' => '/assets/badges/user-badge-gold.png?v=' . $badgeVersion,
+  'VERMEIL' => '/assets/badges/user-badge-gold.png?v=' . $badgeVersion,
 ];
 foreach ($certSuccessStmt->fetchAll() as $row) {
   $pkgId = (int)$row['package_id'];
@@ -140,33 +157,45 @@ foreach ($certSuccessStmt->fetchAll() as $row) {
   $baseDate = (string)($row['submitted_at'] ?: $row['started_at']);
   $statusInfo = certification_status_from_last_success($baseDate);
   $pkgName = strtoupper(trim((string)$row['package_name']));
+  $customBadgeFile = trim((string)($row['package_badge_image'] ?? ''));
+  $badgePath = ($customBadgeFile !== '')
+    ? '/assets/badges/' . rawurlencode($customBadgeFile) . '?v=' . $badgeVersion
+    : ($badgeByPackage[$pkgName] ?? ('/assets/badges/user-badge-blue.png?v=' . $badgeVersion));
+  $isRevoked = false;
+  if (isset($revokedMap[$revocationKey])) {
+    $revokedAtRaw = trim((string)$revokedMap[$revocationKey]);
+    if ($revokedAtRaw !== '' && $baseDate !== '') {
+      try {
+        $revokedAt = new DateTimeImmutable($revokedAtRaw);
+        $lastSuccessAt = new DateTimeImmutable($baseDate);
+        $isRevoked = $revokedAt >= $lastSuccessAt;
+      } catch (Throwable $e) {
+        $isRevoked = true;
+      }
+    } else {
+      $isRevoked = true;
+    }
+  }
+
   $certCards[$pkgId] = [
     'sid' => (string)$row['id'],
     'package_name' => (string)$row['package_name'],
-    'badge' => $badgeByPackage[$pkgName] ?? ('/assets/badges/user-badge-blue.png?v=' . $badgeVersion),
+    'package_profile' => (string)($row['package_profile'] ?? ''),
+    'badge' => $badgePath,
     'tone' => package_color_hex((string)$row['package_name'], (string)($row['package_color_hex'] ?? '')),
+    'display_order' => (int)($row['package_display_order'] ?? 100),
     'started_at' => (string)$row['started_at'],
     'expires_at' => $statusInfo['expires_at'] instanceof DateTimeImmutable ? $statusInfo['expires_at']->format('d/m/Y') : '',
-    'status_key' => isset($revokedMap[$revocationKey]) ? 'REVOKED' : (string)$statusInfo['status_key'],
+    'status_key' => $isRevoked ? 'REVOKED' : (string)$statusInfo['status_key'],
   ];
-  if (isset($revokedMap[$revocationKey])) {
+  if ($isRevoked) {
     $certCards[$pkgId]['expires_at'] = '';
   }
 }
-$certCardOrder = [
-  'GREEN' => 6,
-  'BLUE' => 5,
-  'RED' => 4,
-  'BLACK' => 3,
-  'SILVER' => 2,
-  'GOLD' => 1,
-];
 if (!empty($certCards)) {
-  uasort($certCards, static function (array $a, array $b) use ($certCardOrder): int {
-    $an = strtoupper(trim((string)($a['package_name'] ?? '')));
-    $bn = strtoupper(trim((string)($b['package_name'] ?? '')));
-    $ai = $certCardOrder[$an] ?? 999;
-    $bi = $certCardOrder[$bn] ?? 999;
+  uasort($certCards, static function (array $a, array $b): int {
+    $ai = (int)($a['display_order'] ?? 100);
+    $bi = (int)($b['display_order'] ?? 100);
     if ($ai === $bi) {
       return strcmp((string)($a['package_name'] ?? ''), (string)($b['package_name'] ?? ''));
     }
@@ -361,6 +390,7 @@ function dash_remaining_label(int $seconds): string {
 <div class="container dashboard-container">
   <div class="dashboard-head">
     <div class="dashboard-head-copy">
+      <img class="dashboard-candidate-logo" src="/assets/logo-candidat.svg" alt="Logo candidat">
       <h2 class="h1"><?= h(t('dash.hello', ['name' => ($user['name'] ?: $user['email'])], $lang)) ?></h2>
       <p class="sub"><?= h(t('dash.subtitle', [], $lang)) ?></p>
     </div>
@@ -377,7 +407,9 @@ function dash_remaining_label(int $seconds): string {
       </div>
       <div class="dashboard-main-actions">
         <?php if (($user['role'] ?? 'USER') === 'ADMIN'): ?>
-          <a class="btn ghost" href="/admin/"><?= h(t('dash.admin', [], $lang)) ?></a>
+          <a class="btn ghost dashboard-admin-btn" href="/admin/">
+            <?= h(t('dash.admin', [], $lang)) ?>
+          </a>
         <?php endif; ?>
         <a class="btn ghost dashboard-logout-btn" href="/logout.php">
           <svg class="logout-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -422,6 +454,9 @@ function dash_remaining_label(int $seconds): string {
             <div class="dashboard-cert-card-name" style="color:<?= h($card['tone']) ?>;">
               <?= h(localize_text((string)$card['package_name'], $lang)) ?>
             </div>
+            <?php if ((string)($card['package_profile'] ?? '') !== ''): ?>
+              <div class="dashboard-cert-card-meta"><b>Profil:</b> <?= h(localize_text((string)$card['package_profile'], $lang)) ?></div>
+            <?php endif; ?>
             <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.obtained_on', [], $lang)) ?>: <?= h(date('d/m/Y', strtotime((string)$card['started_at']))) ?></div>
             <?php if ((string)$card['expires_at'] !== ''): ?>
               <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.valid_until', [], $lang)) ?>: <?= h((string)$card['expires_at']) ?></div>

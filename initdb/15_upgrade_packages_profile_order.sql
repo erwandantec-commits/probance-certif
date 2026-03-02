@@ -1,0 +1,15 @@
+ALTER TABLE packages
+  ADD COLUMN IF NOT EXISTS profile VARCHAR(255) NULL AFTER name_color_hex,
+  ADD COLUMN IF NOT EXISTS display_order INT NOT NULL DEFAULT 100 AFTER profile;
+
+UPDATE packages
+SET display_order = CASE UPPER(TRIM(name))
+  WHEN 'GREEN' THEN 10
+  WHEN 'BLUE' THEN 20
+  WHEN 'RED' THEN 30
+  WHEN 'BLACK' THEN 40
+  WHEN 'SILVER' THEN 50
+  WHEN 'GOLD' THEN 60
+  ELSE display_order
+END
+WHERE display_order = 100;

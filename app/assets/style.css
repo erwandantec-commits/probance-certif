@@ -816,7 +816,8 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .rule-builder {
-  margin-top: 16px;
+  margin-top: 0;
+  margin-bottom: 14px;
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px;
@@ -824,7 +825,8 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .rule-builder-title {
-  margin: 0 0 6px;
+  margin: 0 0 12px;
+  font-size: 18px;
 }
 
 .rule-builder-sub {
@@ -1277,6 +1279,183 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   gap: 12px;
 }
 
+.pack-config-section {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-soft);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.pack-config-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.pack-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pack-config-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  padding: 12px;
+}
+
+.pack-config-card-wide {
+  grid-column: 1 / -1;
+}
+
+.pack-config-card-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.pack-config-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.pack-config-fields > .badge-picker-field,
+.pack-config-fields > .pack-color-field {
+  grid-column: 1 / -1;
+}
+
+.badge-picker-field {
+  grid-column: 1 / -1;
+}
+
+.badge-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: var(--input-bg);
+}
+
+.badge-current img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  display: block;
+}
+
+.badge-current-meta {
+  font-size: 13px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.badge-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.badge-library-item {
+  margin: 0;
+}
+
+.badge-library-pick-btn {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  color: var(--text);
+  padding: 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.badge-library-pick-btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2);
+}
+
+.badge-library-pick-btn img {
+  width: 94px;
+  height: 94px;
+  object-fit: contain;
+  display: block;
+}
+
+.badge-library-pick-btn span {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--muted);
+  text-align: center;
+  word-break: break-all;
+}
+
+.badge-upload-field {
+  grid-column: 1 / -1;
+}
+
+.pack-color-field {
+  min-width: 0;
+}
+
+.pack-color-row {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 8px;
+  background: var(--input-bg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pack-color-input {
+  width: 40px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.pack-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.pack-color-input::-webkit-color-swatch {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pack-color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.15);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+  flex: 0 0 26px;
+}
+
+.pack-color-code {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
 @media (max-width: 1500px) {
   .users-create-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1284,6 +1463,10 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
   .users-edit-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pack-config-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1396,6 +1579,18 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   background: #334155;
 }
 
+:root[data-theme="dark"] .btn.ghost.dashboard-admin-btn{
+  background: #172554;
+  color: #bfdbfe;
+  border-color: #1d4ed8;
+}
+
+:root[data-theme="dark"] .btn.ghost.dashboard-admin-btn:hover{
+  background: #1e3a8a;
+  color: #dbeafe;
+  border-color: #3b82f6;
+}
+
 :root[data-theme="dark"] .btn.ghost.cert-action-revoke{
   background: #3f1d24;
   color: #fecdd3;
@@ -1430,6 +1625,12 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   background: #1e3a8a;
   color: #dbeafe;
   border-color: #3b82f6;
+}
+
+:root[data-theme="dark"] .badge-library-pick-btn:hover {
+  border-color: #3b82f6;
+  background: #172554;
+  box-shadow: inset 0 0 0 1px rgba(147,197,253,.24);
 }
 
 :root[data-theme="dark"] .admin-tab.is-active {
@@ -1539,6 +1740,13 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   margin: 0;
 }
 
+.dashboard-candidate-logo {
+  display: block;
+  width: 84px;
+  height: 84px;
+  margin: 0 0 4px -8px;
+}
+
 .dashboard-head-copy .sub {
   margin: 8px 0 0;
 }
@@ -1549,6 +1757,7 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
+  margin-top: 88px;
 }
 
 .lang-switch {
@@ -1569,6 +1778,22 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.btn.ghost.dashboard-admin-btn {
+  background: linear-gradient(135deg, #eef6ff 0%, #e7f0ff 100%);
+  color: #1e40af;
+  border-color: #bfd3ff;
+  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.12);
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+}
+
+.btn.ghost.dashboard-admin-btn:hover {
+  background: linear-gradient(135deg, #dbeafe 0%, #d7e8ff 100%);
+  border-color: #93c5fd;
+  color: #1e3a8a;
 }
 
 .dashboard-logout-btn {
@@ -2086,6 +2311,14 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 @media (max-width: 900px) {
+  .pack-config-section {
+    padding: 12px;
+  }
+
+  .pack-config-fields {
+    grid-template-columns: 1fr;
+  }
+
   body.admin-with-sidebar .admin-container {
     max-width: 1180px;
     margin: 40px auto;
@@ -2184,6 +2417,13 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
   .dashboard-head-actions {
     justify-content: flex-start;
+    margin-top: 0;
+  }
+
+  .dashboard-candidate-logo {
+    width: 68px;
+    height: 68px;
+    margin: 0 0 4px -4px;
   }
 
   .dashboard-stats {

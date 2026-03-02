@@ -108,7 +108,24 @@ foreach ($rawRows as $r) {
   $statusClass = (string)$status['status_class'];
   $expires = $status['expires_at'];
 
+  $isRevoked = false;
   if (isset($revokedMap[$key])) {
+    $revokedAtRaw = trim((string)$revokedMap[$key]);
+    $lastSuccessRaw = trim((string)$r['last_cert_date']);
+    if ($revokedAtRaw !== '' && $lastSuccessRaw !== '') {
+      try {
+        $revokedAt = new DateTimeImmutable($revokedAtRaw);
+        $lastSuccessAt = new DateTimeImmutable($lastSuccessRaw);
+        $isRevoked = $revokedAt >= $lastSuccessAt;
+      } catch (Throwable $e) {
+        $isRevoked = true;
+      }
+    } else {
+      $isRevoked = true;
+    }
+  }
+
+  if ($isRevoked) {
     $statusKey = 'REVOKED';
     $statusLabel = 'Révoquée';
     $statusClass = 'pill danger';

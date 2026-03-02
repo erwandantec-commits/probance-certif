@@ -135,11 +135,32 @@ function pack_create_rule_rows_to_json(array $rows, int $selectionCount): string
   ], JSON_UNESCAPED_UNICODE);
 }
 
+function pack_create_badge_file_options(): array {
+  $baseDir = realpath(__DIR__ . '/../assets/badges');
+  if ($baseDir === false) {
+    return [];
+  }
+  $files = glob($baseDir . DIRECTORY_SEPARATOR . '*.{png,jpg,jpeg,webp,gif}', GLOB_BRACE) ?: [];
+  $out = [];
+  foreach ($files as $path) {
+    $name = basename((string)$path);
+    if ($name === '') {
+      continue;
+    }
+    $out[] = $name;
+  }
+  natcasesort($out);
+  return array_values(array_unique($out));
+}
+
 $error = '';
 $name = '';
 $threshold = 80;
 $duration = 120;
 $count = 10;
+$profile = '';
+$displayOrder = 100;
+$badgeImageFilename = 'user-badge-blue.png';
 $isActive = 1;
 $nameColorHex = '#334155';
 $ruleTemplates = pack_create_rule_templates();
@@ -160,12 +181,47 @@ $hasRulesColumn = (bool)$pdo->query("
     AND TABLE_NAME = 'packages'
     AND COLUMN_NAME = 'selection_rules_json'
 ")->fetchColumn();
+$hasProfileColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'profile'
+")->fetchColumn();
+$hasDisplayOrderColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'display_order'
+")->fetchColumn();
+$hasBadgeImageColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'badge_image_filename'
+")->fetchColumn();
+$badgeImageOptions = pack_create_badge_file_options();
+if ($hasDisplayOrderColumn) {
+  $nextDisplayOrder = (int)$pdo->query("SELECT COALESCE(MAX(display_order), 0) + 10 FROM packages")->fetchColumn();
+  $displayOrder = max(0, min(9999, $nextDisplayOrder));
+}
+if ($hasBadgeImageColumn) {
+  $pickedBadge = trim((string)($_GET['badge_selected'] ?? ''));
+  if ($pickedBadge !== '' && in_array($pickedBadge, $badgeImageOptions, true)) {
+    $badgeImageFilename = $pickedBadge;
+  }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $name = trim((string)($_POST['name'] ?? ''));
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 10);
+  $profile = trim((string)($_POST['profile'] ?? ''));
+  $displayOrder = (int)($_POST['display_order'] ?? 100);
+  $badgeImageFilename = trim((string)($_POST['badge_image_filename'] ?? $badgeImageFilename));
   $isActive = ((int)($_POST['is_active'] ?? 1) === 1) ? 1 : 0;
   $selectedTemplate = strtoupper(trim((string)($_POST['rule_template'] ?? '')));
   if (!isset($ruleTemplates[$selectedTemplate])) {
@@ -189,6 +245,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Durée invalide (1 à 600 minutes).';
   } elseif ($count < 1 || $count > 200) {
     $error = 'Nombre de questions invalide (1 a 200).';
+  } elseif ($hasDisplayOrderColumn && ($displayOrder < 0 || $displayOrder > 9999)) {
+    $error = "Ordre d'affichage invalide (0 a 9999).";
+  } elseif ($hasProfileColumn && (function_exists('mb_strlen') ? mb_strlen($profile) : strlen($profile)) > 255) {
+    $error = 'Profil trop long (max 255 caracteres).';
+  } elseif ($hasBadgeImageColumn && $badgeImageFilename !== '' && !empty($badgeImageOptions) && !in_array($badgeImageFilename, $badgeImageOptions, true)) {
+    $error = 'Image de badge invalide.';
   } elseif ($hasRulesColumn && !empty($ruleRows) && count($ruleRows) > 20) {
     $error = 'Maximum 20 paliers de regles.';
   } elseif ($hasNameColorColumn && $normalizedColor === null) {
@@ -209,30 +271,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if ($error !== '') {
         // keep form state
-      } elseif ($hasNameColorColumn && $hasRulesColumn) {
-        $ins = $pdo->prepare("
-          INSERT INTO packages(name, name_color_hex, pass_threshold_percent, duration_limit_minutes, selection_count, selection_rules_json, is_active)
-          VALUES(?, ?, ?, ?, ?, ?, ?)
-        ");
-        $ins->execute([$name, $nameColorHex, $threshold, $duration, $count, $selectionRulesJson, $isActive]);
-      } elseif ($hasNameColorColumn) {
-        $ins = $pdo->prepare("
-          INSERT INTO packages(name, name_color_hex, pass_threshold_percent, duration_limit_minutes, selection_count, is_active)
-          VALUES(?, ?, ?, ?, ?, ?)
-        ");
-        $ins->execute([$name, $nameColorHex, $threshold, $duration, $count, $isActive]);
-      } elseif ($hasRulesColumn) {
-        $ins = $pdo->prepare("
-          INSERT INTO packages(name, pass_threshold_percent, duration_limit_minutes, selection_count, selection_rules_json, is_active)
-          VALUES(?, ?, ?, ?, ?, ?)
-        ");
-        $ins->execute([$name, $threshold, $duration, $count, $selectionRulesJson, $isActive]);
       } else {
+        $columns = ['name', 'pass_threshold_percent', 'duration_limit_minutes', 'selection_count', 'is_active'];
+        $values = [$name, $threshold, $duration, $count, $isActive];
+        if ($hasNameColorColumn) {
+          $columns[] = 'name_color_hex';
+          $values[] = $nameColorHex;
+        }
+        if ($hasProfileColumn) {
+          $columns[] = 'profile';
+          $values[] = ($profile !== '') ? $profile : null;
+        }
+        if ($hasDisplayOrderColumn) {
+          $columns[] = 'display_order';
+          $values[] = $displayOrder;
+        }
+        if ($hasBadgeImageColumn) {
+          $columns[] = 'badge_image_filename';
+          $values[] = ($badgeImageFilename !== '') ? $badgeImageFilename : null;
+        }
+        if ($hasRulesColumn) {
+          $columns[] = 'selection_rules_json';
+          $values[] = $selectionRulesJson;
+        }
+        $placeholders = implode(',', array_fill(0, count($columns), '?'));
         $ins = $pdo->prepare("
-          INSERT INTO packages(name, pass_threshold_percent, duration_limit_minutes, selection_count, is_active)
-          VALUES(?, ?, ?, ?, ?)
+          INSERT INTO packages(" . implode(',', $columns) . ")
+          VALUES($placeholders)
         ");
-        $ins->execute([$name, $threshold, $duration, $count, $isActive]);
+        $ins->execute($values);
       }
       if ($error === '') {
         header('Location: /admin/packages.php?created=1');
@@ -271,37 +338,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php endif; ?>
 
       <form method="post" class="users-create-form">
-        <div class="users-create-grid">
-          <div>
-            <label class="label" for="create-pack-name">Nom du pack</label>
-            <input class="input" id="create-pack-name" name="name" type="text" maxlength="255" required value="<?= h($name) ?>">
+        <section class="pack-config-section">
+          <h3 class="pack-config-title">Configuration du pack</h3>
+          <div class="pack-config-grid">
+            <article class="pack-config-card">
+              <h4 class="pack-config-card-title">Informations</h4>
+              <div class="pack-config-fields">
+                <div>
+                  <label class="label" for="create-pack-name">Nom du pack</label>
+                  <input class="input" id="create-pack-name" name="name" type="text" maxlength="255" required value="<?= h($name) ?>">
+                </div>
+                <?php if ($hasProfileColumn): ?>
+                  <div>
+                    <label class="label" for="create-pack-profile">Profil</label>
+                    <input class="input" id="create-pack-profile" name="profile" type="text" maxlength="255" value="<?= h($profile) ?>">
+                  </div>
+                <?php endif; ?>
+                <div>
+                  <label class="label" for="create-pack-active">Statut</label>
+                  <select class="input" id="create-pack-active" name="is_active">
+                    <option value="1" <?= $isActive === 1 ? 'selected' : '' ?>>Actif</option>
+                    <option value="0" <?= $isActive === 0 ? 'selected' : '' ?>>Inactif</option>
+                  </select>
+                </div>
+                <?php if ($hasDisplayOrderColumn): ?>
+                  <div>
+                    <label class="label" for="create-pack-order">Ordre d'affichage</label>
+                    <input class="input" id="create-pack-order" name="display_order" type="number" min="0" max="9999" required value="<?= (int)$displayOrder ?>">
+                  </div>
+                <?php endif; ?>
+              </div>
+            </article>
+
+            <article class="pack-config-card">
+              <h4 class="pack-config-card-title">Evaluation</h4>
+              <div class="pack-config-fields">
+                <div>
+                  <label class="label" for="create-pack-threshold">Seuil (%)</label>
+                  <input class="input" id="create-pack-threshold" name="pass_threshold_percent" type="number" min="0" max="100" required value="<?= (int)$threshold ?>">
+                </div>
+                <div>
+                  <label class="label" for="create-pack-duration">Dur&eacute;e (minutes)</label>
+                  <input class="input" id="create-pack-duration" name="duration_limit_minutes" type="number" min="1" max="600" required value="<?= (int)$duration ?>">
+                </div>
+                <div>
+                  <label class="label" for="create-pack-count">Questions</label>
+                  <input class="input" id="create-pack-count" name="selection_count" type="number" min="1" max="200" required value="<?= (int)$count ?>">
+                </div>
+              </div>
+            </article>
+
+            <article class="pack-config-card pack-config-card-wide">
+              <h4 class="pack-config-card-title">Apparence</h4>
+              <div class="pack-config-fields">
+                <?php if ($hasNameColorColumn): ?>
+                  <div class="pack-color-field">
+                    <label class="label" for="create-pack-color">Couleur du nom</label>
+                    <div class="pack-color-row">
+                      <input class="pack-color-input" id="create-pack-color" name="name_color_hex" type="color" value="<?= h($nameColorHex) ?>">
+                      <span class="pack-color-swatch" data-pack-color-preview style="background:<?= h($nameColorHex) ?>;"></span>
+                      <span class="pack-color-code" data-pack-color-code><?= h(strtoupper($nameColorHex)) ?></span>
+                    </div>
+                  </div>
+                <?php endif; ?>
+                <?php if ($hasBadgeImageColumn): ?>
+                  <div class="badge-picker-field">
+                    <label class="label">Image du badge</label>
+                    <input type="hidden" name="badge_image_filename" value="<?= h($badgeImageFilename) ?>">
+                    <?php if ($badgeImageFilename !== ''): ?>
+                      <div class="badge-current">
+                        <img src="/assets/badges/<?= h(rawurlencode($badgeImageFilename)) ?>" alt="<?= h($badgeImageFilename) ?>">
+                        <div class="badge-current-meta"><?= h($badgeImageFilename) ?></div>
+                      </div>
+                    <?php endif; ?>
+                    <?php $libraryReturn = '/admin/pack_create.php'; ?>
+                    <div style="margin-top:8px;">
+                      <a class="btn ghost" href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>">Choisir / Televerser une image</a>
+                    </div>
+                    <?php if (!$badgeImageOptions): ?>
+                      <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
+                    <?php endif; ?>
+                  </div>
+                <?php endif; ?>
+              </div>
+            </article>
           </div>
-          <div>
-            <label class="label" for="create-pack-threshold">Seuil (%)</label>
-            <input class="input" id="create-pack-threshold" name="pass_threshold_percent" type="number" min="0" max="100" required value="<?= (int)$threshold ?>">
-          </div>
-          <div>
-            <label class="label" for="create-pack-duration">Dur&eacute;e (minutes)</label>
-            <input class="input" id="create-pack-duration" name="duration_limit_minutes" type="number" min="1" max="600" required value="<?= (int)$duration ?>">
-          </div>
-          <div>
-            <label class="label" for="create-pack-count">Questions</label>
-            <input class="input" id="create-pack-count" name="selection_count" type="number" min="1" max="200" required value="<?= (int)$count ?>">
-          </div>
-          <?php if ($hasNameColorColumn): ?>
-            <div>
-              <label class="label" for="create-pack-color">Couleur du nom</label>
-              <input class="input" id="create-pack-color" name="name_color_hex" type="color" value="<?= h($nameColorHex) ?>">
-            </div>
-          <?php endif; ?>
-          <div>
-            <label class="label" for="create-pack-active">Statut</label>
-            <select class="input" id="create-pack-active" name="is_active">
-              <option value="1" <?= $isActive === 1 ? 'selected' : '' ?>>Actif</option>
-              <option value="0" <?= $isActive === 0 ? 'selected' : '' ?>>Inactif</option>
-            </select>
-          </div>
-        </div>
+        </section>
 
         <?php if ($hasRulesColumn): ?>
           <section class="rule-builder">
@@ -501,6 +623,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       form.addEventListener('submit', function () {
         syncRuleInputNames();
       });
+    }
+
+    var colorInput = document.getElementById('create-pack-color');
+    var colorPreview = document.querySelector('[data-pack-color-preview]');
+    var colorCode = document.querySelector('[data-pack-color-code]');
+    function syncColorPreview() {
+      if (!colorInput) return;
+      var value = String(colorInput.value || '').trim();
+      if (!value) return;
+      if (colorPreview) colorPreview.style.background = value;
+      if (colorCode) colorCode.textContent = value.toUpperCase();
+    }
+    if (colorInput) {
+      colorInput.addEventListener('input', syncColorPreview);
+      syncColorPreview();
     }
     <?php endif; ?>
   })();

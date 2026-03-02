@@ -207,6 +207,24 @@ function package_rule_rows_to_json(array $rows, int $selectionCount): string {
   ], JSON_UNESCAPED_UNICODE);
 }
 
+function package_edit_badge_file_options(): array {
+  $baseDir = realpath(__DIR__ . '/../assets/badges');
+  if ($baseDir === false) {
+    return [];
+  }
+  $files = glob($baseDir . DIRECTORY_SEPARATOR . '*.{png,jpg,jpeg,webp,gif}', GLOB_BRACE) ?: [];
+  $out = [];
+  foreach ($files as $path) {
+    $name = basename((string)$path);
+    if ($name === '') {
+      continue;
+    }
+    $out[] = $name;
+  }
+  natcasesort($out);
+  return array_values(array_unique($out));
+}
+
 
 $id = (int)($_GET['id'] ?? 0);
 $filterNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
@@ -224,6 +242,10 @@ $stmt->execute([$id]);
 $pk = $stmt->fetch();
 $hasNameColorColumn = package_edit_package_column_exists($pdo, 'name_color_hex');
 $hasRulesColumn = package_edit_package_column_exists($pdo, 'selection_rules_json');
+$hasProfileColumn = package_edit_package_column_exists($pdo, 'profile');
+$hasDisplayOrderColumn = package_edit_package_column_exists($pdo, 'display_order');
+$hasBadgeImageColumn = package_edit_package_column_exists($pdo, 'badge_image_filename');
+$badgeImageOptions = package_edit_badge_file_options();
 $ruleTemplates = package_rule_templates();
 $packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
 
@@ -237,6 +259,16 @@ $selectedTemplate = '';
 $packNameUpper = strtoupper(trim((string)($pk['name'] ?? '')));
 if (isset($ruleTemplates[$packNameUpper])) {
   $selectedTemplate = $packNameUpper;
+}
+$badgeImageFilename = trim((string)($pk['badge_image_filename'] ?? ''));
+if ($badgeImageFilename === '') {
+  $badgeImageFilename = 'user-badge-blue.png';
+}
+if ($hasBadgeImageColumn) {
+  $pickedBadge = trim((string)($_GET['badge_selected'] ?? ''));
+  if ($pickedBadge !== '' && in_array($pickedBadge, $badgeImageOptions, true)) {
+    $badgeImageFilename = $pickedBadge;
+  }
 }
 
 $allowedByNeed = [];
@@ -383,6 +415,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 5);
+  $isActive = ((int)($_POST['is_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
+  $profile = trim((string)($_POST['profile'] ?? ''));
+  $displayOrder = (int)($_POST['display_order'] ?? (int)($pk['display_order'] ?? 100));
+  $badgeImageFilename = trim((string)($_POST['badge_image_filename'] ?? $badgeImageFilename));
   $selectedTemplate = strtoupper(trim((string)($_POST['rule_template'] ?? '')));
   if (!isset($ruleTemplates[$selectedTemplate])) {
     $selectedTemplate = '';
@@ -400,6 +436,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = "Durée invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
+  } elseif ($hasDisplayOrderColumn && ($displayOrder < 0 || $displayOrder > 9999)) {
+    $error = "Ordre d'affichage invalide";
+  } elseif ($hasProfileColumn && (function_exists('mb_strlen') ? mb_strlen($profile) : strlen($profile)) > 255) {
+    $error = "Profil trop long";
+  } elseif ($hasBadgeImageColumn && $badgeImageFilename !== '' && !empty($badgeImageOptions) && !in_array($badgeImageFilename, $badgeImageOptions, true)) {
+    $error = "Image de badge invalide";
   } elseif ($hasRulesColumn && !empty($ruleRows) && count($ruleRows) > 20) {
     $error = "Maximum 20 paliers de regles.";
   } elseif ($hasNameColorColumn && $normalizedColor === null) {
@@ -415,46 +457,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($error !== '') {
       // Keep form state and display error.
-    } elseif ($hasNameColorColumn && $hasRulesColumn) {
-      $update = $pdo->prepare("
-        UPDATE packages
-        SET pass_threshold_percent=?,
-            duration_limit_minutes=?,
-            selection_count=?,
-            name_color_hex=?,
-            selection_rules_json=?
-        WHERE id=?
-      ");
-      $update->execute([$threshold, $duration, $count, $packNameColor, $selectionRulesJson, $id]);
-    } elseif ($hasNameColorColumn) {
-      $update = $pdo->prepare("
-        UPDATE packages
-        SET pass_threshold_percent=?,
-            duration_limit_minutes=?,
-            selection_count=?,
-            name_color_hex=?
-        WHERE id=?
-      ");
-      $update->execute([$threshold, $duration, $count, $packNameColor, $id]);
-    } elseif ($hasRulesColumn) {
-      $update = $pdo->prepare("
-        UPDATE packages
-        SET pass_threshold_percent=?,
-            duration_limit_minutes=?,
-            selection_count=?,
-            selection_rules_json=?
-        WHERE id=?
-      ");
-      $update->execute([$threshold, $duration, $count, $selectionRulesJson, $id]);
     } else {
+      $sets = [
+        'pass_threshold_percent=?',
+        'duration_limit_minutes=?',
+        'selection_count=?',
+        'is_active=?',
+      ];
+      $values = [$threshold, $duration, $count, $isActive];
+      if ($hasNameColorColumn) {
+        $sets[] = 'name_color_hex=?';
+        $values[] = $packNameColor;
+      }
+      if ($hasProfileColumn) {
+        $sets[] = 'profile=?';
+        $values[] = ($profile !== '') ? $profile : null;
+      }
+      if ($hasDisplayOrderColumn) {
+        $sets[] = 'display_order=?';
+        $values[] = $displayOrder;
+      }
+      if ($hasBadgeImageColumn) {
+        $sets[] = 'badge_image_filename=?';
+        $values[] = ($badgeImageFilename !== '') ? $badgeImageFilename : null;
+      }
+      if ($hasRulesColumn) {
+        $sets[] = 'selection_rules_json=?';
+        $values[] = $selectionRulesJson;
+      }
+      $values[] = $id;
       $update = $pdo->prepare("
         UPDATE packages
-        SET pass_threshold_percent=?,
-            duration_limit_minutes=?,
-            selection_count=?
+        SET " . implode(', ', $sets) . "
         WHERE id=?
       ");
-      $update->execute([$threshold, $duration, $count, $id]);
+      $update->execute($values);
     }
 
     if ($error === '') {
@@ -467,6 +504,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $formThreshold = isset($threshold) ? $threshold : (int)$pk['pass_threshold_percent'];
 $formDuration = isset($duration) ? $duration : (int)$pk['duration_limit_minutes'];
 $formCount = isset($count) ? $count : (int)$pk['selection_count'];
+$formIsActive = isset($isActive) ? $isActive : (((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0);
+$formProfile = isset($profile) ? $profile : (string)($pk['profile'] ?? '');
+$formDisplayOrder = isset($displayOrder) ? $displayOrder : (int)($pk['display_order'] ?? 100);
+$formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((string)($pk['badge_image_filename'] ?? 'user-badge-blue.png'));
 ?>
 <!doctype html>
 <html lang="fr">
@@ -497,57 +538,133 @@ $formCount = isset($count) ? $count : (int)$pk['selection_count'];
       <?php endif; ?>
 
       <form method="post">
-        <div class="package-edit-grid">
-          <div>
-            <label class="label">Seuil de réussite (%)</label>
-            <input
-              class="input"
-              type="number"
-              name="pass_threshold_percent"
-              min="0"
-              max="100"
-              value="<?= (int)$formThreshold ?>"
-              required
-            >
-          </div>
+        <section class="pack-config-section">
+          <h3 class="pack-config-title">Configuration du pack</h3>
+          <div class="pack-config-grid">
+            <article class="pack-config-card">
+              <h4 class="pack-config-card-title">Informations</h4>
+              <div class="pack-config-fields">
+                <?php if ($hasProfileColumn): ?>
+                  <div>
+                    <label class="label">Profil</label>
+                    <input
+                      class="input"
+                      type="text"
+                      name="profile"
+                      maxlength="255"
+                      value="<?= h($formProfile) ?>"
+                    >
+                  </div>
+                <?php endif; ?>
+                <div>
+                  <label class="label">Statut</label>
+                  <select class="input" name="is_active">
+                    <option value="1" <?= $formIsActive === 1 ? 'selected' : '' ?>>Actif</option>
+                    <option value="0" <?= $formIsActive === 0 ? 'selected' : '' ?>>Inactif</option>
+                  </select>
+                </div>
+                <?php if ($hasDisplayOrderColumn): ?>
+                  <div>
+                    <label class="label">Ordre d'affichage</label>
+                    <input
+                      class="input"
+                      type="number"
+                      name="display_order"
+                      min="0"
+                      max="9999"
+                      value="<?= (int)$formDisplayOrder ?>"
+                      required
+                    >
+                  </div>
+                <?php endif; ?>
+              </div>
+            </article>
 
-          <div>
-            <label class="label">Durée max (minutes)</label>
-            <input
-              class="input"
-              type="number"
-              name="duration_limit_minutes"
-              min="1"
-              max="600"
-              value="<?= (int)$formDuration ?>"
-              required
-            >
-          </div>
+            <article class="pack-config-card">
+              <h4 class="pack-config-card-title">Evaluation</h4>
+              <div class="pack-config-fields">
+                <div>
+                  <label class="label">Seuil de r&eacute;ussite (%)</label>
+                  <input
+                    class="input"
+                    type="number"
+                    name="pass_threshold_percent"
+                    min="0"
+                    max="100"
+                    value="<?= (int)$formThreshold ?>"
+                    required
+                  >
+                </div>
+                <div>
+                  <label class="label">Dur&eacute;e max (minutes)</label>
+                  <input
+                    class="input"
+                    type="number"
+                    name="duration_limit_minutes"
+                    min="1"
+                    max="600"
+                    value="<?= (int)$formDuration ?>"
+                    required
+                  >
+                </div>
+                <div>
+                  <label class="label">Nombre de questions tir&eacute;es</label>
+                  <input
+                    class="input"
+                    type="number"
+                    name="selection_count"
+                    min="1"
+                    max="200"
+                    value="<?= (int)$formCount ?>"
+                    required
+                  >
+                </div>
+              </div>
+            </article>
 
-          <div>
-            <label class="label">Nombre de questions tirées</label>
-            <input
-              class="input"
-              type="number"
-              name="selection_count"
-              min="1"
-              max="200"
-              value="<?= (int)$formCount ?>"
-              required
-            >
+            <article class="pack-config-card pack-config-card-wide">
+              <h4 class="pack-config-card-title">Apparence</h4>
+              <div class="pack-config-fields">
+                <?php if ($hasNameColorColumn): ?>
+                  <div class="pack-color-field">
+                    <label class="label">Couleur du nom</label>
+                    <div class="pack-color-row">
+                      <input
+                        class="pack-color-input"
+                        id="edit-pack-color"
+                        type="color"
+                        name="name_color_hex"
+                        value="<?= h($packNameColor) ?>"
+                      >
+                      <span class="pack-color-swatch" data-pack-color-preview style="background:<?= h($packNameColor) ?>;"></span>
+                      <span class="pack-color-code" data-pack-color-code><?= h(strtoupper($packNameColor)) ?></span>
+                    </div>
+                  </div>
+                <?php endif; ?>
+
+                <?php if ($hasBadgeImageColumn): ?>
+                  <div class="badge-picker-field">
+                    <label class="label">Image du badge</label>
+                    <input type="hidden" name="badge_image_filename" value="<?= h($formBadgeImageFilename) ?>">
+                    <?php if ($formBadgeImageFilename !== ''): ?>
+                      <div class="badge-current">
+                        <img src="/assets/badges/<?= h(rawurlencode($formBadgeImageFilename)) ?>" alt="<?= h($formBadgeImageFilename) ?>">
+                        <div class="badge-current-meta"><?= h($formBadgeImageFilename) ?></div>
+                      </div>
+                    <?php endif; ?>
+                    <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id; ?>
+                    <div style="margin-top:8px;">
+                      <a class="btn ghost" href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>">Choisir / Televerser une image</a>
+                    </div>
+                    <?php if (!$badgeImageOptions): ?>
+                      <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
+                    <?php endif; ?>
+                  </div>
+                <?php endif; ?>
+              </div>
+            </article>
           </div>
-          <?php if ($hasNameColorColumn): ?>
-            <div>
-              <label class="label">Couleur du nom</label>
-              <input
-                class="input"
-                type="color"
-                name="name_color_hex"
-                value="<?= h($packNameColor) ?>"
-              >
-            </div>
-          <?php endif; ?>
-        </div>
+        </section>
 
         <?php if ($hasRulesColumn): ?>
           <section class="rule-builder">
@@ -914,6 +1031,21 @@ $formCount = isset($count) ? $count : (int)$pk['selection_count'];
       form.addEventListener('submit', function () {
         syncRuleInputNames();
       });
+    }
+
+    var colorInput = document.getElementById('edit-pack-color');
+    var colorPreview = document.querySelector('[data-pack-color-preview]');
+    var colorCode = document.querySelector('[data-pack-color-code]');
+    function syncColorPreview() {
+      if (!colorInput) return;
+      var value = String(colorInput.value || '').trim();
+      if (!value) return;
+      if (colorPreview) colorPreview.style.background = value;
+      if (colorCode) colorCode.textContent = value.toUpperCase();
+    }
+    if (colorInput) {
+      colorInput.addEventListener('input', syncColorPreview);
+      syncColorPreview();
     }
     <?php endif; ?>
   })();

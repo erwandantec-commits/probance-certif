@@ -10,7 +10,22 @@ $created = ((string)($_GET['created'] ?? '') === '1');
 $deleted = ((string)($_GET['deleted'] ?? '') === '1');
 $deleteError = trim((string)($_GET['delete_error'] ?? ''));
 
-$packages = $pdo->query("SELECT * FROM packages ORDER BY id")->fetchAll();
+$hasProfileColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'profile'
+")->fetchColumn();
+$hasDisplayOrderColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'display_order'
+")->fetchColumn();
+$packagesOrderSql = $hasDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id ASC";
+$packages = $pdo->query("SELECT * FROM packages $packagesOrderSql")->fetchAll();
 
 $counts = [];
 $cntStmt = $pdo->query("
@@ -116,7 +131,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Packs</h2>
-          <p class="sub">Param&egrave;tres d Exam</p>
+          <p class="sub">Param&egrave;tres des packs</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>
@@ -144,11 +159,13 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
           <thead>
             <tr>
               <th>Nom</th>
+              <?php if ($hasProfileColumn): ?><th>Profil</th><?php endif; ?>
+              <?php if ($hasDisplayOrderColumn): ?><th>Ordre</th><?php endif; ?>
               <th>Seuil (%)</th>
               <th>Dur&eacute;e (min)</th>
               <th>Questions</th>
               <th>Statut</th>
-              <th>Couverture</th>
+              <th>Disponibilit&eacute;</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -157,15 +174,22 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
               <?php [$avail, $req, $ok] = compute_availability($pk, $counts, $legacyCounts); ?>
               <tr>
                 <td><span style="<?= h(package_label_style((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''))) ?>"><?= h($pk['name']) ?></span></td>
+                <?php if ($hasProfileColumn): ?><td><?= h((string)($pk['profile'] ?? '-')) ?></td><?php endif; ?>
+                <?php if ($hasDisplayOrderColumn): ?><td><?= (int)($pk['display_order'] ?? 100) ?></td><?php endif; ?>
                 <td><?= (int)$pk['pass_threshold_percent'] ?></td>
                 <td><?= (int)$pk['duration_limit_minutes'] ?></td>
                 <td><?= (int)$pk['selection_count'] ?></td>
                 <td>
-                  <span class="pill <?= $ok ? 'success' : 'warning' ?>">
-                    <?= $ok ? 'OK' : 'Incomplet' ?>
+                  <?php $isActive = ((int)($pk['is_active'] ?? 1) === 1); ?>
+                  <span class="pill <?= $isActive ? 'success' : 'warning' ?>">
+                    <?= $isActive ? 'Actif' : 'Inactif' ?>
                   </span>
                 </td>
-                <td><span class="small"><?= (int)$avail ?> / <?= (int)$req ?></span></td>
+                <td>
+                  <span class="pill <?= $ok ? 'success' : 'warning' ?>" title="<?= (int)$avail ?> / <?= (int)$req ?>">
+                    <?= $ok ? 'OK' : '&Agrave; compl&eacute;ter' ?>
+                  </span>
+                </td>
                 <td class="actions-cell">
                   <a class="btn ghost" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>">Modifier</a>
                   <a class="btn ghost icon-btn danger"

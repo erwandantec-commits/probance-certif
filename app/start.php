@@ -48,7 +48,7 @@ if ($session_type === 'EXAM') {
     ? "LEFT JOIN certification_revocations cr ON cr.contact_id = s.contact_id AND cr.package_id = s.package_id"
     : "";
   $revocationWhere = $hasRevocationsTable
-    ? "AND cr.contact_id IS NULL"
+    ? "AND (cr.contact_id IS NULL OR cr.revoked_at < COALESCE(s.ended_at, s.submitted_at, s.started_at))"
     : "";
 
   $validCertStmt = $pdo->prepare("

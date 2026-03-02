@@ -29,7 +29,6 @@ function render_admin_tabs(string $active = ''): void
 
   echo '<nav class="admin-tabs" aria-label="Navigation administration">';
   echo '<a class="btn ghost admin-tab admin-tab-candidate" href="' . $candidateTab['href'] . '">';
-  echo '<span class="admin-tab-icon">' . admin_tab_icon_svg($candidateTab['key']) . '</span>';
   echo '<span class="admin-tab-label">' . $candidateTab['label'] . '</span>';
   echo '</a>';
   echo '<div class="admin-tabs-main">';

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="logoTitle">
+  <title id="logoTitle">Logo candidat</title>
+  <g fill="none" stroke="#1f1f1f" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M24 28v72h16"/>
+    <path d="M24 100h16"/>
+    <path d="M24 28h16"/>
+    <path d="M104 28v72H88"/>
+    <path d="M104 100H88"/>
+    <path d="M104 28H88"/>
+  </g>
+  <g fill="none" stroke="#1f1f1f" stroke-width="8" stroke-linecap="square" stroke-linejoin="round">
+    <path d="M48 62l16 2"/>
+    <path d="M64 64l10-14"/>
+    <path d="M64 64l6 15"/>
+  </g>
+</svg>
