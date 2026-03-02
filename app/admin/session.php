@@ -51,15 +51,18 @@ foreach ($items as &$it) {
   $picked = trim((string)($it['picked_labels'] ?? ''));
   $correct = trim((string)($it['correct_labels'] ?? ''));
   if ($picked === '') {
-    $it['answer_status'] = 'Non repondue';
+    $it['answer_status'] = '—';
+    $it['answer_status_label'] = 'Non repondue';
     $it['answer_status_class'] = 'badge';
     $unansweredCount++;
   } elseif ($picked === $correct) {
-    $it['answer_status'] = 'Bonne reponse';
+    $it['answer_status'] = '✓';
+    $it['answer_status_label'] = 'Bonne reponse';
     $it['answer_status_class'] = 'badge ok';
     $goodCount++;
   } else {
-    $it['answer_status'] = 'Mauvaise reponse';
+    $it['answer_status'] = '✕';
+    $it['answer_status_label'] = 'Mauvaise reponse';
     $it['answer_status_class'] = 'badge bad';
     $badCount++;
   }
@@ -139,7 +142,7 @@ $statusClass = match ((string)$s['status']) {
                   <td><?= h($it['text']) ?></td>
                   <td><?= h($it['picked_labels'] ?: '-') ?></td>
                   <td><?= h($it['correct_labels'] ?: '-') ?></td>
-                  <td><span class="<?= h($it['answer_status_class']) ?>"><?= h($it['answer_status']) ?></span></td>
+                  <td><span class="<?= h($it['answer_status_class']) ?>" title="<?= h((string)($it['answer_status_label'] ?? '')) ?>" aria-label="<?= h((string)($it['answer_status_label'] ?? '')) ?>"><?= h($it['answer_status']) ?></span></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
