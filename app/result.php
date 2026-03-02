@@ -109,14 +109,21 @@ $isTerminatedExam = (
 );
 $isPassedTerminatedExam = $isTerminatedExam && (int)($s['passed'] ?? 0) === 1;
 $validUntil = '';
+$validUntilDays = null;
 if ($isPassedTerminatedExam) {
   $baseDateRaw = (string)($s['submitted_at'] ?: $s['started_at']);
   if ($baseDateRaw !== '') {
     try {
       $dt = new DateTimeImmutable($baseDateRaw);
-      $validUntil = $dt->modify('+1 year')->format('d/m/Y');
+      $expiresAt = $dt->modify('+1 year');
+      $validUntil = $expiresAt->format('d/m/Y');
+      $daysRemaining = (int)(new DateTimeImmutable('today'))->diff($expiresAt)->format('%r%a');
+      if ($daysRemaining >= 0) {
+        $validUntilDays = $daysRemaining;
+      }
     } catch (Throwable $e) {
       $validUntil = '';
+      $validUntilDays = null;
     }
   }
 }
@@ -254,7 +261,12 @@ if ($canShowReview) {
                 <b><?= h(number_format((float)$s['score_percent'], 0, '.', '')) ?>%</b>
               </p>
               <?php if ((int)$s['passed'] === 1 && $validUntil !== ''): ?>
-                <p class="result-blue-hero-valid"><?= h(t('result.hero_valid_until', ['date' => $validUntil], $lang)) ?></p>
+                <p class="result-blue-hero-valid">
+                  <?= h(t('result.hero_valid_until', ['date' => $validUntil], $lang)) ?>
+                  <?php if ($validUntilDays !== null): ?>
+                    <?= ' (' . h(t('dash.certifications.days_left', ['days' => (string)$validUntilDays], $lang)) . ')' ?>
+                  <?php endif; ?>
+                </p>
               <?php endif; ?>
               <?php if ((int)$s['passed'] !== 1): ?>
                 <p class="result-blue-hero-valid"><?= h(t('result.hero_failed_message', ['score' => number_format((float)$s['score_percent'], 0, '.', '')], $lang)) ?></p>
