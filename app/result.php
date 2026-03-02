@@ -139,6 +139,12 @@ if ($canShowReview) {
     FROM session_questions sq
     JOIN questions q ON q.id = sq.question_id
     WHERE sq.session_id=?
+      AND EXISTS (
+        SELECT 1
+        FROM answer_options ao
+        WHERE ao.session_id = sq.session_id
+          AND ao.question_id = q.id
+      )
     ORDER BY sq.position ASC
   ");
   $reviewStmt->execute([$sid]);
