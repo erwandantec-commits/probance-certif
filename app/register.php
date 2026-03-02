@@ -2,8 +2,10 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/i18n.php';
 
 $pdo = db();
+$lang = get_lang();
 
 $error = '';
 $email = '';
@@ -18,13 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $password2 = (string)($_POST['password2'] ?? '');
 
   if ($firstName === '' || $lastName === '') {
-    $error = 'Prénom et nom obligatoires.';
+    $error = 'Prenom et nom obligatoires.';
   } elseif (strlen($firstName) > 100 || strlen($lastName) > 100) {
-    $error = 'Prénom/nom trop longs (max 100 caractères).';
+    $error = 'Prenom/nom trop longs (max 100 caracteres).';
   } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $error = 'Email invalide.';
   } elseif (strlen($password) < 8) {
-    $error = 'Mot de passe trop court (min 8 caractères).';
+    $error = 'Mot de passe trop court (min 8 caracteres).';
   } elseif ($password !== $password2) {
     $error = 'Les mots de passe ne correspondent pas.';
   } else {
@@ -32,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$email]);
 
     if ($stmt->fetch()) {
-      $error = 'Un compte existe déjà avec cet email.';
+      $error = 'Un compte existe deja avec cet email.';
     } else {
       $fullName = trim($firstName . ' ' . $lastName);
       $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -61,67 +63,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'role' => 'USER',
         ];
 
-        header('Location: /dashboard.php');
+        header('Location: /dashboard.php?lang=' . urlencode($lang));
         exit;
       } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
           $pdo->rollBack();
         }
-        $error = "Impossible de créer le compte pour l'instant.";
+        $error = "Impossible de creer le compte pour l'instant.";
       }
     }
   }
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <meta charset="utf-8">
-  <title>Créer un compte</title>
+  <title><?= h(t('register.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
-  <div class="card">
-    <h2 class="h1">Créer un compte</h2>
-    <p class="sub">Inscris-toi pour accéder à tes Exams.</p>
+  <div class="card login-card">
+    <div class="login-topbar">
+      <select id="register-lang" class="input lang-select"
+              onchange="window.location.href='/register.php?lang=' + encodeURIComponent(this.value);">
+        <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
+        <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
+        <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
+        <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
+      </select>
+    </div>
+
+    <div class="login-brand">
+      <img class="dashboard-candidate-logo login-brand-logo" src="/assets/logo-candidat.svg" alt="Logo candidat">
+      <div class="login-brand-text">
+        <h2 class="h1"><?= h(t('register.title', [], $lang)) ?></h2>
+        <p class="sub"><?= h(t('register.subtitle', [], $lang)) ?></p>
+      </div>
+    </div>
 
     <?php if ($error): ?>
       <p class="error"><?= h($error) ?></p>
     <?php endif; ?>
 
     <form method="post">
-      <label class="label">Prénom</label>
+      <input type="hidden" name="lang" value="<?= h($lang) ?>">
+      <label class="label"><?= h(t('register.first_name', [], $lang)) ?></label>
       <input class="input" name="first_name" type="text" required maxlength="100" value="<?= h($firstName) ?>" autocomplete="given-name">
 
       <div style="height:10px"></div>
 
-      <label class="label">Nom</label>
+      <label class="label"><?= h(t('register.last_name', [], $lang)) ?></label>
       <input class="input" name="last_name" type="text" required maxlength="100" value="<?= h($lastName) ?>" autocomplete="family-name">
 
       <div style="height:10px"></div>
 
-      <label class="label">Email</label>
+      <label class="label"><?= h(t('register.email', [], $lang)) ?></label>
       <input class="input" name="email" type="email" required value="<?= h($email) ?>" autocomplete="email">
 
       <div style="height:10px"></div>
 
-      <label class="label">Mot de passe</label>
+      <label class="label"><?= h(t('register.password', [], $lang)) ?></label>
       <input class="input" name="password" type="password" required minlength="8" autocomplete="new-password">
 
       <div style="height:10px"></div>
 
-      <label class="label">Confirmer le mot de passe</label>
+      <label class="label"><?= h(t('register.password_confirm', [], $lang)) ?></label>
       <input class="input" name="password2" type="password" required minlength="8" autocomplete="new-password">
 
       <div style="height:14px"></div>
 
-      <button class="btn" type="submit">Créer mon compte</button>
+      <button class="btn" type="submit"><?= h(t('register.submit', [], $lang)) ?></button>
 
       <p class="small" style="margin-top:10px;">
-        Déjà un compte ? <a href="/login.php">Se connecter</a>
+        <?= h(t('register.already_account', [], $lang)) ?> <a href="/login.php?lang=<?= h(urlencode($lang)) ?>"><?= h(t('register.login', [], $lang)) ?></a>
       </p>
     </form>
   </div>
