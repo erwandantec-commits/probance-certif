@@ -76,7 +76,7 @@ if ($session_type === 'EXAM') {
   }
 }
 
-$selection = select_questions_for_package($pdo, $pkg);
+$selection = select_questions_for_package($pdo, $pkg, $uid);
 $qids = $selection['ids'] ?? [];
 if (($selection['error_key'] ?? null) !== null) {
   header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode((string)$selection['error_key']));

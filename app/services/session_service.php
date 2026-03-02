@@ -78,7 +78,110 @@ function compute_package_selection_target(array $pkg, int $eligibleCount): int {
   return $count;
 }
 
-function select_questions_for_package(PDO $pdo, array $pkg): array {
+function recent_question_ids_for_user_package(PDO $pdo, int $userId, int $packageId, int $sessionLimit = 4): array {
+  if ($userId <= 0 || $packageId <= 0 || $sessionLimit < 1) {
+    return [];
+  }
+
+  $sql = "
+    SELECT DISTINCT sq.question_id
+    FROM session_questions sq
+    JOIN (
+      SELECT id
+      FROM sessions
+      WHERE user_id = ?
+        AND package_id = ?
+        AND status IN ('TERMINATED', 'EXPIRED')
+      ORDER BY started_at DESC
+      LIMIT " . (int)$sessionLimit . "
+    ) recent ON recent.id = sq.session_id
+  ";
+  $st = $pdo->prepare($sql);
+  $st->execute([$userId, $packageId]);
+  $rows = $st->fetchAll() ?: [];
+  $ids = [];
+  foreach ($rows as $row) {
+    $ids[] = (int)($row['question_id'] ?? 0);
+  }
+  $ids = array_values(array_unique(array_filter($ids, fn($v) => $v > 0)));
+  return $ids;
+}
+
+function reorder_questions_for_session(PDO $pdo, array $qids): array {
+  $qids = array_values(array_unique(array_map('intval', $qids)));
+  if (count($qids) <= 1) {
+    return $qids;
+  }
+
+  if (!table_column_exists($pdo, 'questions', 'theme')) {
+    shuffle($qids);
+    return $qids;
+  }
+
+  $placeholders = implode(',', array_fill(0, count($qids), '?'));
+  $sql = "
+    SELECT id, COALESCE(NULLIF(TRIM(theme), ''), '__none__') AS theme_key
+    FROM questions
+    WHERE id IN ($placeholders)
+  ";
+  $st = $pdo->prepare($sql);
+  $st->execute($qids);
+  $rows = $st->fetchAll() ?: [];
+
+  $groups = [];
+  foreach ($rows as $row) {
+    $id = (int)($row['id'] ?? 0);
+    if ($id <= 0) {
+      continue;
+    }
+    $theme = (string)($row['theme_key'] ?? '__none__');
+    if (!isset($groups[$theme])) {
+      $groups[$theme] = [];
+    }
+    $groups[$theme][] = $id;
+  }
+
+  if (!$groups) {
+    shuffle($qids);
+    return $qids;
+  }
+
+  foreach ($groups as &$ids) {
+    shuffle($ids);
+  }
+  unset($ids);
+
+  $ordered = [];
+  while (!empty($groups)) {
+    $themes = array_keys($groups);
+    shuffle($themes);
+    foreach ($themes as $theme) {
+      if (empty($groups[$theme])) {
+        continue;
+      }
+      $ordered[] = array_shift($groups[$theme]);
+      if (empty($groups[$theme])) {
+        unset($groups[$theme]);
+      }
+    }
+  }
+
+  // Keep only ids from the original selection and complete if needed.
+  $allowed = array_fill_keys($qids, true);
+  $ordered = array_values(array_filter($ordered, fn($id) => isset($allowed[$id])));
+  if (count($ordered) < count($qids)) {
+    $seen = array_fill_keys($ordered, true);
+    foreach ($qids as $id) {
+      if (!isset($seen[$id])) {
+        $ordered[] = $id;
+      }
+    }
+  }
+
+  return $ordered;
+}
+
+function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): array {
   $packageId = (int)($pkg['id'] ?? 0);
   if ($packageId <= 0) {
     return ['ids' => [], 'error_key' => 'start.err.invalid_package'];
@@ -91,6 +194,15 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
 
   $hasNeed = table_column_exists($pdo, 'questions', 'need');
   $hasLevel = table_column_exists($pdo, 'questions', 'level');
+  $antiRepeatSessions = (int)($pkg['anti_repeat_sessions'] ?? 4);
+  if ($antiRepeatSessions < 0) {
+    $antiRepeatSessions = 0;
+  } elseif ($antiRepeatSessions > 20) {
+    $antiRepeatSessions = 20;
+  }
+  $recentExcludedQids = $antiRepeatSessions > 0
+    ? recent_question_ids_for_user_package($pdo, $userId, $packageId, $antiRepeatSessions)
+    : [];
 
   // Legacy bucket rules can drive distribution, but package count stays authoritative.
   $raw = $pkg['selection_rules_json'] ?? null;
@@ -149,10 +261,11 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
         ";
         $params = array_merge([$need], $levels);
 
-        if (!empty($qids)) {
-          $inExclude = implode(',', array_fill(0, count($qids), '?'));
+        $excludedNow = array_values(array_unique(array_merge($qids, $recentExcludedQids)));
+        if (!empty($excludedNow)) {
+          $inExclude = implode(',', array_fill(0, count($excludedNow), '?'));
           $sql .= " AND q.id NOT IN ($inExclude)";
-          $params = array_merge($params, array_map('intval', $qids));
+          $params = array_merge($params, array_map('intval', $excludedNow));
         }
 
         $sql .= "
@@ -167,6 +280,35 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
         foreach ($rows as $row) {
           $qids[] = (int)$row['id'];
         }
+
+        // Soft anti-repeat: if strict exclusion cannot fill the bucket, top up without recent exclusion.
+        if (count($rows) < $take) {
+          $missing = $take - count($rows);
+          $sqlFill = "
+            SELECT q.id
+            FROM questions q
+            JOIN question_options qo ON qo.question_id = q.id
+            WHERE q.need = ?
+              AND q.level IN ($inLevels)
+          ";
+          $paramsFill = array_merge([$need], $levels);
+          if (!empty($qids)) {
+            $inExcludeFill = implode(',', array_fill(0, count($qids), '?'));
+            $sqlFill .= " AND q.id NOT IN ($inExcludeFill)";
+            $paramsFill = array_merge($paramsFill, array_map('intval', $qids));
+          }
+          $sqlFill .= "
+            GROUP BY q.id
+            HAVING COUNT(qo.id) >= 2
+            ORDER BY RAND()
+            LIMIT " . (int)$missing;
+          $stFill = $pdo->prepare($sqlFill);
+          $stFill->execute($paramsFill);
+          $rowsFill = $stFill->fetchAll() ?: [];
+          foreach ($rowsFill as $rowFill) {
+            $qids[] = (int)$rowFill['id'];
+          }
+        }
       }
 
       if (count($qids) < $max) {
@@ -177,6 +319,7 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
         $qids = array_slice($qids, 0, $max);
       }
 
+      $qids = reorder_questions_for_session($pdo, $qids);
       return ['ids' => $qids, 'error_key' => null];
     }
   }
@@ -187,19 +330,55 @@ function select_questions_for_package(PDO $pdo, array $pkg): array {
     FROM questions q
     JOIN question_options qo ON qo.question_id = q.id
     WHERE q.package_id = ?
+  ";
+  $params = [$packageId];
+  if (!empty($recentExcludedQids)) {
+    $inExclude = implode(',', array_fill(0, count($recentExcludedQids), '?'));
+    $sql .= " AND q.id NOT IN ($inExclude)";
+    $params = array_merge($params, array_map('intval', $recentExcludedQids));
+  }
+  $sql .= "
     GROUP BY q.id
     HAVING COUNT(qo.id) >= 2
     ORDER BY RAND()
     LIMIT " . (int)$limit;
   $st = $pdo->prepare($sql);
-  $st->execute([$packageId]);
+  $st->execute($params);
   $rows = $st->fetchAll() ?: [];
   $qids = array_map(fn($r) => (int)$r['id'], $rows);
+
+  if (count($qids) < $limit && !empty($recentExcludedQids)) {
+    $missing = $limit - count($qids);
+    $sqlFill = "
+      SELECT q.id
+      FROM questions q
+      JOIN question_options qo ON qo.question_id = q.id
+      WHERE q.package_id = ?
+    ";
+    $paramsFill = [$packageId];
+    if (!empty($qids)) {
+      $inExcludeFill = implode(',', array_fill(0, count($qids), '?'));
+      $sqlFill .= " AND q.id NOT IN ($inExcludeFill)";
+      $paramsFill = array_merge($paramsFill, array_map('intval', $qids));
+    }
+    $sqlFill .= "
+      GROUP BY q.id
+      HAVING COUNT(qo.id) >= 2
+      ORDER BY RAND()
+      LIMIT " . (int)$missing;
+    $stFill = $pdo->prepare($sqlFill);
+    $stFill->execute($paramsFill);
+    $rowsFill = $stFill->fetchAll() ?: [];
+    foreach ($rowsFill as $rowFill) {
+      $qids[] = (int)$rowFill['id'];
+    }
+  }
 
   if (count($qids) < $limit) {
     return ['ids' => [], 'error_key' => 'start.err.not_enough_package'];
   }
 
+  $qids = reorder_questions_for_session($pdo, $qids);
   return ['ids' => $qids, 'error_key' => null];
 }
 

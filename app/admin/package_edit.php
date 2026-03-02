@@ -245,6 +245,7 @@ $hasRulesColumn = package_edit_package_column_exists($pdo, 'selection_rules_json
 $hasProfileColumn = package_edit_package_column_exists($pdo, 'profile');
 $hasDisplayOrderColumn = package_edit_package_column_exists($pdo, 'display_order');
 $hasBadgeImageColumn = package_edit_package_column_exists($pdo, 'badge_image_filename');
+$hasAntiRepeatSessionsColumn = package_edit_package_column_exists($pdo, 'anti_repeat_sessions');
 $badgeImageOptions = package_edit_badge_file_options();
 $ruleTemplates = package_rule_templates();
 $packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
@@ -272,9 +273,8 @@ if ($hasBadgeImageColumn) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  $profile = trim((string)($_GET['draft_profile'] ?? ''));
-  if ($profile !== '') {
-    // keep empty string fallback to existing DB value in form defaults
+  if (isset($_GET['draft_profile'])) {
+    $profile = trim((string)$_GET['draft_profile']);
   }
   $isActive = ((int)($_GET['draft_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
 
@@ -287,6 +287,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
   }
+  if (isset($_GET['draft_anti_repeat']) && $_GET['draft_anti_repeat'] !== '') {
+    $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
+  }
   if (isset($_GET['draft_order']) && $_GET['draft_order'] !== '') {
     $displayOrder = (int)$_GET['draft_order'];
   }
@@ -294,6 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($threshold)) $threshold = max(0, min(100, (int)$threshold));
   if (isset($duration)) $duration = max(1, min(600, (int)$duration));
   if (isset($count)) $count = max(1, min(200, (int)$count));
+  if (isset($antiRepeatSessions)) $antiRepeatSessions = max(0, min(20, (int)$antiRepeatSessions));
   if (isset($displayOrder)) $displayOrder = max(0, min(9999, (int)$displayOrder));
 
   if ($hasNameColorColumn) {
@@ -495,6 +499,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 5);
+  $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? (int)($pk['anti_repeat_sessions'] ?? 4));
   $isActive = ((int)($_POST['is_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
   $profile = trim((string)($_POST['profile'] ?? ''));
   $displayOrder = (int)($_POST['display_order'] ?? (int)($pk['display_order'] ?? 100));
@@ -516,6 +521,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = "Durée invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
+  } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
+    $error = "Anti-repetition invalide (0 a 20 sessions)";
   } elseif ($hasDisplayOrderColumn && ($displayOrder < 0 || $displayOrder > 9999)) {
     $error = "Ordre d'affichage invalide";
   } elseif ($hasProfileColumn && (function_exists('mb_strlen') ? mb_strlen($profile) : strlen($profile)) > 255) {
@@ -545,6 +552,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'is_active=?',
       ];
       $values = [$threshold, $duration, $count, $isActive];
+      if ($hasAntiRepeatSessionsColumn) {
+        $sets[] = 'anti_repeat_sessions=?';
+        $values[] = $antiRepeatSessions;
+      }
       if ($hasNameColorColumn) {
         $sets[] = 'name_color_hex=?';
         $values[] = $packNameColor;
@@ -584,6 +595,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $formThreshold = isset($threshold) ? $threshold : (int)$pk['pass_threshold_percent'];
 $formDuration = isset($duration) ? $duration : (int)$pk['duration_limit_minutes'];
 $formCount = isset($count) ? $count : (int)$pk['selection_count'];
+$formAntiRepeatSessions = isset($antiRepeatSessions) ? $antiRepeatSessions : (int)($pk['anti_repeat_sessions'] ?? 4);
 $formIsActive = isset($isActive) ? $isActive : (((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0);
 $formProfile = isset($profile) ? $profile : (string)($pk['profile'] ?? '');
 $formDisplayOrder = isset($displayOrder) ? $displayOrder : (int)($pk['display_order'] ?? 100);
@@ -699,6 +711,20 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     required
                   >
                 </div>
+                <?php if ($hasAntiRepeatSessionsColumn): ?>
+                  <div>
+                    <label class="label">Anti-r&eacute;p&eacute;tition (sessions)</label>
+                    <input
+                      class="input"
+                      type="number"
+                      name="anti_repeat_sessions"
+                      min="0"
+                      max="20"
+                      value="<?= (int)$formAntiRepeatSessions ?>"
+                      required
+                    >
+                  </div>
+                <?php endif; ?>
               </div>
             </article>
 
@@ -1022,6 +1048,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           returnUrl.searchParams.set('draft_threshold', editFieldValue('pass_threshold_percent') || String(<?= (int)$formThreshold ?>));
           returnUrl.searchParams.set('draft_duration', editFieldValue('duration_limit_minutes') || String(<?= (int)$formDuration ?>));
           returnUrl.searchParams.set('draft_count', editFieldValue('selection_count') || String(<?= (int)$formCount ?>));
+          returnUrl.searchParams.set('draft_anti_repeat', editFieldValue('anti_repeat_sessions') || String(<?= (int)$formAntiRepeatSessions ?>));
           returnUrl.searchParams.set('draft_order', editFieldValue('display_order') || String(<?= (int)$formDisplayOrder ?>));
           returnUrl.searchParams.set('draft_color', editFieldValue('name_color_hex') || '<?= h($packNameColor) ?>');
           returnUrl.searchParams.set('draft_template', editFieldValue('rule_template'));

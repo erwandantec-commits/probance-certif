@@ -40,6 +40,7 @@ CREATE TABLE packages (
   pass_threshold_percent INT NOT NULL DEFAULT 80,
   duration_limit_minutes INT NOT NULL DEFAULT 120,
   selection_count INT NOT NULL DEFAULT 10,
+  anti_repeat_sessions INT NOT NULL DEFAULT 4,
   selection_mode ENUM('COUNT','PERCENT') NOT NULL DEFAULT 'COUNT',
   selection_percent INT NULL,
   CHECK (

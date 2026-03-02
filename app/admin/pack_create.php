@@ -158,6 +158,7 @@ $name = '';
 $threshold = 80;
 $duration = 120;
 $count = 10;
+$antiRepeatSessions = 4;
 $profile = '';
 $displayOrder = 100;
 $badgeImageFilename = 'user-badge-blue.png';
@@ -202,6 +203,13 @@ $hasBadgeImageColumn = (bool)$pdo->query("
     AND TABLE_NAME = 'packages'
     AND COLUMN_NAME = 'badge_image_filename'
 ")->fetchColumn();
+$hasAntiRepeatSessionsColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'anti_repeat_sessions'
+")->fetchColumn();
 $badgeImageOptions = pack_create_badge_file_options();
 if ($hasDisplayOrderColumn) {
   $nextDisplayOrder = (int)$pdo->query("SELECT COALESCE(MAX(display_order), 0) + 10 FROM packages")->fetchColumn();
@@ -228,6 +236,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
   }
+  if (isset($_GET['draft_anti_repeat']) && $_GET['draft_anti_repeat'] !== '') {
+    $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
+  }
   if (isset($_GET['draft_order']) && $_GET['draft_order'] !== '') {
     $displayOrder = (int)$_GET['draft_order'];
   }
@@ -235,6 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   $threshold = max(0, min(100, $threshold));
   $duration = max(1, min(600, $duration));
   $count = max(1, min(200, $count));
+  $antiRepeatSessions = max(0, min(20, $antiRepeatSessions));
   $displayOrder = max(0, min(9999, $displayOrder));
 
   if ($hasNameColorColumn) {
@@ -297,6 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 10);
+  $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? 4);
   $profile = trim((string)($_POST['profile'] ?? ''));
   $displayOrder = (int)($_POST['display_order'] ?? 100);
   $badgeImageFilename = trim((string)($_POST['badge_image_filename'] ?? $badgeImageFilename));
@@ -323,6 +336,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Durée invalide (1 à 600 minutes).';
   } elseif ($count < 1 || $count > 200) {
     $error = 'Nombre de questions invalide (1 a 200).';
+  } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
+    $error = 'Anti-repetition invalide (0 a 20 sessions).';
   } elseif ($hasDisplayOrderColumn && ($displayOrder < 0 || $displayOrder > 9999)) {
     $error = "Ordre d'affichage invalide (0 a 9999).";
   } elseif ($hasProfileColumn && (function_exists('mb_strlen') ? mb_strlen($profile) : strlen($profile)) > 255) {
@@ -352,6 +367,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       } else {
         $columns = ['name', 'pass_threshold_percent', 'duration_limit_minutes', 'selection_count', 'is_active'];
         $values = [$name, $threshold, $duration, $count, $isActive];
+        if ($hasAntiRepeatSessionsColumn) {
+          $columns[] = 'anti_repeat_sessions';
+          $values[] = $antiRepeatSessions;
+        }
         if ($hasNameColorColumn) {
           $columns[] = 'name_color_hex';
           $values[] = $nameColorHex;
@@ -463,6 +482,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <label class="label" for="create-pack-count">Questions</label>
                   <input class="input" id="create-pack-count" name="selection_count" type="number" min="1" max="200" required value="<?= (int)$count ?>">
                 </div>
+                <?php if ($hasAntiRepeatSessionsColumn): ?>
+                  <div>
+                    <label class="label" for="create-pack-anti-repeat">Anti-r&eacute;p&eacute;tition (sessions)</label>
+                    <input class="input" id="create-pack-anti-repeat" name="anti_repeat_sessions" type="number" min="0" max="20" required value="<?= (int)$antiRepeatSessions ?>">
+                  </div>
+                <?php endif; ?>
               </div>
             </article>
 
@@ -632,6 +657,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           returnUrl.searchParams.set('draft_threshold', fieldValue('pass_threshold_percent') || '80');
           returnUrl.searchParams.set('draft_duration', fieldValue('duration_limit_minutes') || '120');
           returnUrl.searchParams.set('draft_count', fieldValue('selection_count') || '10');
+          returnUrl.searchParams.set('draft_anti_repeat', fieldValue('anti_repeat_sessions') || '4');
           returnUrl.searchParams.set('draft_order', fieldValue('display_order') || '100');
           returnUrl.searchParams.set('draft_color', fieldValue('name_color_hex') || '#334155');
           returnUrl.searchParams.set('draft_template', fieldValue('rule_template'));
