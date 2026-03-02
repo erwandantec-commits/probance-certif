@@ -214,6 +214,84 @@ if ($hasBadgeImageColumn) {
   }
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  $name = trim((string)($_GET['draft_name'] ?? $name));
+  $profile = trim((string)($_GET['draft_profile'] ?? $profile));
+  $isActive = ((int)($_GET['draft_active'] ?? $isActive) === 1) ? 1 : 0;
+
+  if (isset($_GET['draft_threshold']) && $_GET['draft_threshold'] !== '') {
+    $threshold = (int)$_GET['draft_threshold'];
+  }
+  if (isset($_GET['draft_duration']) && $_GET['draft_duration'] !== '') {
+    $duration = (int)$_GET['draft_duration'];
+  }
+  if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
+    $count = (int)$_GET['draft_count'];
+  }
+  if (isset($_GET['draft_order']) && $_GET['draft_order'] !== '') {
+    $displayOrder = (int)$_GET['draft_order'];
+  }
+
+  $threshold = max(0, min(100, $threshold));
+  $duration = max(1, min(600, $duration));
+  $count = max(1, min(200, $count));
+  $displayOrder = max(0, min(9999, $displayOrder));
+
+  if ($hasNameColorColumn) {
+    $draftColor = normalize_hex_color(trim((string)($_GET['draft_color'] ?? '')));
+    if ($draftColor !== null) {
+      $nameColorHex = $draftColor;
+    }
+  }
+
+  if ($hasRulesColumn) {
+    $draftTemplate = strtoupper(trim((string)($_GET['draft_template'] ?? '')));
+    if ($draftTemplate !== '' && isset($ruleTemplates[$draftTemplate])) {
+      $selectedTemplate = $draftTemplate;
+    }
+
+    $draftRulesRaw = trim((string)($_GET['draft_rules'] ?? ''));
+    if ($draftRulesRaw !== '') {
+      $decodedRules = json_decode($draftRulesRaw, true);
+      if (is_array($decodedRules)) {
+        $parsedRows = [];
+        foreach ($decodedRules as $row) {
+          if (!is_array($row)) {
+            continue;
+          }
+          $need = strtoupper(trim((string)($row['need'] ?? '')));
+          $take = (int)($row['take'] ?? 0);
+          $targetTotal = (int)($row['target_total'] ?? 0);
+          $levelsRaw = $row['levels'] ?? [];
+          if (!is_array($levelsRaw)) {
+            $levelsRaw = [];
+          }
+          $levels = [];
+          foreach ($levelsRaw as $lv) {
+            $lv = (int)$lv;
+            if ($lv >= 1 && $lv <= 3) {
+              $levels[] = $lv;
+            }
+          }
+          $levels = array_values(array_unique($levels));
+          sort($levels);
+
+          if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+            continue;
+          }
+          $parsedRows[] = [
+            'need' => $need,
+            'levels' => $levels,
+            'take' => $take,
+            'target_total' => max(0, $targetTotal),
+          ];
+        }
+        $ruleRows = $parsedRows;
+      }
+    }
+  }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $name = trim((string)($_POST['name'] ?? ''));
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
@@ -413,7 +491,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                     <?php $libraryReturn = '/admin/pack_create.php'; ?>
                     <div style="margin-top:8px;">
-                      <a class="btn ghost" href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>">Choisir / Televerser une image</a>
+                      <a
+                        id="pack-create-badge-picker"
+                        class="btn ghost"
+                        data-base-return="<?= h($libraryReturn) ?>"
+                        href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
+                      >Choisir / Televerser une image</a>
                     </div>
                     <?php if (!$badgeImageOptions): ?>
                       <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
@@ -502,6 +585,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
   <script>
   (function () {
+    var packCreateForm = document.querySelector('form.users-create-form');
+    var badgePickerLink = document.getElementById('pack-create-badge-picker');
+
+    function fieldValue(name) {
+      if (!packCreateForm) return '';
+      var el = packCreateForm.querySelector('[name="' + name + '"]');
+      if (!el) return '';
+      return String(el.value || '').trim();
+    }
+
+    function buildDraftRules() {
+      var body = document.getElementById('rule-rows-body');
+      if (!body) return [];
+      var rows = [];
+      body.querySelectorAll('.rule-row').forEach(function (row) {
+        var need = row.querySelector('.rule-need');
+        var take = row.querySelector('.rule-take');
+        var target = row.querySelector('.rule-target-total');
+        var levels = [];
+        if (row.querySelector('.rule-level-1-check:checked')) levels.push(1);
+        if (row.querySelector('.rule-level-2-check:checked')) levels.push(2);
+        if (row.querySelector('.rule-level-3-check:checked')) levels.push(3);
+        var needVal = need ? String(need.value || '').trim().toUpperCase() : '';
+        var takeVal = take ? parseInt(String(take.value || '0'), 10) : 0;
+        var targetVal = target ? parseInt(String(target.value || '0'), 10) : 0;
+        if (!needVal || !levels.length || !Number.isFinite(takeVal) || takeVal <= 0) return;
+        rows.push({
+          need: needVal,
+          levels: levels,
+          take: takeVal,
+          target_total: Number.isFinite(targetVal) && targetVal > 0 ? targetVal : 0
+        });
+      });
+      return rows;
+    }
+
+    if (badgePickerLink) {
+      badgePickerLink.addEventListener('click', function () {
+        var baseReturn = badgePickerLink.getAttribute('data-base-return') || '/admin/pack_create.php';
+        try {
+          var returnUrl = new URL(baseReturn, window.location.origin);
+          returnUrl.searchParams.set('draft_name', fieldValue('name'));
+          returnUrl.searchParams.set('draft_profile', fieldValue('profile'));
+          returnUrl.searchParams.set('draft_active', fieldValue('is_active') || '1');
+          returnUrl.searchParams.set('draft_threshold', fieldValue('pass_threshold_percent') || '80');
+          returnUrl.searchParams.set('draft_duration', fieldValue('duration_limit_minutes') || '120');
+          returnUrl.searchParams.set('draft_count', fieldValue('selection_count') || '10');
+          returnUrl.searchParams.set('draft_order', fieldValue('display_order') || '100');
+          returnUrl.searchParams.set('draft_color', fieldValue('name_color_hex') || '#334155');
+          returnUrl.searchParams.set('draft_template', fieldValue('rule_template'));
+          var draftRules = buildDraftRules();
+          if (draftRules.length > 0) {
+            returnUrl.searchParams.set('draft_rules', JSON.stringify(draftRules));
+          } else {
+            returnUrl.searchParams.delete('draft_rules');
+          }
+          badgePickerLink.href = '/admin/badge_library.php?return=' + encodeURIComponent(returnUrl.pathname + returnUrl.search);
+        } catch (e) {
+          // keep fallback href
+        }
+      });
+    }
+
     <?php if ($hasRulesColumn): ?>
     var ruleTemplates = <?= json_encode($ruleTemplates, JSON_UNESCAPED_UNICODE) ?>;
     var tbody = document.getElementById('rule-rows-body');

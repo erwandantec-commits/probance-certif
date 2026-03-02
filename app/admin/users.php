@@ -515,12 +515,12 @@ function admin_users_sort_link(array $qs, string $key): string {
       <div class="users-create-toggle">
         <button
           type="button"
-          class="btn users-create-toggle-btn"
+          class="btn users-create-toggle-btn admin-primary-action-btn"
           id="users-create-toggle-btn"
           aria-expanded="<?= $openCreate ? 'true' : 'false' ?>"
           aria-controls="users-create-panel"
         >
-          Créer un utilisateur
+          + Créer un utilisateur
         </button>
       </div>
 

@@ -202,6 +202,11 @@ if (!empty($certCards)) {
     return $ai <=> $bi;
   });
 }
+$examBlockedByPackage = [];
+foreach ($certCards as $pkgId => $card) {
+  $statusKey = (string)($card['status_key'] ?? '');
+  $examBlockedByPackage[(int)$pkgId] = in_array($statusKey, ['CERTIFIED', 'SOON'], true);
+}
 
 $activePausedSelect = sessions_column_exists($pdo, 'paused_remaining_seconds')
   ? ", s.paused_remaining_seconds"
@@ -391,8 +396,10 @@ function dash_remaining_label(int $seconds): string {
   <div class="dashboard-head">
     <div class="dashboard-head-copy">
       <img class="dashboard-candidate-logo" src="/assets/logo-candidat.svg" alt="Logo candidat">
-      <h2 class="h1"><?= h(t('dash.hello', ['name' => ($user['name'] ?: $user['email'])], $lang)) ?></h2>
-      <p class="sub"><?= h(t('dash.subtitle', [], $lang)) ?></p>
+      <div class="dashboard-head-copy-text">
+        <h2 class="h1"><?= h(t('dash.hello', ['name' => ($user['name'] ?: $user['email'])], $lang)) ?></h2>
+        <p class="sub"><?= h(t('dash.subtitle', [], $lang)) ?></p>
+      </div>
     </div>
 
       <div class="dashboard-head-actions">
@@ -494,21 +501,23 @@ function dash_remaining_label(int $seconds): string {
 		            ?>
 		            <div class="dash-cert-grid" id="dash-cert-grid">
 		              <?php foreach ($packages as $pk): ?>
-		                <?php
-		                  $pkName = localize_text((string)$pk['name'], $lang);
-		                  $pkTone = package_color_hex((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''));
+	                <?php
+	                  $pkName = localize_text((string)$pk['name'], $lang);
+	                  $pkTone = package_color_hex((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''));
 	                  $pkDuration = (int)$pk['duration_limit_minutes'];
 	                  $isFirst = ((int)$pk['id'] === (int)$firstPkg['id']);
+                    $isExamLocked = !empty($examBlockedByPackage[(int)$pk['id']]);
 	                ?>
 		                <button
 		                  type="button"
-		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?>"
+		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?><?= $isExamLocked ? ' is-exam-locked' : '' ?>"
 		                  data-package-value="<?= (int)$pk['id'] ?>"
 		                  data-package-name="<?= h($pkName) ?>"
 		                  data-active-sid-exam="<?= h((string)($activeByPackage[(int)$pk['id']]['EXAM']['id'] ?? '')) ?>"
 		                  data-active-p-exam="<?= (int)($activeByPackage[(int)$pk['id']]['EXAM']['resume_p'] ?? 1) ?>"
 		                  data-active-sid-training="<?= h((string)($activeByPackage[(int)$pk['id']]['TRAINING']['id'] ?? '')) ?>"
 		                  data-active-p-training="<?= (int)($activeByPackage[(int)$pk['id']]['TRAINING']['resume_p'] ?? 1) ?>"
+		                  data-package-exam-locked="<?= $isExamLocked ? '1' : '0' ?>"
 		                  data-package-duration="<?= (int)$pkDuration ?>"
 		                  data-package-tone="<?= h($pkTone) ?>"
 		                  style="--cert-tone: <?= h($pkTone) ?>;"
@@ -751,11 +760,13 @@ function dash_remaining_label(int $seconds): string {
     function setActive(value) {
       var activeSid = '';
       var activeP = '1';
+      var selectedExamLocked = false;
       selectedMode = getMode();
       tiles.forEach(function (tile) {
         var active = (tile.getAttribute('data-package-value') === value);
         tile.classList.toggle('is-active', active);
         if (active) {
+          selectedExamLocked = (tile.getAttribute('data-package-exam-locked') === '1');
           if (selectedMode === 'TRAINING') {
             activeSid = tile.getAttribute('data-active-sid-training') || '';
             activeP = tile.getAttribute('data-active-p-training') || '1';
@@ -767,14 +778,19 @@ function dash_remaining_label(int $seconds): string {
       });
 
       if (startBtn) {
-        if (!activeSid) {
+        if (selectedMode === 'EXAM' && selectedExamLocked) {
           startBtn.textContent = startDefaultLabel;
+          startBtn.disabled = true;
+        } else if (!activeSid) {
+          startBtn.textContent = startDefaultLabel;
+          startBtn.disabled = false;
         } else {
           startBtn.textContent = (selectedMode === 'TRAINING') ? startNewTrainingLabel : startNewExamLabel;
+          startBtn.disabled = false;
         }
       }
       if (continueBtn) {
-        if (activeSid) {
+        if (activeSid && !(selectedMode === 'EXAM' && selectedExamLocked)) {
           continueBtn.style.display = '';
           continueBtn.textContent = (selectedMode === 'TRAINING') ? continueTrainingLabel : continueExamLabel;
           continueBtn.setAttribute('href', '/exam.php?sid=' + encodeURIComponent(activeSid) + '&p=' + encodeURIComponent(activeP) + '&lang=' + encodeURIComponent(<?= json_encode($lang) ?>));

@@ -271,6 +271,86 @@ if ($hasBadgeImageColumn) {
   }
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  $profile = trim((string)($_GET['draft_profile'] ?? ''));
+  if ($profile !== '') {
+    // keep empty string fallback to existing DB value in form defaults
+  }
+  $isActive = ((int)($_GET['draft_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
+
+  if (isset($_GET['draft_threshold']) && $_GET['draft_threshold'] !== '') {
+    $threshold = (int)$_GET['draft_threshold'];
+  }
+  if (isset($_GET['draft_duration']) && $_GET['draft_duration'] !== '') {
+    $duration = (int)$_GET['draft_duration'];
+  }
+  if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
+    $count = (int)$_GET['draft_count'];
+  }
+  if (isset($_GET['draft_order']) && $_GET['draft_order'] !== '') {
+    $displayOrder = (int)$_GET['draft_order'];
+  }
+
+  if (isset($threshold)) $threshold = max(0, min(100, (int)$threshold));
+  if (isset($duration)) $duration = max(1, min(600, (int)$duration));
+  if (isset($count)) $count = max(1, min(200, (int)$count));
+  if (isset($displayOrder)) $displayOrder = max(0, min(9999, (int)$displayOrder));
+
+  if ($hasNameColorColumn) {
+    $draftColor = normalize_hex_color(trim((string)($_GET['draft_color'] ?? '')));
+    if ($draftColor !== null) {
+      $packNameColor = $draftColor;
+    }
+  }
+
+  if ($hasRulesColumn) {
+    $draftTemplate = strtoupper(trim((string)($_GET['draft_template'] ?? '')));
+    if ($draftTemplate !== '' && isset($ruleTemplates[$draftTemplate])) {
+      $selectedTemplate = $draftTemplate;
+    }
+
+    $draftRulesRaw = trim((string)($_GET['draft_rules'] ?? ''));
+    if ($draftRulesRaw !== '') {
+      $decodedRules = json_decode($draftRulesRaw, true);
+      if (is_array($decodedRules)) {
+        $parsedRows = [];
+        foreach ($decodedRules as $row) {
+          if (!is_array($row)) {
+            continue;
+          }
+          $need = strtoupper(trim((string)($row['need'] ?? '')));
+          $take = (int)($row['take'] ?? 0);
+          $targetTotal = (int)($row['target_total'] ?? 0);
+          $levelsRaw = $row['levels'] ?? [];
+          if (!is_array($levelsRaw)) {
+            $levelsRaw = [];
+          }
+          $levels = [];
+          foreach ($levelsRaw as $lv) {
+            $lv = (int)$lv;
+            if ($lv >= 1 && $lv <= 3) {
+              $levels[] = $lv;
+            }
+          }
+          $levels = array_values(array_unique($levels));
+          sort($levels);
+
+          if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+            continue;
+          }
+          $parsedRows[] = [
+            'need' => $need,
+            'levels' => $levels,
+            'take' => $take,
+            'target_total' => max(0, $targetTotal),
+          ];
+        }
+        $ruleRows = $parsedRows;
+      }
+    }
+  }
+}
+
 $allowedByNeed = [];
 $rulesRaw = trim((string)($pk['selection_rules_json'] ?? ''));
 $ruleRows = [];
@@ -654,7 +734,12 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     <?php endif; ?>
                     <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id; ?>
                     <div style="margin-top:8px;">
-                      <a class="btn ghost" href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>">Choisir / Televerser une image</a>
+                      <a
+                        id="pack-edit-badge-picker"
+                        class="btn ghost"
+                        data-base-return="<?= h($libraryReturn) ?>"
+                        href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
+                      >Choisir / Televerser une image</a>
                     </div>
                     <?php if (!$badgeImageOptions): ?>
                       <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
@@ -891,6 +976,68 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
   </div>
   <script>
   (function () {
+    var packEditForm = document.querySelector('form[method="post"]');
+    var editBadgePickerLink = document.getElementById('pack-edit-badge-picker');
+
+    function editFieldValue(name) {
+      if (!packEditForm) return '';
+      var el = packEditForm.querySelector('[name="' + name + '"]');
+      if (!el) return '';
+      return String(el.value || '').trim();
+    }
+
+    function buildEditDraftRules() {
+      var body = document.getElementById('rule-rows-body');
+      if (!body) return [];
+      var rows = [];
+      body.querySelectorAll('.rule-row').forEach(function (row) {
+        var need = row.querySelector('.rule-need');
+        var take = row.querySelector('.rule-take');
+        var target = row.querySelector('.rule-target-total');
+        var levels = [];
+        if (row.querySelector('.rule-level-1-check:checked')) levels.push(1);
+        if (row.querySelector('.rule-level-2-check:checked')) levels.push(2);
+        if (row.querySelector('.rule-level-3-check:checked')) levels.push(3);
+        var needVal = need ? String(need.value || '').trim().toUpperCase() : '';
+        var takeVal = take ? parseInt(String(take.value || '0'), 10) : 0;
+        var targetVal = target ? parseInt(String(target.value || '0'), 10) : 0;
+        if (!needVal || !levels.length || !Number.isFinite(takeVal) || takeVal <= 0) return;
+        rows.push({
+          need: needVal,
+          levels: levels,
+          take: takeVal,
+          target_total: Number.isFinite(targetVal) && targetVal > 0 ? targetVal : 0
+        });
+      });
+      return rows;
+    }
+
+    if (editBadgePickerLink) {
+      editBadgePickerLink.addEventListener('click', function () {
+        var baseReturn = editBadgePickerLink.getAttribute('data-base-return') || '/admin/package_edit.php?id=<?= (int)$id ?>';
+        try {
+          var returnUrl = new URL(baseReturn, window.location.origin);
+          returnUrl.searchParams.set('draft_profile', editFieldValue('profile'));
+          returnUrl.searchParams.set('draft_active', editFieldValue('is_active') || '1');
+          returnUrl.searchParams.set('draft_threshold', editFieldValue('pass_threshold_percent') || String(<?= (int)$formThreshold ?>));
+          returnUrl.searchParams.set('draft_duration', editFieldValue('duration_limit_minutes') || String(<?= (int)$formDuration ?>));
+          returnUrl.searchParams.set('draft_count', editFieldValue('selection_count') || String(<?= (int)$formCount ?>));
+          returnUrl.searchParams.set('draft_order', editFieldValue('display_order') || String(<?= (int)$formDisplayOrder ?>));
+          returnUrl.searchParams.set('draft_color', editFieldValue('name_color_hex') || '<?= h($packNameColor) ?>');
+          returnUrl.searchParams.set('draft_template', editFieldValue('rule_template'));
+          var draftRules = buildEditDraftRules();
+          if (draftRules.length > 0) {
+            returnUrl.searchParams.set('draft_rules', JSON.stringify(draftRules));
+          } else {
+            returnUrl.searchParams.delete('draft_rules');
+          }
+          editBadgePickerLink.href = '/admin/badge_library.php?return=' + encodeURIComponent(returnUrl.pathname + returnUrl.search);
+        } catch (e) {
+          // keep fallback href
+        }
+      });
+    }
+
     document.querySelectorAll('.distribution-card-clickable').forEach(function (card) {
       var href = card.getAttribute('data-filter-need-url');
       if (!href) return;

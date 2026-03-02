@@ -116,7 +116,7 @@ function questions_filter_url(string $need = '', int $level = 0): string {
     <hr class="separator">
 
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 8px;">
-      <a class="btn ghost" href="/admin/import_questions.php">&uarr; Importer</a>
+      <a class="btn admin-primary-action-btn" href="/admin/import_questions.php">+ Importer</a>
     </div>
 
     <div class="distribution-wrap">

@@ -220,7 +220,7 @@ function mapping_fields(): array {
     'theme' => ['label' => 'Theme question', 'required' => true, 'aliases' => ['themequestion', 'theme']],
     'category' => ['label' => 'Categorie question', 'required' => true, 'aliases' => ['categoriequestion', 'categoryquestion', 'category', 'categorie']],
     'profile' => ['label' => 'Profil', 'required' => true, 'aliases' => ['profil', 'profile']],
-    'knowledge_required' => ['label' => 'Knowledge required', 'required' => true, 'aliases' => ['knowledgerequired', 'knowledge', 'need', 'needs']],
+    'knowledge_required' => ['label' => 'Connaissances requises', 'required' => true, 'aliases' => ['knowledgerequired', 'knowledge', 'need', 'needs']],
     'level' => ['label' => 'Niveau question', 'required' => true, 'aliases' => ['niveauquestion', 'level', 'niveau']],
     'answer1' => ['label' => 'Reponse 1', 'required' => true, 'aliases' => ['reponse1', 'response1', 'answer1']],
     'answer2' => ['label' => 'Reponse 2', 'required' => true, 'aliases' => ['reponse2', 'response2', 'answer2']],
@@ -375,7 +375,7 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     }
     $knowledgeTokens = parse_knowledge_required($knowledgeRequiredRaw);
     if (!$knowledgeTokens) {
-      $rowErrors[] = "Knowledge required invalide (attendu: PONE/PHM/PPM, multi possible).";
+      $rowErrors[] = "Connaissances requises invalides (attendu: PONE/PHM/PPM, multi possible).";
     }
     if ($levelRaw === '' || !preg_match('/^-?\d+$/', $levelRaw)) {
       $rowErrors[] = "Niveau question non numerique.";
