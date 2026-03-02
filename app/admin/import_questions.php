@@ -709,8 +709,14 @@ $mapping = $state['mapping'] ?? [];
 $report = null;
 $verifyDone = false;
 $action = trim((string)($_POST['action'] ?? ''));
+$lastAction = '';
+
+if (isset($_GET['cancel_import']) && (string)$_GET['cancel_import'] === '1') {
+  $_SESSION[$stateKey] = [];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $lastAction = $action;
   if ($schemaErrors) {
     $report = [
       'read_lines' => 0,
@@ -802,8 +808,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       } else {
         $validation = validate_and_prepare_rows($state['rows'], $mapping);
         $report = run_import($pdo, $validation['prepared'], $validation['report']);
-        $state['can_import'] = false;
-        $_SESSION[$stateKey] = $state;
+        // Import termine: on purge l'etat pour masquer le mapping.
+        $_SESSION[$stateKey] = [];
+        $state = [];
         $verifyDone = true;
       }
     }
@@ -811,7 +818,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $state = $_SESSION[$stateKey] ?? [];
+$hasLoadedRows = isset($state['rows']) && is_array($state['rows']) && count($state['rows']) > 0;
 $headers = $state['headers'] ?? [];
+if ((empty($headers) || !is_array($headers)) && $hasLoadedRows) {
+  $headers = $state['rows'][0]['__cells'] ?? [];
+  if (is_array($headers) && !empty($headers)) {
+    $state['headers'] = $headers;
+    $_SESSION[$stateKey] = $state;
+  }
+}
 $mapping = $state['mapping'] ?? $mapping;
 
 ?>
@@ -862,6 +877,18 @@ $mapping = $state['mapping'] ?? $mapping;
           <span class="pill info">Mises a jour: <?= (int)$report['updated'] ?></span>
           <span class="pill danger">Rejetees: <?= (int)$report['rejected'] ?></span>
         </div>
+        <?php
+          $readLines = (int)($report['read_lines'] ?? 0);
+          $rejectedLines = (int)($report['rejected'] ?? 0);
+          $validLines = max(0, $readLines - $rejectedLines);
+          $validPercent = $readLines > 0 ? (int)round(($validLines * 100) / $readLines) : 0;
+        ?>
+        <?php if ($lastAction === 'verify' && empty($report['errors'])): ?>
+          <div class="admin-notice is-ok" style="margin-top:10px;">
+            Verification OK: <?= (int)$validPercent ?>% lignes valides (<?= (int)$validLines ?>/<?= (int)$readLines ?>).
+            Vous pouvez cliquer sur <b>Importer les lignes valides</b>.
+          </div>
+        <?php endif; ?>
         <?php if (!empty($report['errors'])): ?>
           <div class="import-report-errors">
             <b>Erreurs</b>
@@ -871,6 +898,14 @@ $mapping = $state['mapping'] ?? $mapping;
               <?php endforeach; ?>
             </ul>
           </div>
+        <?php endif; ?>
+        <?php if (($verifyDone || ($report !== null && empty($report['errors']))) && !empty($state['can_import'])): ?>
+          <form method="post" class="import-form" style="margin-top:12px;">
+            <input type="hidden" name="action" value="import">
+            <div class="import-actions">
+              <button class="btn" type="submit">Importer les lignes valides</button>
+            </div>
+          </form>
         <?php endif; ?>
       </div>
     <?php endif; ?>
@@ -888,7 +923,7 @@ $mapping = $state['mapping'] ?? $mapping;
       </div>
     </form>
 
-    <?php if ($headers): ?>
+    <?php if ($hasLoadedRows && $headers): ?>
       <hr class="separator">
       <div class="import-help">
         <div class="import-help-head">
@@ -920,16 +955,7 @@ $mapping = $state['mapping'] ?? $mapping;
         </div>
         <div class="import-actions">
           <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>>Verifier les donnees</button>
-          <a class="btn ghost" href="/admin/questions.php">Annuler</a>
-        </div>
-      </form>
-    <?php endif; ?>
-
-    <?php if (($verifyDone || ($report !== null && empty($report['errors']))) && !empty($state['can_import'])): ?>
-      <form method="post" class="import-form" style="margin-top:14px;">
-        <input type="hidden" name="action" value="import">
-        <div class="import-actions">
-          <button class="btn" type="submit">Importer les lignes valides</button>
+          <a class="btn ghost" href="/admin/import_questions.php?cancel_import=1">Annuler l'import</a>
         </div>
       </form>
     <?php endif; ?>
