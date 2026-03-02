@@ -152,6 +152,8 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   header('Content-Disposition: attachment; filename="sessions_export.csv"');
 
   $out = fopen('php://output', 'w');
+  // UTF-8 BOM for Excel compatibility.
+  fwrite($out, "\xEF\xBB\xBF");
 
   fputcsv($out, ['started_at','email','session_type','package','status','score_percent','result']);
 
