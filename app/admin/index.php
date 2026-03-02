@@ -213,6 +213,11 @@ $stats = $pdo->query("
 
       <form method="get" class="filters-grid sessions-filters">
         <div>
+          <label class="label" for="search">Email</label>
+          <input class="input" id="search" type="text" name="search" value="<?= h($search) ?>" placeholder="Email...">
+        </div>
+
+        <div>
           <label class="label" for="type">Type</label>
           <select class="input" id="type" name="type">
             <option value="ALL" <?= $type==='ALL'?'selected':'' ?>>Tous</option>
@@ -250,11 +255,6 @@ $stats = $pdo->query("
             <option value="PASSED" <?= $result==='PASSED'?'selected':'' ?>>R&eacute;ussi</option>
             <option value="FAILED" <?= $result==='FAILED'?'selected':'' ?>>Echou&eacute;</option>
           </select>
-        </div>
-
-        <div>
-          <label class="label" for="search">Email</label>
-          <input class="input" id="search" type="text" name="search" value="<?= h($search) ?>" placeholder="Email...">
         </div>
 
         <div class="filters-actions">

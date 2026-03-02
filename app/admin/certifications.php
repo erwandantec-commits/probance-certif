@@ -169,7 +169,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   header('Content-Disposition: attachment; filename="certifications_export.csv"');
 
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['email', 'Certification', 'last_cert_date', 'expires_at', 'status']);
+  fputcsv($out, ['email', 'Pack', 'last_cert_date', 'expires_at', 'status']);
   foreach ($rows as $r) {
     fputcsv($out, [
       $r['email'],
@@ -214,11 +214,11 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
         </div>
 
         <div>
-          <label class="label" for="package_id">Certification</label>
-	          <select id="package_id" name="package_id">
-	            <option value="0">Toutes</option>
+          <label class="label" for="package_id">Pack</label>
+	          <select class="input" id="package_id" name="package_id" data-package-colors="off">
+	            <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>>Tous</option>
 	            <?php foreach ($packages as $p): ?>
-	              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?> style="<?= h(package_label_style((string)$p['name'], (string)($p['name_color_hex'] ?? ''))) ?>">
+	              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?>>
 	                <?= h($p['name']) ?>
 	              </option>
 	            <?php endforeach; ?>
@@ -227,7 +227,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 
         <div>
           <label class="label" for="cert_status">Statut</label>
-          <select id="cert_status" name="cert_status">
+          <select class="input" id="cert_status" name="cert_status">
             <option value="ALL" <?= $certStatus === 'ALL' ? 'selected' : '' ?>>Tous</option>
             <option value="CERTIFIED" <?= $certStatus === 'CERTIFIED' ? 'selected' : '' ?>>Certifi&eacute;s</option>
             <option value="SOON" <?= $certStatus === 'SOON' ? 'selected' : '' ?>>Expire bient&ocirc;t</option>
@@ -268,7 +268,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
             <thead>
               <tr>
                 <th>Email</th>
-                <th>Certification</th>
+                <th>Pack</th>
                 <th>Derni&egrave;re r&eacute;ussite</th>
                 <th>Expire le</th>
                 <th>Statut</th>

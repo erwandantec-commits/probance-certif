@@ -147,6 +147,7 @@ $badgeByPackage = [
   'GOLD' => '/assets/badges/user-badge-gold.png?v=' . $badgeVersion,
   'VERMEIL' => '/assets/badges/user-badge-gold.png?v=' . $badgeVersion,
 ];
+$today = new DateTimeImmutable('today');
 foreach ($certSuccessStmt->fetchAll() as $row) {
   $pkgId = (int)$row['package_id'];
   $contactId = (int)$row['contact_id'];
@@ -186,8 +187,17 @@ foreach ($certSuccessStmt->fetchAll() as $row) {
     'display_order' => (int)($row['package_display_order'] ?? 100),
     'started_at' => (string)$row['started_at'],
     'expires_at' => $statusInfo['expires_at'] instanceof DateTimeImmutable ? $statusInfo['expires_at']->format('d/m/Y') : '',
+    'days_remaining' => null,
+    'days_remaining_urgent' => false,
     'status_key' => $isRevoked ? 'REVOKED' : (string)$statusInfo['status_key'],
   ];
+  if (!$isRevoked && $statusInfo['expires_at'] instanceof DateTimeImmutable) {
+    $daysRemaining = (int)$today->diff($statusInfo['expires_at'])->format('%r%a');
+    if ($daysRemaining >= 0) {
+      $certCards[$pkgId]['days_remaining'] = $daysRemaining;
+      $certCards[$pkgId]['days_remaining_urgent'] = ($daysRemaining < 30);
+    }
+  }
   if ($isRevoked) {
     $certCards[$pkgId]['expires_at'] = '';
   }
@@ -466,7 +476,12 @@ function dash_remaining_label(int $seconds): string {
             <?php endif; ?>
             <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.obtained_on', [], $lang)) ?>: <?= h(date('d/m/Y', strtotime((string)$card['started_at']))) ?></div>
             <?php if ((string)$card['expires_at'] !== ''): ?>
-              <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.valid_until', [], $lang)) ?>: <?= h((string)$card['expires_at']) ?></div>
+              <div class="dashboard-cert-card-meta<?= !empty($card['days_remaining_urgent']) ? ' dashboard-cert-card-meta-urgent' : '' ?>">
+                <?= h(t('dash.certifications.valid_until', [], $lang)) ?>: <?= h((string)$card['expires_at']) ?>
+                <?php if (($card['days_remaining'] ?? null) !== null): ?>
+                  (<?= h(t('dash.certifications.days_left', ['days' => (string)((int)$card['days_remaining'])], $lang)) ?>)
+                <?php endif; ?>
+              </div>
             <?php endif; ?>
             <div class="dashboard-cert-card-status">
               <span class="<?= h(dash_cert_status_class((string)$card['status_key'])) ?> dashboard-cert-status-badge <?= h((string)$card['status_key'] === 'CERTIFIED' ? 'is-valid' : '') ?>">

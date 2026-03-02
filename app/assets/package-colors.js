@@ -30,6 +30,11 @@
     var scope = root || document;
     var selects = scope.querySelectorAll("select[name='package_id'], select#package_id");
     selects.forEach(function (select) {
+      if (select.getAttribute("data-package-colors") === "off") {
+        select.style.removeProperty("color");
+        select.style.removeProperty("font-weight");
+        return;
+      }
       applySelectColor(select);
       select.addEventListener("change", function () {
         applySelectColor(select);

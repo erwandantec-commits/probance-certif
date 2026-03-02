@@ -76,16 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim((string)($_POST['email'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     $password2 = (string)($_POST['password2'] ?? '');
-    $newRole = strtoupper(trim((string)($_POST['new_role'] ?? 'USER')));
-    if (!in_array($newRole, ['USER', 'ADMIN'], true)) {
-      $newRole = 'USER';
-    }
+    $isAdmin = ((string)($_POST['is_admin'] ?? '0') === '1');
+    $newRole = $isAdmin ? 'ADMIN' : 'USER';
 
     admin_users_set_create_form([
       'first_name' => $firstName,
       'last_name' => $lastName,
       'email' => $email,
-      'new_role' => $newRole,
+      'is_admin' => $isAdmin ? '1' : '0',
     ]);
 
     if ($firstName === '' || $lastName === '' || $email === '' || $password === '' || $password2 === '') {
@@ -153,18 +151,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $firstName = trim((string)($_POST['first_name'] ?? ''));
     $lastName = trim((string)($_POST['last_name'] ?? ''));
     $email = trim((string)($_POST['email'] ?? ''));
-    $newRole = strtoupper(trim((string)($_POST['new_role'] ?? 'USER')));
+    $isAdmin = ((string)($_POST['is_admin'] ?? '0') === '1');
+    $newRole = $isAdmin ? 'ADMIN' : 'USER';
     $newPassword = (string)($_POST['new_password'] ?? '');
     $newPassword2 = (string)($_POST['new_password2'] ?? '');
-    if (!in_array($newRole, ['USER', 'ADMIN'], true)) {
-      $newRole = 'USER';
-    }
 
     admin_users_set_edit_form($targetId, [
       'first_name' => $firstName,
       'last_name' => $lastName,
       'email' => $email,
-      'new_role' => $newRole,
+      'is_admin' => $isAdmin ? '1' : '0',
     ]);
 
     if ($targetId <= 0) {
@@ -262,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   $targetId = (int)($_POST['user_id'] ?? 0);
-  if (!in_array($action, ['grant_admin', 'revoke_admin'], true) || $targetId <= 0) {
+  if ($action !== 'delete_user' || $targetId <= 0) {
     admin_users_set_notice('bad', 'Action invalide.');
     admin_users_redirect();
   }
@@ -283,43 +279,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetEmail = (string)$target['email'];
     $targetRole = (string)$target['role'];
 
-    if ($action === 'grant_admin') {
-      if ($targetRole === 'ADMIN') {
-        $pdo->commit();
-        admin_users_set_notice('ok', 'Aucune modification: ' . $targetEmail . ' est déjà admin.');
-        admin_users_redirect();
-      }
-
-      $upd = $pdo->prepare("UPDATE users SET role='ADMIN' WHERE id=?");
-      $upd->execute([$targetId]);
-      $pdo->commit();
-      admin_users_set_notice('ok', 'Droits admin accordes a ' . $targetEmail . '.');
-      admin_users_redirect();
-    }
-
-    if ($targetRole !== 'ADMIN') {
-      $pdo->commit();
-      admin_users_set_notice('ok', 'Aucune modification: ' . $targetEmail . " n'est pas admin.");
-      admin_users_redirect();
-    }
-
     if ($targetId === $currentAdminId) {
       $pdo->rollBack();
-      admin_users_set_notice('bad', 'Action refusée: vous ne pouvez pas retirer vos propres droits admin.');
+      admin_users_set_notice('bad', 'Action refusée: vous ne pouvez pas supprimer votre propre compte.');
       admin_users_redirect();
     }
 
-    $adminCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role='ADMIN'")->fetchColumn();
-    if ($adminCount <= 1) {
-      $pdo->rollBack();
-      admin_users_set_notice('bad', 'Impossible: au moins un administrateur doit rester actif.');
-      admin_users_redirect();
+    if ($targetRole === 'ADMIN') {
+      $adminCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role='ADMIN'")->fetchColumn();
+      if ($adminCount <= 1) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', 'Impossible: au moins un administrateur doit rester actif.');
+        admin_users_redirect();
+      }
     }
 
-    $upd = $pdo->prepare("UPDATE users SET role='USER' WHERE id=?");
-    $upd->execute([$targetId]);
+    $del = $pdo->prepare("DELETE FROM users WHERE id=?");
+    $del->execute([$targetId]);
     $pdo->commit();
-    admin_users_set_notice('ok', 'Droits admin retirés pour ' . $targetEmail . '.');
+    admin_users_set_notice('ok', 'Utilisateur supprimé: ' . $targetEmail . '.');
     admin_users_redirect();
   } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
@@ -451,10 +429,7 @@ if (!is_array($createForm)) {
 $createFirstName = trim((string)($createForm['first_name'] ?? ''));
 $createLastName = trim((string)($createForm['last_name'] ?? ''));
 $createEmail = trim((string)($createForm['email'] ?? ''));
-$createRole = strtoupper(trim((string)($createForm['new_role'] ?? 'USER')));
-if (!in_array($createRole, ['USER', 'ADMIN'], true)) {
-  $createRole = 'USER';
-}
+$createIsAdmin = ((string)($createForm['is_admin'] ?? '0') === '1');
 $openCreate = ((string)($_GET['open_create'] ?? '') === '1');
 $openEdit = max(0, (int)($_GET['open_edit'] ?? 0));
 $editFormSession = $_SESSION['admin_users_edit_form'] ?? null;
@@ -528,7 +503,7 @@ function admin_users_sort_link(array $qs, string $key): string {
         <div class="section-head">
           <div>
             <h3 class="h1 users-create-title">Créer un utilisateur</h3>
-            <p class="sub">Création immédiate d'un compte avec rôle USER ou ADMIN.</p>
+            <p class="sub">Création immédiate d'un compte utilisateur.</p>
           </div>
         </div>
         <form method="post" class="users-create-form">
@@ -548,11 +523,11 @@ function admin_users_sort_link(array $qs, string $key): string {
               <input class="input" id="create-email" name="email" type="email" required value="<?= h($createEmail) ?>" autocomplete="email">
             </div>
             <div>
-              <label class="label" for="create-role">Rôle initial</label>
-              <select class="input" id="create-role" name="new_role">
-                <option value="USER" <?= $createRole === 'USER' ? 'selected' : '' ?>>USER</option>
-                <option value="ADMIN" <?= $createRole === 'ADMIN' ? 'selected' : '' ?>>ADMIN</option>
-              </select>
+              <label class="label" for="create-is-admin">Administrateur</label>
+              <label class="input" style="display:flex;align-items:center;gap:10px;">
+                <input id="create-is-admin" name="is_admin" type="checkbox" value="1" <?= $createIsAdmin ? 'checked' : '' ?>>
+                <span>Compte admin</span>
+              </label>
             </div>
             <div>
               <label class="label" for="create-password">Mot de passe</label>
@@ -667,12 +642,9 @@ function admin_users_sort_link(array $qs, string $key): string {
                     $editEmail = $isOpenEdit && $editFormUserId === $uid
                       ? trim((string)($editForm['email'] ?? (string)$u['email']))
                       : (string)$u['email'];
-                    $editRole = $isOpenEdit && $editFormUserId === $uid
-                      ? strtoupper(trim((string)($editForm['new_role'] ?? (string)$u['role'])))
-                      : (string)$u['role'];
-                    if (!in_array($editRole, ['USER', 'ADMIN'], true)) {
-                      $editRole = 'USER';
-                    }
+                    $editIsAdmin = $isOpenEdit && $editFormUserId === $uid
+                      ? ((string)($editForm['is_admin'] ?? '0') === '1')
+                      : $isAdmin;
                     $editQs = $_GET;
                     $editQs['open_edit'] = $uid;
                     $editLink = '/admin/users.php?' . http_build_query($editQs);
@@ -695,29 +667,24 @@ function admin_users_sort_link(array $qs, string $key): string {
                   <td><?= h($lastSessionAt) ?></td>
                   <td class="actions-cell">
                     <a class="btn ghost" href="<?= h($editLink) ?>"><?= $isOpenEdit ? 'Edition...' : 'Modifier' ?></a>
-                    <?php if (!$isAdmin): ?>
-                      <form method="post" class="inline-action-form">
-                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                        <input type="hidden" name="action" value="grant_admin">
-                        <input type="hidden" name="user_id" value="<?= $uid ?>">
-                        <button class="btn ghost" type="submit">Promouvoir admin</button>
-                      </form>
-                    <?php else: ?>
-                      <form method="post" class="inline-action-form">
-                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                        <input type="hidden" name="action" value="revoke_admin">
-                        <input type="hidden" name="user_id" value="<?= $uid ?>">
-                        <button
-                          class="btn ghost danger-soft"
-                          type="submit"
-                          <?= $isSelf ? 'disabled' : '' ?>
-                          <?= $isSelf ? 'title="Vous ne pouvez pas retirer vos propres droits."' : '' ?>
-                          onclick="return confirm('Confirmer le retrait des droits admin pour cet utilisateur ?');"
-                        >
-                          Retirer admin
-                        </button>
-                      </form>
-                    <?php endif; ?>
+                    <form method="post" class="inline-action-form">
+                      <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                      <input type="hidden" name="action" value="delete_user">
+                      <input type="hidden" name="user_id" value="<?= $uid ?>">
+                      <button
+                        class="btn ghost icon-btn danger"
+                        type="submit"
+                        <?= $isSelf ? 'disabled' : '' ?>
+                        <?= $isSelf ? 'title="Vous ne pouvez pas supprimer votre propre compte."' : '' ?>
+                        onclick="return confirm('Supprimer cet utilisateur ? Cette action est irreversible.');"
+                        aria-label="Supprimer cet utilisateur"
+                        title="Supprimer"
+                      >
+                        <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                        </svg>
+                      </button>
+                    </form>
                   </td>
                 </tr>
                 <?php if ($isOpenEdit): ?>
@@ -741,11 +708,11 @@ function admin_users_sort_link(array $qs, string $key): string {
                             <input class="input" id="edit-email-<?= (int)$uid ?>" name="email" type="email" required value="<?= h($editEmail) ?>">
                           </div>
                           <div>
-                            <label class="label" for="edit-role-<?= (int)$uid ?>">Role</label>
-                            <select class="input" id="edit-role-<?= (int)$uid ?>" name="new_role">
-                              <option value="USER" <?= $editRole === 'USER' ? 'selected' : '' ?>>USER</option>
-                              <option value="ADMIN" <?= $editRole === 'ADMIN' ? 'selected' : '' ?>>ADMIN</option>
-                            </select>
+                            <label class="label" for="edit-is-admin-<?= (int)$uid ?>">Administrateur</label>
+                            <label class="input" style="display:flex;align-items:center;gap:10px;">
+                              <input id="edit-is-admin-<?= (int)$uid ?>" name="is_admin" type="checkbox" value="1" <?= $editIsAdmin ? 'checked' : '' ?>>
+                              <span>Compte admin</span>
+                            </label>
                           </div>
                           <div>
                             <label class="label" for="edit-pass-<?= (int)$uid ?>">Nouveau mot de passe (optionnel)</label>
@@ -845,3 +812,4 @@ function admin_users_sort_link(array $qs, string $key): string {
   </script>
 </body>
 </html>
+

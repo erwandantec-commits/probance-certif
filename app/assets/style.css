@@ -715,6 +715,17 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   align-items: end;
 }
 
+.filters-grid select,
+.filters-grid option {
+  font-weight: 400 !important;
+}
+
+:root[data-theme="dark"] .filters-grid select,
+:root[data-theme="dark"] .filters-grid option {
+  color: var(--text) !important;
+  background: var(--input-bg);
+}
+
 .filters-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -1046,13 +1057,14 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .sessions-filters {
-  grid-template-columns: 120px 160px 150px 150px minmax(220px, 1fr) auto;
+  grid-template-columns: repeat(5, minmax(180px, 1fr));
   margin-bottom: 10px;
 }
 
 .sessions-filters .filters-actions {
   grid-column: 1 / -1;
 }
+
 
 @media (max-width: 900px) {
   .rule-template-group {
@@ -1719,6 +1731,12 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   background: #162034;
 }
 
+:root[data-theme="dark"] select option,
+:root[data-theme="dark"] select optgroup {
+  background: #0b1220;
+  color: var(--text);
+}
+
 :root[data-theme="dark"] a:not(.btn){
   color: #93c5fd;
 }
@@ -2029,6 +2047,10 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 .dashboard-cert-card-meta {
   font-size: 13px;
   color: #64748b;
+}
+
+.dashboard-cert-card-meta-urgent {
+  font-weight: 700;
 }
 
 .dashboard-cert-card-status {
