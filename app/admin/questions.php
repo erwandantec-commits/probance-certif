@@ -4,20 +4,102 @@ require_once __DIR__ . '/_auth.php';
 require_once __DIR__ . '/_nav.php';
 
 $pdo = db();
+$idFilterRaw = trim((string)($_GET['id_question'] ?? ''));
+$idFilter = ($idFilterRaw !== '' && preg_match('/^\d+$/', $idFilterRaw)) ? (int)$idFilterRaw : null;
 
-$need = strtoupper(trim((string)($_GET['need'] ?? '')));
-$level = (int)($_GET['level'] ?? 0);
-$activeNeed = in_array($need, ['PONE', 'PHM', 'PPM'], true) ? $need : '';
-$activeLevel = ($level >= 1 && $level <= 3) ? $level : 0;
+$rawNeeds = $_GET['needs'] ?? [];
+if (!is_array($rawNeeds)) {
+  $rawNeeds = [$rawNeeds];
+}
+$activeNeeds = [];
+foreach ($rawNeeds as $n) {
+  $n = strtoupper(trim((string)$n));
+  if (in_array($n, ['PONE', 'PHM', 'PPM'], true)) {
+    $activeNeeds[] = $n;
+  }
+}
+$activeNeeds = array_values(array_unique($activeNeeds));
+
+$rawLevels = $_GET['levels'] ?? [];
+if (!is_array($rawLevels)) {
+  $rawLevels = [$rawLevels];
+}
+$legacyActiveLevels = [];
+foreach ($rawLevels as $lv) {
+  $lv = (int)$lv;
+  if ($lv >= 1 && $lv <= 3) {
+    $legacyActiveLevels[] = $lv;
+  }
+}
+$legacyActiveLevels = array_values(array_unique($legacyActiveLevels));
+sort($legacyActiveLevels);
+
+$rawNeedLevels = $_GET['need_levels'] ?? [];
+if (!is_array($rawNeedLevels)) {
+  $rawNeedLevels = [$rawNeedLevels];
+}
+$activeNeedLevels = [];
+foreach ($rawNeedLevels as $pairRaw) {
+  $pair = strtoupper(trim((string)$pairRaw));
+  if (preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
+    $activeNeedLevels[] = $pair;
+  }
+}
+$activeNeedLevels = array_values(array_unique($activeNeedLevels));
+
+// Backward compatibility with old single-value filters.
+$legacyNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
+if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true) && empty($activeNeeds)) {
+  $activeNeeds[] = $legacyNeed;
+}
+$legacyLevel = (int)($_GET['level'] ?? 0);
+if ($legacyLevel >= 1 && $legacyLevel <= 3 && empty($activeNeedLevels)) {
+  if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true)) {
+    $activeNeedLevels[] = $legacyNeed . ':' . $legacyLevel;
+  } else {
+    foreach (['PONE', 'PHM', 'PPM'] as $legacyAnyNeed) {
+      $activeNeedLevels[] = $legacyAnyNeed . ':' . $legacyLevel;
+    }
+  }
+}
+if (empty($activeNeedLevels) && !empty($activeNeeds) && !empty($legacyActiveLevels)) {
+  foreach ($activeNeeds as $n) {
+    foreach ($legacyActiveLevels as $lv) {
+      $activeNeedLevels[] = $n . ':' . $lv;
+    }
+  }
+}
+$activeNeedLevels = array_values(array_unique($activeNeedLevels));
+$activeNeedLevelMap = [];
+foreach ($activeNeedLevels as $pair) {
+  [$n, $lv] = explode(':', $pair, 2);
+  $activeNeedLevelMap[$n][(int)$lv] = true;
+}
 
 $params = [];
 $conds = [];
 
-if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
-  $conds[] = "q.need=?";
-  $params[] = $need;
+if (!empty($activeNeeds) || !empty($activeNeedLevels)) {
+  $orParts = [];
+  foreach ($activeNeeds as $need) {
+    $orParts[] = "(q.need = ?)";
+    $params[] = $need;
+  }
+  foreach ($activeNeedLevels as $pair) {
+    [$pairNeed, $pairLevel] = explode(':', $pair, 2);
+    $orParts[] = "(q.need = ? AND q.level = ?)";
+    $params[] = $pairNeed;
+    $params[] = (int)$pairLevel;
+  }
+  if (!empty($orParts)) {
+    $conds[] = '(' . implode(' OR ', $orParts) . ')';
+  }
 }
-if ($level >= 1 && $level <= 3) { $conds[] = "q.level=?"; $params[] = $level; }
+if ($idFilter !== null) {
+  $conds[] = '(q.id = ? OR q.external_id = ?)';
+  $params[] = $idFilter;
+  $params[] = $idFilter;
+}
 
 $where = $conds ? ("WHERE " . implode(" AND ", $conds)) : "";
 
@@ -80,14 +162,35 @@ function package_label_style_local(string $packageName): string {
   return 'color:' . $color . ';font-weight:700;';
 }
 
-function questions_filter_url(string $need = '', int $level = 0): string {
+function questions_filter_url(array $needs = [], array $needLevels = [], ?int $idFilter = null): string {
   $params = [];
-  if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
-    $params['need'] = $need;
+  $cleanNeeds = [];
+  foreach ($needs as $need) {
+    $need = strtoupper(trim((string)$need));
+    if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
+      $cleanNeeds[] = $need;
+    }
   }
-  if ($level >= 1 && $level <= 3) {
-    $params['level'] = $level;
+  $cleanNeeds = array_values(array_unique($cleanNeeds));
+  if (!empty($cleanNeeds)) {
+    $params['needs'] = $cleanNeeds;
   }
+
+  $cleanNeedLevels = [];
+  foreach ($needLevels as $pair) {
+    $pair = strtoupper(trim((string)$pair));
+    if (preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
+      $cleanNeedLevels[] = $pair;
+    }
+  }
+  $cleanNeedLevels = array_values(array_unique($cleanNeedLevels));
+  if (!empty($cleanNeedLevels)) {
+    $params['need_levels'] = $cleanNeedLevels;
+  }
+  if ($idFilter !== null && $idFilter > 0) {
+    $params['id_question'] = $idFilter;
+  }
+
   return '/admin/questions.php' . ($params ? ('?' . http_build_query($params)) : '');
 }
 ?>
@@ -118,28 +221,69 @@ function questions_filter_url(string $need = '', int $level = 0): string {
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 8px;">
       <a class="btn admin-primary-action-btn" href="/admin/import_questions.php">+ Importer</a>
     </div>
+    <hr class="separator">
+    <form method="get" class="filters-grid users-filters" style="margin-bottom:8px;">
+      <?php foreach ($activeNeeds as $n): ?>
+        <input type="hidden" name="needs[]" value="<?= h($n) ?>">
+      <?php endforeach; ?>
+      <?php foreach ($activeNeedLevels as $pair): ?>
+        <input type="hidden" name="need_levels[]" value="<?= h($pair) ?>">
+      <?php endforeach; ?>
+      <div>
+        <label class="label" for="id_question">ID question</label>
+        <input class="input" id="id_question" name="id_question" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="ID interne ou ID question" value="<?= h($idFilterRaw) ?>">
+      </div>
+      <div class="filters-actions">
+        <button class="btn" type="submit">Rechercher</button>
+        <a class="btn ghost" href="/admin/questions.php">Reset</a>
+      </div>
+    </form>
 
     <div class="distribution-wrap">
       <p class="distribution-title">R&eacute;partition actuelle</p>
       <div class="distribution-grid">
         <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
+          <?php
+            $needActive = in_array($n, $activeNeeds, true);
+            $nextNeeds = $activeNeeds;
+            if ($needActive) {
+              $nextNeeds = array_values(array_filter($nextNeeds, static fn($v) => $v !== $n));
+            } else {
+              $nextNeeds[] = $n;
+            }
+            $nextNeedLevels = $activeNeedLevels;
+            if ($needActive) {
+              $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => strpos($pair, $n . ':') !== 0));
+            }
+            $needUrl = questions_filter_url($nextNeeds, $nextNeedLevels, $idFilter);
+          ?>
           <div class="distribution-card distribution-card-clickable"
-               data-filter-need-url="<?= h(questions_filter_url($n, 0)) ?>"
+               data-filter-need-url="<?= h($needUrl) ?>"
                role="link"
                tabindex="0"
-               aria-label="Filtrer sur <?= h($n) ?>">
+               aria-label="<?= h(($needActive ? 'Retirer' : 'Ajouter') . ' le filtre ' . $n) ?>">
             <p class="distribution-need">
-              <a class="distribution-need-link <?= $activeNeed === $n && $activeLevel === 0 ? 'is-active' : '' ?>"
-                 href="<?= h(questions_filter_url($n, 0)) ?>">
+              <a class="distribution-need-link <?= $needActive ? 'is-active' : '' ?>"
+                 href="<?= h($needUrl) ?>">
                 <?= h($n) ?>
               </a>
             </p>
             <div class="distribution-levels">
               <?php for ($i = 1; $i <= 3; $i++):
                 $c = $distribution[$n][$i] ?? 0;
+                $pairKey = $n . ':' . $i;
+                $levelActive = !empty($activeNeedLevelMap[$n][$i]);
+                $nextNeedLevels = $activeNeedLevels;
+                if ($levelActive) {
+                  $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => $pair !== $pairKey));
+                } else {
+                  $nextNeedLevels[] = $pairKey;
+                }
+                $nextNeedsForLevel = array_values(array_filter($activeNeeds, static fn($needName) => $needName !== $n));
+                $levelUrl = questions_filter_url($nextNeedsForLevel, $nextNeedLevels, $idFilter);
               ?>
-                <a class="distribution-chip distribution-chip-link <?= $activeNeed === $n && $activeLevel === $i ? 'is-active' : '' ?>"
-                   href="<?= h(questions_filter_url($n, $i)) ?>">
+                <a class="distribution-chip distribution-chip-link <?= $levelActive ? 'is-active' : '' ?>"
+                   href="<?= h($levelUrl) ?>">
                   L<?= $i ?> <b><?= $c ?></b>
                 </a>
               <?php endfor; ?>
