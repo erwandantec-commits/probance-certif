@@ -169,7 +169,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   header('Content-Disposition: attachment; filename="certifications_export.csv"');
 
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['email', 'exam', 'last_cert_date', 'expires_at', 'status']);
+  fputcsv($out, ['email', 'Certification', 'last_cert_date', 'expires_at', 'status']);
   foreach ($rows as $r) {
     fputcsv($out, [
       $r['email'],
@@ -187,7 +187,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Admin &middot; Exams</title>
+  <title>Admin &middot; Certifications</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -197,8 +197,8 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     <div class="card admin-card">
       <div class="admin-head">
         <div class="admin-head-copy">
-          <h2 class="h1">Admin &middot; Exams</h2>
-          <p class="sub">Vue des Exams et de leurs &eacute;ch&eacute;ances</p>
+          <h2 class="h1">Admin &middot; Certifications</h2>
+          <p class="sub">Vue des Certifications et de leurs &eacute;ch&eacute;ances</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('certifications'); ?>
@@ -214,7 +214,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
         </div>
 
         <div>
-          <label class="label" for="package_id">Exam</label>
+          <label class="label" for="package_id">Certification</label>
 	          <select id="package_id" name="package_id">
 	            <option value="0">Toutes</option>
 	            <?php foreach ($packages as $p): ?>
@@ -254,7 +254,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 
       <div class="table-wrap">
         <?php if (!$rows): ?>
-          <p class="empty-state">Aucun Exam trouv&eacute;.</p>
+          <p class="empty-state">Aucune certification trouv&eacute;e.</p>
         <?php else: ?>
           <table class="table certifications-table">
             <colgroup>
@@ -268,7 +268,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
             <thead>
               <tr>
                 <th>Email</th>
-                <th>Exam</th>
+                <th>Certification</th>
                 <th>Derni&egrave;re r&eacute;ussite</th>
                 <th>Expire le</th>
                 <th>Statut</th>
@@ -299,10 +299,10 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                       <?php if ((string)($r['last_session_id'] ?? '') === ''): ?>-<?php endif; ?>
                     <?php elseif ($r['status_key'] === 'REVOKED'): ?>
                       <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
-                         onclick="return confirm('Retirer la r&eacute;vocation de cet Exam ?');">R&eacute;tablir</a>
+                         onclick="return confirm('Retirer la r&eacute;vocation de cette certification ?');">R&eacute;tablir</a>
                     <?php else: ?>
                       <a class="btn ghost cert-action-revoke" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
-                         onclick="return confirm('Revoquer cet Exam ?');">Revoquer</a>
+                         onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>
                     <?php endif; ?>
                   </td>
                 </tr>

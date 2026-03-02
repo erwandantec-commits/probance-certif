@@ -402,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Cr&eacute;er un pack</h2>
-          <p class="sub">Ajout d'un nouveau pack d Exam.</p>
+          <p class="sub">Ajout d'un nouveau pack d Certification.</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>

@@ -21,7 +21,7 @@ function render_admin_tabs(string $active = ''): void
   $logoutTab = ['key' => 'logout', 'href' => '/logout.php', 'label' => 'D&eacute;connexion', 'extra_class' => 'admin-logout-btn'];
   $tabs = [
     ['key' => 'sessions', 'href' => '/admin/index.php', 'label' => 'Sessions'],
-    ['key' => 'certifications', 'href' => '/admin/certifications.php', 'label' => 'Exams'],
+    ['key' => 'certifications', 'href' => '/admin/certifications.php', 'label' => 'Certifications'],
     ['key' => 'users', 'href' => '/admin/users.php', 'label' => 'Utilisateurs'],
     ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => 'Packs'],
     ['key' => 'questions', 'href' => '/admin/questions.php', 'label' => 'Questions'],

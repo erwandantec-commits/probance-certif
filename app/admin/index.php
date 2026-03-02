@@ -202,7 +202,7 @@ $stats = $pdo->query("
       <div class="admin-head">
         <div class="admin-head-copy">
           <h2 class="h1">Admin &middot; Sessions</h2>
-          <p class="sub">Pilotage des sessions et Exams</p>
+          <p class="sub">Pilotage des sessions et Certifications</p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('sessions'); ?>
@@ -266,7 +266,7 @@ $stats = $pdo->query("
 
       <div class="row sessions-stats">
         <span class="badge">Actives: <?= (int)$stats['active_count'] ?></span>
-        <span class="badge ok">EXAM r&eacute;ussies: <?= (int)$stats['passed_exam_count'] ?></span>
+        <span class="badge ok">Certifications r&eacute;ussies: <?= (int)$stats['passed_exam_count'] ?></span>
         <span class="badge">Termin&eacute;es: <?= (int)$stats['terminated_count'] ?></span>
         <span class="badge bad">Expir&eacute;es: <?= (int)$stats['expired_count'] ?></span>
       </div>

@@ -630,7 +630,7 @@ function admin_users_sort_link(array $qs, string $key): string {
                 </th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'passed_exam_count')) ?>">
-                    Exams réussis<?php if ($sort === 'passed_exam_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    Certifications réussis<?php if ($sort === 'passed_exam_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
                 <th>

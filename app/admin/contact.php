@@ -29,7 +29,7 @@ if (!in_array($hresult, $allowedResults, true)) $hresult = 'ALL';
 
 function admin_session_type_label(string $type): string {
   return match ($type) {
-    'EXAM' => 'Exam',
+    'EXAM' => 'Certification',
     'TRAINING' => 'Test',
     default => $type,
   };
@@ -122,25 +122,25 @@ $hist = $histStmt->fetchAll();
       <div class="row sessions-stats">
         <span class="badge">Sessions: <?= (int)$summary['total_sessions'] ?></span>
         <span class="badge">Derniere activite: <?= h($summary['last_activity'] ?: '-') ?></span>
-        <span class="badge ok">Exams reussis: <?= (int)$summary['passed_exam_count'] ?></span>
-        <span class="badge">Score moyen Exam: <?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></span>
+        <span class="badge ok">Certifications reussies: <?= (int)$summary['passed_exam_count'] ?></span>
+        <span class="badge">Score moyen Certification: <?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></span>
       </div>
 
       <div class="section-head">
         <div>
-          <h2 class="h1">Exams</h2>
-          <p class="sub">Derniere session EXAM reussie par Exam.</p>
+          <h2 class="h1">Certifications</h2>
+          <p class="sub">Derniere session certification reussie par certification.</p>
         </div>
       </div>
 
       <div class="table-wrap">
         <?php if (!$certs): ?>
-          <p class="empty-state">Aucun Exam reussi.</p>
+          <p class="empty-state">Aucune certification reussie.</p>
         <?php else: ?>
           <table class="table questions-table">
             <thead>
               <tr>
-                <th>Exam</th>
+                <th>Certification</th>
                 <th>Derniere reussite</th>
                 <th>Statut</th>
               </tr>
