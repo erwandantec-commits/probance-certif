@@ -232,7 +232,7 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
         <input type="hidden" name="need_levels[]" value="<?= h($pair) ?>">
       <?php endforeach; ?>
       <div>
-        <label class="label" for="id_question">ID question</label>
+        <label class="label" for="id_question">Rechercher ID question</label>
         <input class="input" id="id_question" name="id_question" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="ID question" value="<?= h($idFilterRaw) ?>">
       </div>
       <div class="filters-actions">
@@ -305,7 +305,7 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
           <thead>
             <tr>
               <th>ID</th>
-              <th>ID question</th>
+              <th>Rechercher ID question</th>
               <th>Connaissances requises</th>
               <th>Niveau</th>
               <th>Type</th>
