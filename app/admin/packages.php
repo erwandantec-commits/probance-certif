@@ -210,6 +210,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <div style="margin: 0 0 12px; display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn admin-primary-action-btn" href="/admin/pack_create.php">+ Cr&eacute;er un pack</a>
       </div>
+      <hr class="separator">
       <div class="table-wrap">
         <table class="table questions-table packages-table">
           <thead>

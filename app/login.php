@@ -47,8 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
 <div class="container">
-  <div class="card">
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
+  <div class="card login-card">
+    <div class="login-topbar">
       <select id="login-lang" class="input lang-select"
               onchange="window.location.href='/login.php?lang=' + encodeURIComponent(this.value);">
         <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
@@ -58,8 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </select>
     </div>
 
-    <h2 class="h1"><?= h(t('login.title', [], $lang)) ?></h2>
-    <p class="sub"><?= h(t('login.subtitle', [], $lang)) ?></p>
+    <div class="login-brand">
+      <img class="dashboard-candidate-logo login-brand-logo" src="/assets/logo-candidat.svg" alt="Logo candidat">
+      <div class="login-brand-text">
+        <h2 class="h1"><?= h(t('login.title', [], $lang)) ?></h2>
+        <p class="sub"><?= h(t('login.subtitle', [], $lang)) ?></p>
+      </div>
+    </div>
 
     <?php if ($errorKey): ?>
       <p class="error"><?= h(t($errorKey, [], $lang)) ?></p>

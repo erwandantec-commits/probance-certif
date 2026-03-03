@@ -521,7 +521,6 @@ function admin_users_sort_link(array $qs, string $key): string {
         <div class="section-head">
           <div>
             <h3 class="h1 users-create-title">Créer un utilisateur</h3>
-            <p class="sub">Création immédiate d'un compte utilisateur.</p>
           </div>
         </div>
         <form method="post" class="users-create-form">
@@ -541,10 +540,10 @@ function admin_users_sort_link(array $qs, string $key): string {
               <input class="input" id="create-email" name="email" type="email" required value="<?= h($createEmail) ?>" autocomplete="email">
             </div>
             <div>
-              <label class="label" for="create-is-admin">Administrateur</label>
+              <label class="label" for="create-is-admin">R&ocirc;le</label>
               <label class="input" style="display:flex;align-items:center;gap:10px;">
                 <input id="create-is-admin" name="is_admin" type="checkbox" value="1" <?= $createIsAdmin ? 'checked' : '' ?>>
-                <span>Compte admin</span>
+                <span>Admin</span>
               </label>
             </div>
             <div>
@@ -575,7 +574,7 @@ function admin_users_sort_link(array $qs, string $key): string {
           <input class="input" id="name" type="text" name="name" value="<?= h($nameFilter) ?>" placeholder="Nom ou prenom">
         </div>
         <div>
-          <label class="label" for="role">Role</label>
+          <label class="label" for="role">R&ocirc;le</label>
           <select class="input" id="role" name="role">
             <option value="ALL" <?= $role === 'ALL' ? 'selected' : '' ?>>Tous</option>
             <option value="ADMIN" <?= $role === 'ADMIN' ? 'selected' : '' ?>>Administrateurs</option>
@@ -612,7 +611,7 @@ function admin_users_sort_link(array $qs, string $key): string {
                 <th>Prenom</th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'role')) ?>">
-                    Role<?php if ($sort === 'role'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    R&ocirc;le<?php if ($sort === 'role'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
                 <th>
@@ -730,10 +729,10 @@ function admin_users_sort_link(array $qs, string $key): string {
                             <input class="input" id="edit-email-<?= (int)$uid ?>" name="email" type="email" required value="<?= h($editEmail) ?>">
                           </div>
                           <div>
-                            <label class="label" for="edit-is-admin-<?= (int)$uid ?>">Administrateur</label>
+                            <label class="label" for="edit-is-admin-<?= (int)$uid ?>">R&ocirc;le</label>
                             <label class="input" style="display:flex;align-items:center;gap:10px;">
                               <input id="edit-is-admin-<?= (int)$uid ?>" name="is_admin" type="checkbox" value="1" <?= $editIsAdmin ? 'checked' : '' ?>>
-                              <span>Compte admin</span>
+                              <span>Admin</span>
                             </label>
                           </div>
                           <div>

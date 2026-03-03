@@ -522,6 +522,7 @@ function dash_remaining_label(int $seconds): string {
 		              <?php foreach ($packages as $pk): ?>
 	                <?php
 	                  $pkName = localize_text((string)$pk['name'], $lang);
+	                  $pkCode = strtoupper(trim((string)$pk['name']));
 	                  $pkTone = package_color_hex((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''));
 	                  $pkDuration = (int)$pk['duration_limit_minutes'];
 	                  $isFirst = ((int)$pk['id'] === (int)$firstPkg['id']);
@@ -529,7 +530,7 @@ function dash_remaining_label(int $seconds): string {
 	                ?>
 		                <button
 		                  type="button"
-		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?><?= $isExamLocked ? ' is-exam-locked' : '' ?>"
+		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?><?= $isExamLocked ? ' is-exam-locked' : '' ?><?= $pkCode === 'BLACK' ? ' pkg-black' : '' ?>"
 		                  data-package-value="<?= (int)$pk['id'] ?>"
 		                  data-package-name="<?= h($pkName) ?>"
 		                  data-active-sid-exam="<?= h((string)($activeByPackage[(int)$pk['id']]['EXAM']['id'] ?? '')) ?>"
