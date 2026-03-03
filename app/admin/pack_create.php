@@ -344,7 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($hasCertValidityDaysColumn && ($certValidityDays < 1 || $certValidityDays > 3650)) {
     $error = 'Validite invalide (1 a 3650 jours).';
   } elseif ($duration < 1 || $duration > 600) {
-    $error = 'DurÃ©e invalide (1 Ã  600 minutes).';
+    $error = 'Duree invalide (1 a 600 minutes).';
   } elseif ($count < 1 || $count > 200) {
     $error = 'Nombre de questions invalide (1 a 200).';
   } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
@@ -369,7 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($hasRulesColumn && !empty($ruleRows)) {
         $selectionRulesJson = pack_create_rule_rows_to_json($ruleRows, $count);
         if ($selectionRulesJson === '') {
-          $error = 'RÃ¨gles de tirage invalides.';
+          $error = 'Regles de tirage invalides.';
         }
       }
 
