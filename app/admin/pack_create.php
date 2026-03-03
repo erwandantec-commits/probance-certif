@@ -156,6 +156,7 @@ function pack_create_badge_file_options(): array {
 $error = '';
 $name = '';
 $threshold = 80;
+$certValidityDays = 365;
 $duration = 120;
 $count = 10;
 $antiRepeatSessions = 4;
@@ -210,6 +211,13 @@ $hasAntiRepeatSessionsColumn = (bool)$pdo->query("
     AND TABLE_NAME = 'packages'
     AND COLUMN_NAME = 'anti_repeat_sessions'
 ")->fetchColumn();
+$hasCertValidityDaysColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'cert_validity_days'
+")->fetchColumn();
 $badgeImageOptions = pack_create_badge_file_options();
 if ($hasDisplayOrderColumn) {
   $nextDisplayOrder = (int)$pdo->query("SELECT COALESCE(MAX(display_order), 0) + 10 FROM packages")->fetchColumn();
@@ -233,6 +241,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_duration']) && $_GET['draft_duration'] !== '') {
     $duration = (int)$_GET['draft_duration'];
   }
+  if (isset($_GET['draft_cert_validity_days']) && $_GET['draft_cert_validity_days'] !== '') {
+    $certValidityDays = (int)$_GET['draft_cert_validity_days'];
+  }
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
   }
@@ -240,6 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
   }
   $threshold = max(0, min(100, $threshold));
+  $certValidityDays = max(1, min(3650, $certValidityDays));
   $duration = max(1, min(600, $duration));
   $count = max(1, min(200, $count));
   $antiRepeatSessions = max(0, min(20, $antiRepeatSessions));
@@ -303,6 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $name = trim((string)($_POST['name'] ?? ''));
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
+  $certValidityDays = (int)($_POST['cert_validity_days'] ?? 365);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 10);
   $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? 4);
@@ -328,6 +341,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Nom de pack trop long (max 255 caracteres).';
   } elseif ($threshold < 0 || $threshold > 100) {
     $error = 'Seuil invalide (0 a 100).';
+  } elseif ($hasCertValidityDaysColumn && ($certValidityDays < 1 || $certValidityDays > 3650)) {
+    $error = 'Validite invalide (1 a 3650 jours).';
   } elseif ($duration < 1 || $duration > 600) {
     $error = 'DurÃ©e invalide (1 Ã  600 minutes).';
   } elseif ($count < 1 || $count > 200) {
@@ -363,6 +378,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       } else {
         $columns = ['name', 'pass_threshold_percent', 'duration_limit_minutes', 'selection_count', 'is_active'];
         $values = [$name, $threshold, $duration, $count, $isActive];
+        if ($hasCertValidityDaysColumn) {
+          $columns[] = 'cert_validity_days';
+          $values[] = $certValidityDays;
+        }
         if ($hasAntiRepeatSessionsColumn) {
           $columns[] = 'anti_repeat_sessions';
           $values[] = $antiRepeatSessions;
@@ -439,12 +458,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <div class="pack-config-fields">
                 <div>
                   <label class="label" for="create-pack-name">Nom du pack</label>
-                  <input class="input" id="create-pack-name" name="name" type="text" maxlength="255" required value="<?= h($name) ?>">
+                  <input class="input" id="create-pack-name" name="name" type="text" maxlength="255" required value="<?= htmlspecialchars((string)$name, ENT_QUOTES, 'UTF-8') ?>">
                 </div>
                 <?php if ($hasProfileColumn): ?>
                   <div>
                     <label class="label" for="create-pack-profile">Profil</label>
-                    <input class="input" id="create-pack-profile" name="profile" type="text" maxlength="255" value="<?= h($profile) ?>">
+                    <input class="input" id="create-pack-profile" name="profile" type="text" maxlength="255" value="<?= htmlspecialchars((string)$profile, ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                 <?php endif; ?>
                 <div>
@@ -454,6 +473,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <option value="0" <?= $isActive === 0 ? 'selected' : '' ?>>Inactif</option>
                   </select>
                 </div>
+                <?php if ($hasCertValidityDaysColumn): ?>
+                  <div>
+                    <label class="label" for="create-pack-cert-validity-days">P&eacute;riode de validit&eacute; (jours)</label>
+                    <input class="input" id="create-pack-cert-validity-days" name="cert_validity_days" type="number" min="1" max="3650" required value="<?= (int)$certValidityDays ?>">
+                  </div>
+                <?php endif; ?>
               </div>
             </article>
 
@@ -491,12 +516,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <article class="pack-config-card pack-config-card-wide">
               <h4 class="pack-config-card-title">Apparence</h4>
-              <div class="pack-config-fields">
+              <div class="pack-config-fields pack-appearance-fields">
                 <?php if ($hasNameColorColumn): ?>
                   <div class="pack-color-field">
                     <label class="label" for="create-pack-color">Couleur du nom</label>
                     <div class="pack-color-row">
-                      <input class="pack-color-input" id="create-pack-color" name="name_color_hex" type="color" value="<?= h($nameColorHex) ?>">
+                      <input class="pack-color-input" id="create-pack-color" name="name_color_hex" type="color" value="<?= htmlspecialchars((string)$nameColorHex, ENT_QUOTES, 'UTF-8') ?>">
                       <span class="pack-color-swatch" data-pack-color-preview style="background:<?= h($nameColorHex) ?>;"></span>
                       <span class="pack-color-code" data-pack-color-code><?= h(strtoupper($nameColorHex)) ?></span>
                     </div>
@@ -506,21 +531,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <div class="badge-picker-field">
                     <label class="label">Image du badge</label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($badgeImageFilename) ?>">
-                    <?php if ($badgeImageFilename !== ''): ?>
-                      <div class="badge-current">
-                        <img src="/assets/badges/<?= h(rawurlencode($badgeImageFilename)) ?>" alt="<?= h($badgeImageFilename) ?>">
-                        <div class="badge-current-meta"><?= h($badgeImageFilename) ?></div>
-                      </div>
-                    <?php endif; ?>
                     <?php $libraryReturn = '/admin/pack_create.php'; ?>
-                    <div style="margin-top:8px;">
+                    <?php if ($badgeImageFilename !== ''): ?>
                       <a
                         id="pack-create-badge-picker"
-                        class="btn ghost"
+                        class="badge-current-link"
                         data-base-return="<?= h($libraryReturn) ?>"
                         href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
-                      >Choisir / Televerser une image</a>
-                    </div>
+                        aria-label="Choisir une image de badge"
+                        title="Choisir une image de badge"
+                      >
+                        <div class="badge-current">
+                          <img src="/assets/badges/<?= h(rawurlencode($badgeImageFilename)) ?>" alt="<?= h($badgeImageFilename) ?>">
+                          <div class="badge-current-meta"><?= h($badgeImageFilename) ?></div>
+                        </div>
+                      </a>
+                      <p class="small badge-picker-hint">Cliquez sur le badge pour changer l'image.</p>
+                    <?php endif; ?>
                     <?php if (!$badgeImageOptions): ?>
                       <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
                     <?php endif; ?>
@@ -666,6 +693,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           returnUrl.searchParams.set('draft_profile', fieldValue('profile'));
           returnUrl.searchParams.set('draft_active', fieldValue('is_active') || '1');
           returnUrl.searchParams.set('draft_threshold', fieldValue('pass_threshold_percent') || '80');
+          returnUrl.searchParams.set('draft_cert_validity_days', fieldValue('cert_validity_days') || '365');
           returnUrl.searchParams.set('draft_duration', fieldValue('duration_limit_minutes') || '120');
           returnUrl.searchParams.set('draft_count', fieldValue('selection_count') || '10');
           returnUrl.searchParams.set('draft_anti_repeat', fieldValue('anti_repeat_sessions') || '4');

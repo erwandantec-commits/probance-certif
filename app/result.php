@@ -30,6 +30,9 @@ $resultBadgeImageSelect = result_package_column_exists($pdo, 'badge_image_filena
 $resultProfileSelect = result_package_column_exists($pdo, 'profile')
   ? ", pk.profile AS package_profile"
   : ", NULL AS package_profile";
+$resultCertValidityDaysSelect = result_package_column_exists($pdo, 'cert_validity_days')
+  ? ", pk.cert_validity_days AS package_cert_validity_days"
+  : ", 365 AS package_cert_validity_days";
 
 $sid = $_GET['sid'] ?? '';
 if (!$sid) {
@@ -42,6 +45,7 @@ $stmt = $pdo->prepare("
   SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent, pk.duration_limit_minutes
     $resultBadgeImageSelect
     $resultProfileSelect
+    $resultCertValidityDaysSelect
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
@@ -66,6 +70,7 @@ if (session_is_expired($s)) {
     SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent, pk.duration_limit_minutes
       $resultBadgeImageSelect
       $resultProfileSelect
+      $resultCertValidityDaysSelect
     FROM sessions s
     JOIN contacts c ON c.id = s.contact_id
     JOIN packages pk ON pk.id = s.package_id
@@ -115,7 +120,13 @@ if ($isPassedTerminatedExam) {
   if ($baseDateRaw !== '') {
     try {
       $dt = new DateTimeImmutable($baseDateRaw);
-      $expiresAt = $dt->modify('+1 year');
+      $validityDays = (int)($s['package_cert_validity_days'] ?? 365);
+      if ($validityDays < 1) {
+        $validityDays = 1;
+      } elseif ($validityDays > 3650) {
+        $validityDays = 3650;
+      }
+      $expiresAt = $dt->modify('+' . $validityDays . ' days');
       $validUntil = $expiresAt->format('d/m/Y');
       $daysRemaining = (int)(new DateTimeImmutable('today'))->diff($expiresAt)->format('%r%a');
       if ($daysRemaining >= 0) {

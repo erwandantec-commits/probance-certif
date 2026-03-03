@@ -533,7 +533,11 @@ function session_is_expired(array $session, ?DateTimeImmutable $now = null): boo
   return $now > $expires;
 }
 
-function certification_status_from_last_success(?string $lastSuccessAt, ?DateTimeImmutable $now = null): array {
+function certification_status_from_last_success(
+  ?string $lastSuccessAt,
+  ?DateTimeImmutable $now = null,
+  int $validityDays = 365
+): array {
   if ($lastSuccessAt === null || trim($lastSuccessAt) === '') {
     return [
       'status_key' => 'NONE',
@@ -543,9 +547,15 @@ function certification_status_from_last_success(?string $lastSuccessAt, ?DateTim
     ];
   }
 
+  if ($validityDays < 1) {
+    $validityDays = 1;
+  } elseif ($validityDays > 3650) {
+    $validityDays = 3650;
+  }
+
   $now = $now ?: new DateTimeImmutable('today');
   $last = new DateTimeImmutable($lastSuccessAt);
-  $expires = $last->modify('+1 year');
+  $expires = $last->modify('+' . $validityDays . ' days');
   $soonLimit = $now->modify('+30 days');
 
   if ($expires < $now) {

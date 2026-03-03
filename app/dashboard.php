@@ -30,6 +30,7 @@ function dashboard_package_column_exists(PDO $pdo, string $column): bool {
 $hasPackageProfileColumn = dashboard_package_column_exists($pdo, 'profile');
 $hasPackageDisplayOrderColumn = dashboard_package_column_exists($pdo, 'display_order');
 $hasPackageBadgeImageColumn = dashboard_package_column_exists($pdo, 'badge_image_filename');
+$hasPackageCertValidityDaysColumn = dashboard_package_column_exists($pdo, 'cert_validity_days');
 
 $errKey = trim((string)($_GET['err_key'] ?? ''));
 $err = trim((string)($_GET['err'] ?? ''));
@@ -103,11 +104,13 @@ $last = $lastStmt->fetchAll();
 $certProfileSelect = $hasPackageProfileColumn ? ", pk.profile AS package_profile" : ", NULL AS package_profile";
 $certDisplayOrderSelect = $hasPackageDisplayOrderColumn ? ", pk.display_order AS package_display_order" : ", 100 AS package_display_order";
 $certBadgeImageSelect = $hasPackageBadgeImageColumn ? ", pk.badge_image_filename AS package_badge_image" : ", NULL AS package_badge_image";
+$certValidityDaysSelect = $hasPackageCertValidityDaysColumn ? ", pk.cert_validity_days AS package_cert_validity_days" : ", 365 AS package_cert_validity_days";
 $certSuccessStmt = $pdo->prepare("
   SELECT s.id, s.contact_id, s.package_id, s.started_at, s.submitted_at, pk.name AS package_name, pk.name_color_hex AS package_color_hex
     $certProfileSelect
     $certDisplayOrderSelect
     $certBadgeImageSelect
+    $certValidityDaysSelect
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.user_id=?
@@ -156,7 +159,11 @@ foreach ($certSuccessStmt->fetchAll() as $row) {
     continue;
   }
   $baseDate = (string)($row['submitted_at'] ?: $row['started_at']);
-  $statusInfo = certification_status_from_last_success($baseDate);
+  $statusInfo = certification_status_from_last_success(
+    $baseDate,
+    null,
+    (int)($row['package_cert_validity_days'] ?? 365)
+  );
   $pkgName = strtoupper(trim((string)$row['package_name']));
   $customBadgeFile = trim((string)($row['package_badge_image'] ?? ''));
   $badgePath = ($customBadgeFile !== '')
