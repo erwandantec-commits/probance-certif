@@ -333,6 +333,7 @@ $hasProfileColumn = package_edit_package_column_exists($pdo, 'profile');
 $hasDisplayOrderColumn = package_edit_package_column_exists($pdo, 'display_order');
 $hasBadgeImageColumn = package_edit_package_column_exists($pdo, 'badge_image_filename');
 $hasAntiRepeatSessionsColumn = package_edit_package_column_exists($pdo, 'anti_repeat_sessions');
+$hasCertValidityDaysColumn = package_edit_package_column_exists($pdo, 'cert_validity_days');
 $badgeImageOptions = package_edit_badge_file_options();
 $ruleTemplates = package_rule_templates();
 $packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
@@ -374,6 +375,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_duration']) && $_GET['draft_duration'] !== '') {
     $duration = (int)$_GET['draft_duration'];
   }
+  if (isset($_GET['draft_cert_validity_days']) && $_GET['draft_cert_validity_days'] !== '') {
+    $certValidityDays = (int)$_GET['draft_cert_validity_days'];
+  }
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
   }
@@ -381,6 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
   }
   if (isset($threshold)) $threshold = max(0, min(100, (int)$threshold));
+  if (isset($certValidityDays)) $certValidityDays = max(1, min(3650, (int)$certValidityDays));
   if (isset($duration)) $duration = max(1, min(600, (int)$duration));
   if (isset($count)) $count = max(1, min(200, (int)$count));
   if (isset($antiRepeatSessions)) $antiRepeatSessions = max(0, min(20, (int)$antiRepeatSessions));
@@ -601,6 +606,7 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $name = trim((string)($_POST['name'] ?? (string)($pk['name'] ?? '')));
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
+  $certValidityDays = (int)($_POST['cert_validity_days'] ?? (int)($pk['cert_validity_days'] ?? 365));
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 5);
   $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? (int)($pk['anti_repeat_sessions'] ?? 4));
@@ -625,6 +631,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = "Nom du pack trop long";
   } elseif ($threshold < 0 || $threshold > 100) {
     $error = "Seuil invalide";
+  } elseif ($hasCertValidityDaysColumn && ($certValidityDays < 1 || $certValidityDays > 3650)) {
+    $error = "Validite invalide (1 a 3650 jours)";
   } elseif ($duration < 1 || $duration > 600) {
     $error = "Duree invalide";
   } elseif ($count < 1 || $count > 200) {
@@ -661,6 +669,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'is_active=?',
       ];
       $values = [$name, $threshold, $duration, $count, $isActive];
+      if ($hasCertValidityDaysColumn) {
+        $sets[] = 'cert_validity_days=?';
+        $values[] = $certValidityDays;
+      }
       if ($hasAntiRepeatSessionsColumn) {
         $sets[] = 'anti_repeat_sessions=?';
         $values[] = $antiRepeatSessions;
@@ -702,6 +714,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $formThreshold = isset($threshold) ? $threshold : (int)$pk['pass_threshold_percent'];
+$formCertValidityDays = isset($certValidityDays) ? $certValidityDays : (int)($pk['cert_validity_days'] ?? 365);
 $formDuration = isset($duration) ? $duration : (int)$pk['duration_limit_minutes'];
 $formCount = isset($count) ? $count : (int)$pk['selection_count'];
 $formAntiRepeatSessions = isset($antiRepeatSessions) ? $antiRepeatSessions : (int)($pk['anti_repeat_sessions'] ?? 4);
@@ -776,6 +789,20 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     <option value="0" <?= $formIsActive === 0 ? 'selected' : '' ?>>Inactif</option>
                   </select>
                 </div>
+                <?php if ($hasCertValidityDaysColumn): ?>
+                  <div>
+                    <label class="label">P&eacute;riode de validit&eacute; (jours)</label>
+                    <input
+                      class="input"
+                      type="number"
+                      name="cert_validity_days"
+                      min="1"
+                      max="3650"
+                      value="<?= (int)$formCertValidityDays ?>"
+                      required
+                    >
+                  </div>
+                <?php endif; ?>
               </div>
             </article>
 
@@ -845,7 +872,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
             <article class="pack-config-card pack-config-card-wide">
               <h4 class="pack-config-card-title">Apparence</h4>
-              <div class="pack-config-fields">
+              <div class="pack-config-fields pack-appearance-fields">
                 <?php if ($hasNameColorColumn): ?>
                   <div class="pack-color-field">
                     <label class="label">Couleur du nom</label>
@@ -867,17 +894,11 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   <div class="badge-picker-field">
                     <label class="label">Image du badge</label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($formBadgeImageFilename) ?>">
-                    <?php if ($formBadgeImageFilename !== ''): ?>
-                      <div class="badge-current">
-                        <img src="/assets/badges/<?= h(rawurlencode($formBadgeImageFilename)) ?>" alt="<?= h($formBadgeImageFilename) ?>">
-                        <div class="badge-current-meta"><?= h($formBadgeImageFilename) ?></div>
-                      </div>
-                    <?php endif; ?>
                     <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id; ?>
-                    <div style="margin-top:8px;">
+                    <?php if ($formBadgeImageFilename !== ''): ?>
                       <a
                         id="pack-edit-badge-picker"
-                        class="btn ghost"
+                        class="badge-current-link"
                         data-base-return="<?= h($libraryReturn) ?>"
                         href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
                       >Cliquez pour changer l'image.</a>
@@ -1212,6 +1233,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           returnUrl.searchParams.set('draft_profile', editFieldValue('profile'));
           returnUrl.searchParams.set('draft_active', editFieldValue('is_active') || '1');
           returnUrl.searchParams.set('draft_threshold', editFieldValue('pass_threshold_percent') || String(<?= (int)$formThreshold ?>));
+          returnUrl.searchParams.set('draft_cert_validity_days', editFieldValue('cert_validity_days') || String(<?= (int)$formCertValidityDays ?>));
           returnUrl.searchParams.set('draft_duration', editFieldValue('duration_limit_minutes') || String(<?= (int)$formDuration ?>));
           returnUrl.searchParams.set('draft_count', editFieldValue('selection_count') || String(<?= (int)$formCount ?>));
           returnUrl.searchParams.set('draft_anti_repeat', editFieldValue('anti_repeat_sessions') || String(<?= (int)$formAntiRepeatSessions ?>));

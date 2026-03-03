@@ -67,7 +67,9 @@ if ($session_type === 'EXAM') {
   $validCertStmt->execute([$uid, $package_id]);
   $lastSuccessAt = $validCertStmt->fetchColumn();
   $certStatus = certification_status_from_last_success(
-    is_string($lastSuccessAt) ? $lastSuccessAt : null
+    is_string($lastSuccessAt) ? $lastSuccessAt : null,
+    null,
+    (int)($pkg['cert_validity_days'] ?? 365)
   );
 
   if (($certStatus['status_key'] ?? 'NONE') === 'CERTIFIED' || ($certStatus['status_key'] ?? 'NONE') === 'SOON') {

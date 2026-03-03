@@ -8,12 +8,34 @@ require_once __DIR__ . '/../services/session_service.php';
 require_once __DIR__ . '/_nav.php';
 $pdo = db();
 
+function admin_contact_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+
 $email = trim($_GET['email'] ?? '');
 if ($email === '') { http_response_code(400); echo "Missing email"; exit; }
 
 $sessionEndExpr = sessions_column_exists($pdo, 'ended_at')
   ? "COALESCE(s.ended_at, s.submitted_at, s.started_at)"
   : "COALESCE(s.submitted_at, s.started_at)";
+$hasCertValidityDaysColumn = admin_contact_package_column_exists($pdo, 'cert_validity_days');
+$certValidityDaysSelect = $hasCertValidityDaysColumn
+  ? "pk.cert_validity_days AS cert_validity_days"
+  : "365 AS cert_validity_days";
+$certValidityDaysGroup = $hasCertValidityDaysColumn ? ", pk.cert_validity_days" : "";
 
 $hsort = $_GET['hsort'] ?? 'started_at';
 $hdir  = strtoupper($_GET['hdir'] ?? 'DESC');
@@ -57,6 +79,7 @@ $certsStmt = $pdo->prepare("
   SELECT
     pk.name AS package_name,
     pk.name_color_hex AS package_color_hex,
+    $certValidityDaysSelect,
     MAX($sessionEndExpr) AS last_cert_date
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
@@ -64,7 +87,7 @@ $certsStmt = $pdo->prepare("
     AND s.status = 'TERMINATED'
     AND s.passed = 1
     AND s.session_type = 'EXAM'
-  GROUP BY pk.name
+  GROUP BY pk.name, pk.name_color_hex$certValidityDaysGroup
   ORDER BY last_cert_date DESC
 ");
 $certsStmt->execute([(int)$contact['id']]);
@@ -147,7 +170,11 @@ $hist = $histStmt->fetchAll();
             </thead>
             <tbody>
               <?php foreach ($certs as $c):
-                $certStatus = certification_status_from_last_success((string)$c['last_cert_date']);
+                $certStatus = certification_status_from_last_success(
+                  (string)$c['last_cert_date'],
+                  null,
+                  (int)($c['cert_validity_days'] ?? 365)
+                );
               ?>
                 <tr>
 	                  <td><span style="<?= h(package_label_style((string)$c['package_name'], (string)($c['package_color_hex'] ?? ''))) ?>"><?= h($c['package_name']) ?></span></td>

@@ -400,13 +400,19 @@ if ($page > $totalPages) {
 }
 $offset = ($page - 1) * $limit;
 
-$orderSql = match ($sort) {
-  'email' => 'u.email',
-  'role' => 'u.role',
-  'session_count' => 'COALESCE(su.session_count, 0)',
-  'passed_exam_count' => 'COALESCE(su.passed_exam_count, 0)',
-  'last_session_at' => 'su.last_session_at',
-  default => 'u.created_at',
+$orderSql = match ($sort . ':' . $dir) {
+  'email:ASC' => 'u.email ASC',
+  'email:DESC' => 'u.email DESC',
+  'role:ASC' => 'u.role ASC',
+  'role:DESC' => 'u.role DESC',
+  'session_count:ASC' => 'COALESCE(su.session_count, 0) ASC',
+  'session_count:DESC' => 'COALESCE(su.session_count, 0) DESC',
+  'passed_exam_count:ASC' => 'COALESCE(su.passed_exam_count, 0) ASC',
+  'passed_exam_count:DESC' => 'COALESCE(su.passed_exam_count, 0) DESC',
+  'last_session_at:ASC' => 'su.last_session_at ASC',
+  'last_session_at:DESC' => 'su.last_session_at DESC',
+  'created_at:ASC' => 'u.created_at ASC',
+  default => 'u.created_at DESC',
 };
 
 $listSql = "
@@ -423,7 +429,7 @@ $listSql = "
     su.last_session_at
   " . $baseFrom . "
   " . $whereSql . "
-  ORDER BY " . $orderSql . " " . $dir . ", u.id DESC
+  ORDER BY " . $orderSql . ", u.id DESC
   LIMIT ? OFFSET ?
 ";
 

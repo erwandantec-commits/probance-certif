@@ -136,8 +136,8 @@ $options = badge_library_options();
         <?php else: ?>
           <?php foreach ($options as $fileName): ?>
             <form method="post" class="badge-library-item">
-              <input type="hidden" name="return" value="<?= h($returnPath) ?>">
-              <input type="hidden" name="pick_filename" value="<?= h($fileName) ?>">
+              <input type="hidden" name="return" value="<?= htmlspecialchars((string)$returnPath, ENT_QUOTES, 'UTF-8') ?>">
+              <input type="hidden" name="pick_filename" value="<?= htmlspecialchars((string)$fileName, ENT_QUOTES, 'UTF-8') ?>">
               <button type="submit" class="badge-library-pick-btn">
                 <img src="/assets/badges/<?= h(rawurlencode($fileName)) ?>" alt="<?= h($fileName) ?>" loading="lazy">
                 <span><?= h($fileName) ?></span>
@@ -151,7 +151,7 @@ $options = badge_library_options();
 
       <h3 class="distribution-title">Televerser une nouvelle image</h3>
       <form method="post" enctype="multipart/form-data" class="users-create-form">
-        <input type="hidden" name="return" value="<?= h($returnPath) ?>">
+        <input type="hidden" name="return" value="<?= htmlspecialchars((string)$returnPath, ENT_QUOTES, 'UTF-8') ?>">
         <div class="users-create-grid">
           <div class="badge-upload-field">
             <label class="label" for="badge-file">Image (png, jpg, jpeg, webp, gif)</label>
@@ -160,7 +160,7 @@ $options = badge_library_options();
         </div>
         <div class="users-create-actions">
           <button class="btn" type="submit" name="upload_badge" value="1">Televerser et utiliser</button>
-          <a class="btn ghost" href="<?= h($returnPath) ?>">Retour</a>
+          <a class="btn ghost" href="<?= htmlspecialchars((string)$returnPath, ENT_QUOTES, 'UTF-8') ?>">Retour</a>
         </div>
       </form>
     </div>

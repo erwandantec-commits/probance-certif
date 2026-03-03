@@ -5,7 +5,23 @@ require_once __DIR__ . '/_nav.php';
 
 $pdo = db();
 
+function admin_question_edit_safe_return(?string $candidate): string {
+  $fallback = '/admin/questions.php';
+  $candidate = trim((string)$candidate);
+  if ($candidate === '') {
+    return $fallback;
+  }
+  if (preg_match('/[\r\n]/', $candidate)) {
+    return $fallback;
+  }
+  if (strpos($candidate, '/admin/') !== 0) {
+    return $fallback;
+  }
+  return $candidate;
+}
+
 $id = (int)($_GET['id'] ?? 0);
+$returnTo = admin_question_edit_safe_return((string)($_GET['return'] ?? ''));
 
 if ($id <= 0) {
   http_response_code(403);
@@ -57,6 +73,7 @@ $labels = ['A', 'B', 'C', 'D', 'E', 'F'];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $returnTo = admin_question_edit_safe_return((string)($_POST['return'] ?? $returnTo));
   $question['text'] = trim((string)($_POST['text'] ?? ''));
   $question['need'] = strtoupper(trim((string)($_POST['need'] ?? ($question['need'] ?? 'PONE'))));
   $question['level'] = (int)($_POST['level'] ?? ($question['level'] ?? 1));
@@ -173,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
 
       $pdo->commit();
-      header("Location: /admin/questions.php");
+      header("Location: " . $returnTo);
       exit;
     } catch (Throwable $e) {
       $pdo->rollBack();
@@ -217,6 +234,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     <?php endif; ?>
 
     <form method="post" class="question-form">
+      <input type="hidden" name="return" value="<?= h($returnTo) ?>">
       <section class="pack-config-section">
         <h3 class="pack-config-title">Configuration de la question</h3>
         <div class="pack-config-grid">
@@ -310,7 +328,7 @@ function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
       <div class="question-actions">
         <button class="btn" type="submit">Enregistrer</button>
-        <a class="btn ghost" href="/admin/questions.php">Annuler</a>
+        <a class="btn ghost" href="<?= h($returnTo) ?>">Annuler</a>
       </div>
     </form>
   </div>

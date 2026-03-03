@@ -38,6 +38,7 @@ CREATE TABLE packages (
   display_order INT NOT NULL DEFAULT 100,
   badge_image_filename VARCHAR(255) NULL,
   pass_threshold_percent INT NOT NULL DEFAULT 80,
+  cert_validity_days INT NOT NULL DEFAULT 365,
   duration_limit_minutes INT NOT NULL DEFAULT 120,
   selection_count INT NOT NULL DEFAULT 10,
   anti_repeat_sessions INT NOT NULL DEFAULT 4,

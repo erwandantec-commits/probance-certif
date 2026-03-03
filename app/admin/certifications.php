@@ -8,6 +8,23 @@ require_once __DIR__ . '/../services/session_service.php';
 require_once __DIR__ . '/_nav.php';
 $pdo = db();
 
+function certifications_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+
 $email = trim((string)($_GET['email'] ?? ''));
 $packageId = (int)($_GET['package_id'] ?? 0);
 $certStatus = strtoupper(trim((string)($_GET['cert_status'] ?? 'ALL')));
@@ -16,6 +33,11 @@ if (!in_array($certStatus, ['ALL', 'CERTIFIED', 'SOON', 'EXPIRED', 'REVOKED'], t
 }
 
 $packages = $pdo->query("SELECT id, name, name_color_hex FROM packages ORDER BY id DESC")->fetchAll();
+$hasCertValidityDaysColumn = certifications_package_column_exists($pdo, 'cert_validity_days');
+$certValidityDaysSelect = $hasCertValidityDaysColumn
+  ? "pk.cert_validity_days AS cert_validity_days"
+  : "365 AS cert_validity_days";
+$certValidityDaysGroup = $hasCertValidityDaysColumn ? ", pk.cert_validity_days" : "";
 $sessionEndExpr = sessions_column_exists($pdo, 'ended_at')
   ? "COALESCE(s.ended_at, s.submitted_at, s.started_at)"
   : "COALESCE(s.submitted_at, s.started_at)";
@@ -43,12 +65,13 @@ $sql = "
     s.package_id,
     pk.name AS package_name,
     pk.name_color_hex AS package_color_hex,
+    $certValidityDaysSelect,
     MAX($sessionEndExpr) AS last_cert_date
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
   WHERE " . implode(' AND ', $where) . "
-  GROUP BY c.id, c.email, s.package_id, pk.name, pk.name_color_hex
+  GROUP BY c.id, c.email, s.package_id, pk.name, pk.name_color_hex$certValidityDaysGroup
 ";
 
 $stmt = $pdo->prepare($sql);
@@ -102,7 +125,11 @@ foreach ($rawRows as $r) {
   $pkgId = (int)$r['package_id'];
   $key = $contactId . ':' . $pkgId;
 
-  $status = certification_status_from_last_success((string)$r['last_cert_date']);
+  $status = certification_status_from_last_success(
+    (string)$r['last_cert_date'],
+    null,
+    (int)($r['cert_validity_days'] ?? 365)
+  );
   $statusKey = (string)$status['status_key'];
   $statusLabel = (string)$status['status_label'];
   $statusClass = (string)$status['status_class'];
@@ -212,7 +239,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       <form method="get" class="filters-grid">
         <div>
           <label class="label" for="email">Email</label>
-          <input class="input" id="email" name="email" type="text" value="<?= h($email) ?>" placeholder="Email...">
+          <input class="input" id="email" name="email" type="text" value="<?= htmlspecialchars((string)$email, ENT_QUOTES, 'UTF-8') ?>" placeholder="Email...">
         </div>
 
         <div>
@@ -291,7 +318,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                   <td><span class="<?= h($r['status_class']) ?>"><?= h($r['status_label']) ?></span></td>
                   <td class="actions-cell">
 	                    <?php if ((string)($r['last_session_id'] ?? '') !== ''): ?>
-	                      <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= urlencode((string)$r['last_session_id']) ?>" aria-label="Voir le detail" title="Voir le detail">
+	                      <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= urlencode((string)$r['last_session_id']) ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/certifications.php'))) ?>" aria-label="Voir le detail" title="Voir le detail">
 	                        <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                          <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
 	                        </svg>
