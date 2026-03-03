@@ -329,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($threshold < 0 || $threshold > 100) {
     $error = 'Seuil invalide (0 a 100).';
   } elseif ($duration < 1 || $duration > 600) {
-    $error = 'Durée invalide (1 à 600 minutes).';
+    $error = 'DurÃ©e invalide (1 Ã  600 minutes).';
   } elseif ($count < 1 || $count > 200) {
     $error = 'Nombre de questions invalide (1 a 200).';
   } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
@@ -354,7 +354,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($hasRulesColumn && !empty($ruleRows)) {
         $selectionRulesJson = pack_create_rule_rows_to_json($ruleRows, $count);
         if ($selectionRulesJson === '') {
-          $error = 'Règles de tirage invalides.';
+          $error = 'RÃ¨gles de tirage invalides.';
         }
       }
 
@@ -479,7 +479,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <span>Nombre de sessions</span>
                         <span class="order-help-tip" tabindex="0" aria-label="Aide sur les sessions anti-repetition">
                           i
-                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur.</span>
+                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur (toutes sessions confondues).</span>
                         </span>
                       </span>
                     </label>

@@ -626,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($threshold < 0 || $threshold > 100) {
     $error = "Seuil invalide";
   } elseif ($duration < 1 || $duration > 600) {
-    $error = "Durée invalide";
+    $error = "DurÃ©e invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
   } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
@@ -646,7 +646,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($hasRulesColumn && !empty($ruleRows)) {
       $selectionRulesJson = package_rule_rows_to_json($ruleRows, $count);
       if ($selectionRulesJson === '') {
-        $error = "Règles de tirage invalides.";
+        $error = "RÃ¨gles de tirage invalides.";
       }
     }
 
@@ -825,7 +825,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                         <span>Nombre de sessions</span>
                         <span class="order-help-tip" tabindex="0" aria-label="Aide sur les sessions anti-repetition">
                           i
-                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur.</span>
+                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur (toutes sessions confondues).</span>
                         </span>
                       </span>
                     </label>
@@ -987,7 +987,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
       </div>
       <p class="small">
-        Répartition par connaissances requises et niveau (banque globale, utilisée pour le tirage de ce pack).
+        RÃ©partition par connaissances requises et niveau (banque globale, utilisÃ©e pour le tirage de ce pack).
         <?php if (!empty($filterNeeds) || !empty($filterNeedLevels)): ?>
           <span class="small" style="margin-left:8px;">
             Filtre:
@@ -1069,7 +1069,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Énoncé</th>
+                <th>Ã‰noncÃ©</th>
 	                <th>Connaissances requises</th>
 	                <th>Niveau</th>
                 <th>Type</th>

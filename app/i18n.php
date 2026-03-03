@@ -65,7 +65,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'dash.certifications.none' => 'Aucune certification réussie pour le moment.',
       'dash.certifications.obtained_on' => 'Obtenue le',
       'dash.certifications.valid_until' => 'Valable jusqu\'au',
-      'dash.certifications.days_left' => '{{days}} j restants',
+      'dash.certifications.days_left' => '{{days}} jours restants',
       'dash.cert_status.certified' => 'Valide',
       'dash.cert_status.soon' => 'Expire bientôt',
       'dash.cert_status.expired' => 'Expirée',
