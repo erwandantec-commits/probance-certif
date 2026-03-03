@@ -688,17 +688,17 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
 .btn.ghost.admin-tab-candidate {
   margin-right: auto;
-  background: linear-gradient(135deg, #eef6ff 0%, #e7f0ff 100%);
-  color: #1e40af;
-  border-color: #bfd3ff;
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.12);
+  background: linear-gradient(135deg, #fff4e8 0%, #ffe9d1 100%);
+  color: #9a3412;
+  border-color: #fdba74;
+  box-shadow: 0 4px 12px rgba(154, 52, 18, 0.16);
   font-weight: 700;
 }
 
 .btn.ghost.admin-tab-candidate:hover {
-  background: linear-gradient(135deg, #dbeafe 0%, #d7e8ff 100%);
-  border-color: #93c5fd;
-  color: #1e3a8a;
+  background: linear-gradient(135deg, #ffe6c7 0%, #ffd8ac 100%);
+  border-color: #fb923c;
+  color: #7c2d12;
 }
 
 .admin-tab.is-active {
@@ -1747,15 +1747,15 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 :root[data-theme="dark"] .btn.ghost.admin-tab-candidate {
-  background: #172554;
-  color: #bfdbfe;
-  border-color: #1d4ed8;
+  background: #4a1f0f;
+  color: #fed7aa;
+  border-color: #c2410c;
 }
 
 :root[data-theme="dark"] .btn.ghost.admin-tab-candidate:hover {
-  background: #1e3a8a;
-  color: #dbeafe;
-  border-color: #3b82f6;
+  background: #7c2d12;
+  color: #ffedd5;
+  border-color: #ea580c;
 }
 
 :root[data-theme="dark"] a.btn:not(.ghost),
