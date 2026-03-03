@@ -329,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($threshold < 0 || $threshold > 100) {
     $error = 'Seuil invalide (0 a 100).';
   } elseif ($duration < 1 || $duration > 600) {
-    $error = 'DurÃ©e invalide (1 Ã  600 minutes).';
+    $error = 'Duree invalide (1 a 600 minutes).';
   } elseif ($count < 1 || $count > 200) {
     $error = 'Nombre de questions invalide (1 a 200).';
   } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
@@ -354,7 +354,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($hasRulesColumn && !empty($ruleRows)) {
         $selectionRulesJson = pack_create_rule_rows_to_json($ruleRows, $count);
         if ($selectionRulesJson === '') {
-          $error = 'RÃ¨gles de tirage invalides.';
+          $error = 'Regles de tirage invalides.';
         }
       }
 
@@ -519,7 +519,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         class="btn ghost"
                         data-base-return="<?= h($libraryReturn) ?>"
                         href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
-                      >Choisir / Televerser une image</a>
+                      >Cliquez pour changer l'image.</a>
                     </div>
                     <?php if (!$badgeImageOptions): ?>
                       <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>

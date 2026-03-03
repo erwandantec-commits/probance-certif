@@ -169,7 +169,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   header('Content-Disposition: attachment; filename="certifications_export.csv"');
 
   $out = fopen('php://output', 'w');
-  // UTF-8 BOM for Excel compatibility (prevents accent corruption like RÃ©voquÃ©e).
+  // UTF-8 BOM for Excel compatibility (prevents accent corruption like Revoquee).
   fwrite($out, "\xEF\xBB\xBF");
   fputcsv($out, ['email', 'Pack', 'last_cert_date', 'expires_at', 'status']);
   foreach ($rows as $r) {

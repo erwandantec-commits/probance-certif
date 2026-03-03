@@ -127,7 +127,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'exam.must_answer' => 'Sélectionne au moins une réponse pour continuer.',
       'exam.feedback.correct' => 'Bonne réponse.',
       'exam.feedback.incorrect' => 'Mauvaise réponse.',
-      'exam.explanation' => 'Explication',
+      'exam.explanation' => 'Énoncé corrigé',
       'exam.score_hint' => 'Mauvaise réponse = 0.',
       'exam.timer_prefix' => 'Temps',
       'exam.missing_sid' => 'Session manquante.',

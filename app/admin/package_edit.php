@@ -626,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($threshold < 0 || $threshold > 100) {
     $error = "Seuil invalide";
   } elseif ($duration < 1 || $duration > 600) {
-    $error = "DurÃ©e invalide";
+    $error = "Duree invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
   } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
@@ -646,7 +646,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($hasRulesColumn && !empty($ruleRows)) {
       $selectionRulesJson = package_rule_rows_to_json($ruleRows, $count);
       if ($selectionRulesJson === '') {
-        $error = "RÃ¨gles de tirage invalides.";
+        $error = "Regles de tirage invalides.";
       }
     }
 
@@ -880,7 +880,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                         class="btn ghost"
                         data-base-return="<?= h($libraryReturn) ?>"
                         href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
-                      >Choisir / Televerser une image</a>
+                      >Cliquez pour changer l'image.</a>
                     </div>
                     <?php if (!$badgeImageOptions): ?>
                       <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
@@ -987,7 +987,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
       </div>
       <p class="small">
-        RÃ©partition par connaissances requises et niveau (banque globale, utilisÃ©e pour le tirage de ce pack).
+        R&eacute;partition par connaissances requises et niveau (banque globale, utilis&eacute;e pour le tirage de ce pack).
         <?php if (!empty($filterNeeds) || !empty($filterNeedLevels)): ?>
           <span class="small" style="margin-left:8px;">
             Filtre:
@@ -1069,7 +1069,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Ã‰noncÃ©</th>
+                <th>&Eacute;nonc&eacute;</th>
 	                <th>Connaissances requises</th>
 	                <th>Niveau</th>
                 <th>Type</th>
