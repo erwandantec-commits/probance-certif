@@ -1,6 +1,8 @@
 services:
   db:
     image: mariadb:11
+    entrypoint: ["/bin/bash", "/usr/local/bin/db-entrypoint.sh"]
+    command: ["mariadbd"]
     environment:
       MARIADB_ROOT_PASSWORD: root
       MARIADB_DATABASE: certif
@@ -11,6 +13,9 @@ services:
     volumes:
       - ./data:/var/lib/mysql
       - ./initdb:/docker-entrypoint-initdb.d
+      - ./db_schema:/db_schema:ro
+      - ./db/db-entrypoint.sh:/usr/local/bin/db-entrypoint.sh:ro
+      - ./db/migrate-on-start.sh:/usr/local/bin/migrate-on-start.sh:ro
 
   web:
     build: .

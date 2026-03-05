@@ -39,6 +39,7 @@ Comptes:
 - `app/services/`: logique metier (sessions)
 - `initdb/01_schema.sql`: schema SQL
 - `initdb/02_seed.sql`: seed (minimal)
+- `db_schema/`: migrations SQL versionnees (`NNN_description.sql`)
 - `data/`: volume de donnees MariaDB (persistance locale)
 - `docker-compose.yml`: orchestration web + db
 - `Dockerfile`: image PHP/Apache + extensions PDO MySQL
@@ -92,6 +93,17 @@ Le schema est initialise automatiquement au premier demarrage via:
 - `initdb/01_schema.sql`
 - `initdb/02_seed.sql`
 
+Ensuite, a chaque demarrage du conteneur `db`, les migrations SQL sont appliquees automatiquement via:
+
+- `db/db-entrypoint.sh`
+- `db/migrate-on-start.sh`
+- `db_schema/` (scripts versionnes executes dans l'ordre de version)
+
+Versionning de schema:
+
+- `schema_version` (une ligne, version courante)
+- `schema_migrations` (historique des scripts appliques)
+
 Tables centrales:
 
 - `users`: comptes applicatifs + role
@@ -120,6 +132,26 @@ Bonnes pratiques avant/pendant deploiement:
 - activer HTTPS uniquement
 - sauvegarder regulierement la base
 - limiter l'acces reseau a MariaDB
+- verifier que le conteneur `db` termine les migrations au demarrage (logs `[migrate]`)
+
+## Regles strictes de migration BDD
+
+Pour tout futur changement de schema:
+
+1. Ne jamais modifier ou supprimer une migration deja versionnee.
+2. Ajouter un nouveau script `db_schema/NNN_description.sql` (`NNN` strictement > version actuelle).
+3. Rendre la migration idempotente (`IF EXISTS` / `IF NOT EXISTS` / `UPDATE` cible).
+4. Inclure la migration de donnees necessaire (pas seulement le DDL).
+5. Tester sur une base existante avec donnees reelles avant de deployer.
+6. Verifier apres demarrage:
+   - `SELECT version FROM schema_version WHERE id = 1;`
+   - `SELECT version, script_name, applied_at FROM schema_migrations ORDER BY version;`
+
+Important:
+
+- `01_schema.sql` et `02_seed.sql` servent a l'initialisation d'une base vide.
+- `db_schema/` contient exclusivement les migrations incrementales de production.
+- Les evolutions de schema en production passent desormais uniquement par migrations versionnees.
 
 ## Points de vigilance securite (etat actuel)
 
