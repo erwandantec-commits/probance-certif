@@ -135,6 +135,28 @@ function pack_create_rule_rows_to_json(array $rows, int $selectionCount): string
   ], JSON_UNESCAPED_UNICODE);
 }
 
+function pack_create_validate_rule_rows(array $rows, int $selectionCount): string {
+  $lastPositiveTarget = 0;
+  foreach ($rows as $idx => $row) {
+    $line = $idx + 1;
+    $targetTotal = (int)($row['target_total'] ?? 0);
+
+    if ($targetTotal < 0 || $targetTotal > $selectionCount) {
+      return 'Cible cumulee invalide ligne ' . $line . ' (0 a ' . $selectionCount . ').';
+    }
+
+    if ($targetTotal > 0 && $targetTotal < $lastPositiveTarget) {
+      return 'Cible cumulee invalide ligne ' . $line . ' (les cibles > 0 doivent etre croissantes).';
+    }
+
+    if ($targetTotal > 0) {
+      $lastPositiveTarget = $targetTotal;
+    }
+  }
+
+  return '';
+}
+
 function pack_create_badge_file_options(): array {
   $baseDir = realpath(__DIR__ . '/../assets/badges');
   if ($baseDir === false) {
@@ -157,6 +179,7 @@ $error = '';
 $name = '';
 $threshold = 80;
 $certValidityDays = 365;
+$failedCooldownDays = 365;
 $duration = 120;
 $count = 10;
 $antiRepeatSessions = 4;
@@ -218,6 +241,13 @@ $hasCertValidityDaysColumn = (bool)$pdo->query("
     AND TABLE_NAME = 'packages'
     AND COLUMN_NAME = 'cert_validity_days'
 ")->fetchColumn();
+$hasFailedCooldownDaysColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'failed_cooldown_days'
+")->fetchColumn();
 $badgeImageOptions = pack_create_badge_file_options();
 if ($hasDisplayOrderColumn) {
   $nextDisplayOrder = (int)$pdo->query("SELECT COALESCE(MAX(display_order), 0) + 10 FROM packages")->fetchColumn();
@@ -244,6 +274,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_cert_validity_days']) && $_GET['draft_cert_validity_days'] !== '') {
     $certValidityDays = (int)$_GET['draft_cert_validity_days'];
   }
+  if (isset($_GET['draft_failed_cooldown_days']) && $_GET['draft_failed_cooldown_days'] !== '') {
+    $failedCooldownDays = (int)$_GET['draft_failed_cooldown_days'];
+  }
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
   }
@@ -252,6 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   }
   $threshold = max(0, min(100, $threshold));
   $certValidityDays = max(1, min(3650, $certValidityDays));
+  $failedCooldownDays = max(0, min(3650, $failedCooldownDays));
   $duration = max(1, min(600, $duration));
   $count = max(1, min(200, $count));
   $antiRepeatSessions = max(0, min(20, $antiRepeatSessions));
@@ -316,6 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $name = trim((string)($_POST['name'] ?? ''));
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $certValidityDays = (int)($_POST['cert_validity_days'] ?? 365);
+  $failedCooldownDays = (int)($_POST['failed_cooldown_days'] ?? 365);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 10);
   $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? 4);
@@ -343,6 +378,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Seuil invalide (0 a 100).';
   } elseif ($hasCertValidityDaysColumn && ($certValidityDays < 1 || $certValidityDays > 3650)) {
     $error = 'Validite invalide (1 a 3650 jours).';
+  } elseif ($hasFailedCooldownDaysColumn && ($failedCooldownDays < 0 || $failedCooldownDays > 3650)) {
+    $error = 'Delai apres echec invalide (0 a 3650 jours).';
   } elseif ($duration < 1 || $duration > 600) {
     $error = 'Duree invalide (1 a 600 minutes).';
   } elseif ($count < 1 || $count > 200) {
@@ -357,6 +394,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Image de badge invalide.';
   } elseif ($hasRulesColumn && !empty($ruleRows) && count($ruleRows) > 20) {
     $error = 'Maximum 20 paliers de regles.';
+  } elseif (
+    $hasRulesColumn
+    && !empty($ruleRows)
+    && ($ruleError = pack_create_validate_rule_rows($ruleRows, $count)) !== ''
+  ) {
+    $error = $ruleError;
   } elseif ($hasNameColorColumn && $normalizedColor === null) {
     $error = 'Couleur invalide.';
   } else {
@@ -381,6 +424,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($hasCertValidityDaysColumn) {
           $columns[] = 'cert_validity_days';
           $values[] = $certValidityDays;
+        }
+        if ($hasFailedCooldownDaysColumn) {
+          $columns[] = 'failed_cooldown_days';
+          $values[] = $failedCooldownDays;
         }
         if ($hasAntiRepeatSessionsColumn) {
           $columns[] = 'anti_repeat_sessions';
@@ -479,6 +526,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input class="input" id="create-pack-cert-validity-days" name="cert_validity_days" type="number" min="1" max="3650" required value="<?= (int)$certValidityDays ?>">
                   </div>
                 <?php endif; ?>
+                <?php if ($hasFailedCooldownDaysColumn): ?>
+                  <div>
+                    <label class="label" for="create-pack-failed-cooldown-days">D&eacute;lai apr&egrave;s &eacute;chec (jours)</label>
+                    <input class="input" id="create-pack-failed-cooldown-days" name="failed_cooldown_days" type="number" min="0" max="3650" required value="<?= (int)$failedCooldownDays ?>">
+                  </div>
+                <?php endif; ?>
               </div>
             </article>
 
@@ -532,14 +585,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="label">Image du badge</label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($badgeImageFilename) ?>">
                     <?php $libraryReturn = '/admin/pack_create.php'; ?>
-                    <?php if ($badgeImageFilename !== ''): ?>
-                      <a
-                        id="pack-create-badge-picker"
-                        class="badge-current-link"
-                        data-base-return="<?= h($libraryReturn) ?>"
-                        href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
-                      >Cliquez pour changer l'image.</a>
-                    </div>
+                    <a
+                      id="pack-create-badge-picker"
+                      class="badge-current-link"
+                      data-base-return="<?= h($libraryReturn) ?>"
+                      href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
+                    >
+                      <?php if ($badgeImageFilename !== ''): ?>
+                        <span class="badge-current">
+                          <img src="/assets/badges/<?= h(rawurlencode($badgeImageFilename)) ?>" alt="<?= h($badgeImageFilename) ?>">
+                          <span class="badge-current-meta"><?= h($badgeImageFilename) ?></span>
+                        </span>
+                      <?php else: ?>
+                        <span class="badge-current">
+                          <span class="badge-current-meta">Aucune image sélectionnée</span>
+                        </span>
+                      <?php endif; ?>
+                    </a>
                     <?php if (!$badgeImageOptions): ?>
                       <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
                     <?php endif; ?>
@@ -686,6 +748,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           returnUrl.searchParams.set('draft_active', fieldValue('is_active') || '1');
           returnUrl.searchParams.set('draft_threshold', fieldValue('pass_threshold_percent') || '80');
           returnUrl.searchParams.set('draft_cert_validity_days', fieldValue('cert_validity_days') || '365');
+          returnUrl.searchParams.set('draft_failed_cooldown_days', fieldValue('failed_cooldown_days') || '365');
           returnUrl.searchParams.set('draft_duration', fieldValue('duration_limit_minutes') || '120');
           returnUrl.searchParams.set('draft_count', fieldValue('selection_count') || '10');
           returnUrl.searchParams.set('draft_anti_repeat', fieldValue('anti_repeat_sessions') || '4');
@@ -761,6 +824,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       var row = wrap.firstElementChild;
       tbody.appendChild(row);
       bindRowActions(row);
+      validateRuleTargets(false);
     }
 
     function syncRuleInputNames() {
@@ -795,9 +859,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       });
     }
 
+    function clearRuleTargetErrors() {
+      if (!tbody) return;
+      tbody.querySelectorAll('.rule-target-total').forEach(function (input) {
+        input.classList.remove('rule-target-invalid');
+      });
+    }
+
+    function validateRuleTargets(showPopup) {
+      if (!tbody) return true;
+      clearRuleTargetErrors();
+
+      var maxTotal = countInput ? parseInt(String(countInput.value || '0'), 10) : 0;
+      if (!Number.isFinite(maxTotal) || maxTotal < 1) {
+        maxTotal = 200;
+      }
+
+      var lastPositiveTarget = 0;
+      var invalidInput = null;
+      var message = '';
+      var rows = tbody.querySelectorAll('.rule-row');
+      rows.forEach(function (row, idx) {
+        if (invalidInput) return;
+        var targetInput = row.querySelector('.rule-target-total');
+        if (!targetInput) return;
+
+        var raw = String(targetInput.value || '').trim();
+        var targetVal = raw === '' ? 0 : parseInt(raw, 10);
+        if (!Number.isFinite(targetVal)) {
+          targetVal = 0;
+        }
+
+        var line = idx + 1;
+        if (targetVal < 0 || targetVal > maxTotal) {
+          invalidInput = targetInput;
+          message = 'Cible cumulée invalide ligne ' + line + ' (0 à ' + maxTotal + ').';
+          return;
+        }
+
+        if (targetVal > 0 && targetVal < lastPositiveTarget) {
+          invalidInput = targetInput;
+          message = 'Cible cumulée invalide ligne ' + line + ' (les cibles > 0 doivent être croissantes).';
+          return;
+        }
+
+        if (targetVal > 0) {
+          lastPositiveTarget = targetVal;
+        }
+      });
+
+      if (invalidInput) {
+        invalidInput.classList.add('rule-target-invalid');
+        if (showPopup) {
+          window.alert(message);
+        }
+        return false;
+      }
+
+      return true;
+    }
+
     if (tbody) {
       tbody.querySelectorAll('.rule-row').forEach(bindRowActions);
       syncRuleInputNames();
+      validateRuleTargets(false);
+      tbody.addEventListener('input', function (e) {
+        if (e.target && e.target.classList && e.target.classList.contains('rule-target-total')) {
+          validateRuleTargets(false);
+        }
+      });
+      tbody.addEventListener('change', function (e) {
+        if (e.target && e.target.classList && e.target.classList.contains('rule-target-total')) {
+          if (!validateRuleTargets(true)) {
+            e.target.focus();
+          }
+        }
+      });
     }
 
     if (addRowBtn) {
@@ -818,12 +955,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           countInput.value = String(ruleTemplates[key].max);
         }
         syncRuleInputNames();
+        validateRuleTargets(false);
+      });
+    }
+
+    if (countInput) {
+      countInput.addEventListener('input', function () {
+        validateRuleTargets(false);
       });
     }
 
     if (form) {
-      form.addEventListener('submit', function () {
+      form.addEventListener('submit', function (e) {
         syncRuleInputNames();
+        if (!validateRuleTargets(true)) {
+          e.preventDefault();
+        }
       });
     }
 

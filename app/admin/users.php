@@ -652,7 +652,11 @@ function admin_users_sort_link(array $qs, string $key): string {
                   $lastSessionAt = $u['last_session_at'] ? (string)$u['last_session_at'] : '-';
                 ?>
                 <tr>
-                  <td><?= h((string)$u['email']) ?></td>
+                  <td>
+                    <a href="/admin/contact.php?email=<?= urlencode((string)$u['email']) ?>">
+                      <?= h((string)$u['email']) ?>
+                    </a>
+                  </td>
                   <?php
                     $firstName = trim((string)($u['first_name'] ?? ''));
                     $lastName = trim((string)($u['last_name'] ?? ''));

@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $pdo = db();
 $package_id = (int)($_POST['package_id'] ?? 0);
+$cooldownOverrideId = 0;
 $session_type = strtoupper(trim((string)($_POST['session_type'] ?? 'EXAM')));
 if (!in_array($session_type, ['EXAM', 'TRAINING'], true)) {
   $session_type = 'EXAM';
@@ -37,6 +38,22 @@ if (!$pkg) {
 }
 
 if ($session_type === 'EXAM') {
+  if (table_exists($pdo, 'exam_cooldown_overrides')) {
+    $overrideStmt = $pdo->prepare("
+      SELECT id
+      FROM exam_cooldown_overrides
+      WHERE user_id=?
+        AND package_id=?
+        AND is_active=1
+        AND used_at IS NULL
+        AND (expires_at IS NULL OR expires_at >= NOW())
+      ORDER BY created_at ASC, id ASC
+      LIMIT 1
+    ");
+    $overrideStmt->execute([$uid, $package_id]);
+    $cooldownOverrideId = (int)($overrideStmt->fetchColumn() ?: 0);
+  }
+
   $hasRevocationsTable = (bool)$pdo->query("
     SELECT COUNT(*)
     FROM information_schema.TABLES
@@ -72,9 +89,60 @@ if ($session_type === 'EXAM') {
     (int)($pkg['cert_validity_days'] ?? 365)
   );
 
-  if (($certStatus['status_key'] ?? 'NONE') === 'CERTIFIED' || ($certStatus['status_key'] ?? 'NONE') === 'SOON') {
+  if (
+    $cooldownOverrideId <= 0
+    && (($certStatus['status_key'] ?? 'NONE') === 'CERTIFIED' || ($certStatus['status_key'] ?? 'NONE') === 'SOON')
+  ) {
     header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.cert_already_valid'));
     exit;
+  }
+
+  $failedCooldownDays = 0;
+  if (table_column_exists($pdo, 'packages', 'failed_cooldown_days')) {
+    $failedCooldownDays = (int)($pkg['failed_cooldown_days'] ?? 0);
+    if ($failedCooldownDays < 0) {
+      $failedCooldownDays = 0;
+    } elseif ($failedCooldownDays > 3650) {
+      $failedCooldownDays = 3650;
+    }
+  }
+
+  if ($failedCooldownDays > 0 && $cooldownOverrideId <= 0) {
+    $lastFailedStmt = $pdo->prepare("
+      SELECT COALESCE(s.ended_at, s.submitted_at, s.started_at) AS last_failed_at
+      FROM sessions s
+      WHERE s.user_id=?
+        AND s.package_id=?
+        AND s.session_type='EXAM'
+        AND s.status='TERMINATED'
+        AND s.passed=0
+      ORDER BY COALESCE(s.ended_at, s.submitted_at, s.started_at) DESC
+      LIMIT 1
+    ");
+    $lastFailedStmt->execute([$uid, $package_id]);
+    $lastFailedAt = $lastFailedStmt->fetchColumn();
+
+    $cooldownStatus = failed_exam_cooldown_status_from_last_failure(
+      is_string($lastFailedAt) ? $lastFailedAt : null,
+      null,
+      $failedCooldownDays
+    );
+
+    if (($cooldownStatus['status_key'] ?? 'AVAILABLE') === 'COOLDOWN') {
+      $remainingDays = max(1, (int)($cooldownStatus['remaining_days'] ?? 1));
+      $availableAt = $cooldownStatus['available_at'] ?? null;
+      $availableDate = ($availableAt instanceof DateTimeImmutable)
+        ? $availableAt->format('Y-m-d')
+        : '';
+      header(
+        "Location: /dashboard.php?lang=" . urlencode($lang)
+        . "&err=" . urlencode(t('start.err.failed_exam_cooldown', [
+          'days' => $remainingDays,
+          'date' => $availableDate,
+        ], $lang))
+      );
+      exit;
+    }
   }
 }
 
@@ -117,12 +185,31 @@ try {
     $insq->execute([$session_id, (int)$qid, $pos++]);
   }
 
+  if ($cooldownOverrideId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {
+    $consumeOverride = $pdo->prepare("
+      UPDATE exam_cooldown_overrides
+      SET is_active=0, used_at=NOW()
+      WHERE id=?
+        AND is_active=1
+        AND used_at IS NULL
+    ");
+    $consumeOverride->execute([$cooldownOverrideId]);
+  }
+
   $pdo->commit();
 
   header("Location: /exam.php?sid=" . urlencode($session_id) . "&p=1&lang=" . urlencode($lang));
   exit;
 } catch (Throwable $e) {
-  $pdo->rollBack();
+  if ($pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
+  error_log(
+    '[start.php] session creation failed user_id=' . $uid
+    . ' package_id=' . $package_id
+    . ' session_type=' . $session_type
+    . ' message=' . $e->getMessage()
+  );
   header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.create_failed'));
   exit;
 }

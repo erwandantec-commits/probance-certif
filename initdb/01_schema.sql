@@ -39,6 +39,7 @@ CREATE TABLE packages (
   badge_image_filename VARCHAR(255) NULL,
   pass_threshold_percent INT NOT NULL DEFAULT 80,
   cert_validity_days INT NOT NULL DEFAULT 365,
+  failed_cooldown_days INT NOT NULL DEFAULT 365,
   duration_limit_minutes INT NOT NULL DEFAULT 120,
   selection_count INT NOT NULL DEFAULT 10,
   anti_repeat_sessions INT NOT NULL DEFAULT 4,
@@ -229,4 +230,30 @@ CREATE TABLE password_resets (
   CONSTRAINT fk_pr_user
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE
+);
+
+CREATE TABLE exam_cooldown_overrides (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  package_id INT NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  reason VARCHAR(255) NULL,
+  created_by_user_id INT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  used_at DATETIME NULL,
+  expires_at DATETIME NULL,
+
+  INDEX idx_eco_lookup (user_id, package_id, is_active, used_at, expires_at, created_at),
+
+  CONSTRAINT fk_eco_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
+
+  CONSTRAINT fk_eco_package
+    FOREIGN KEY (package_id) REFERENCES packages(id)
+    ON DELETE CASCADE,
+
+  CONSTRAINT fk_eco_created_by
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+    ON DELETE SET NULL
 );

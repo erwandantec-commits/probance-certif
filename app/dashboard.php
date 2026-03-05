@@ -31,6 +31,7 @@ $hasPackageProfileColumn = dashboard_package_column_exists($pdo, 'profile');
 $hasPackageDisplayOrderColumn = dashboard_package_column_exists($pdo, 'display_order');
 $hasPackageBadgeImageColumn = dashboard_package_column_exists($pdo, 'badge_image_filename');
 $hasPackageCertValidityDaysColumn = dashboard_package_column_exists($pdo, 'cert_validity_days');
+$hasPackageFailedCooldownDaysColumn = dashboard_package_column_exists($pdo, 'failed_cooldown_days');
 
 $errKey = trim((string)($_GET['err_key'] ?? ''));
 $err = trim((string)($_GET['err'] ?? ''));
@@ -41,6 +42,9 @@ if ($hasPackageProfileColumn) {
 }
 if ($hasPackageDisplayOrderColumn) {
   $pkgCols .= ", display_order";
+}
+if ($hasPackageFailedCooldownDaysColumn) {
+  $pkgCols .= ", failed_cooldown_days";
 }
 $pkgOrder = $hasPackageDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id DESC";
 $pkgStmt = $pdo->query("SELECT $pkgCols FROM packages $pkgOrder");
@@ -226,6 +230,83 @@ $examBlockedByPackage = [];
 foreach ($certCards as $pkgId => $card) {
   $statusKey = (string)($card['status_key'] ?? '');
   $examBlockedByPackage[(int)$pkgId] = in_array($statusKey, ['CERTIFIED', 'SOON'], true);
+}
+
+$activeOverrideByPackage = [];
+if (table_exists($pdo, 'exam_cooldown_overrides')) {
+  $overrideListStmt = $pdo->prepare("
+    SELECT package_id
+    FROM exam_cooldown_overrides
+    WHERE user_id=?
+      AND is_active=1
+      AND used_at IS NULL
+      AND (expires_at IS NULL OR expires_at >= NOW())
+  ");
+  $overrideListStmt->execute([$uid]);
+  $overrideRows = $overrideListStmt->fetchAll() ?: [];
+  foreach ($overrideRows as $r) {
+    $pid = (int)($r['package_id'] ?? 0);
+    if ($pid > 0) {
+      $activeOverrideByPackage[$pid] = true;
+    }
+  }
+}
+
+if ($hasPackageFailedCooldownDaysColumn) {
+  $lastFailedByPackage = [];
+  $lastFailedStmt = $pdo->prepare("
+    SELECT s.package_id, MAX(COALESCE(s.ended_at, s.submitted_at, s.started_at)) AS last_failed_at
+    FROM sessions s
+    WHERE s.user_id=?
+      AND s.session_type='EXAM'
+      AND s.status='TERMINATED'
+      AND s.passed=0
+    GROUP BY s.package_id
+  ");
+  $lastFailedStmt->execute([$uid]);
+  $lastFailedRows = $lastFailedStmt->fetchAll() ?: [];
+  foreach ($lastFailedRows as $r) {
+    $lastFailedByPackage[(int)($r['package_id'] ?? 0)] = (string)($r['last_failed_at'] ?? '');
+  }
+
+  foreach ($packages as $pk) {
+    $pkgId = (int)($pk['id'] ?? 0);
+    if ($pkgId <= 0) {
+      continue;
+    }
+
+    $blocked = (bool)($examBlockedByPackage[$pkgId] ?? false);
+    $cooldownDays = (int)($pk['failed_cooldown_days'] ?? 0);
+    $lastFailedAt = $lastFailedByPackage[$pkgId] ?? null;
+
+    $cooldownStatus = failed_exam_cooldown_status_from_last_failure(
+      is_string($lastFailedAt) && trim($lastFailedAt) !== '' ? $lastFailedAt : null,
+      null,
+      $cooldownDays
+    );
+
+    if (($cooldownStatus['status_key'] ?? 'AVAILABLE') === 'COOLDOWN') {
+      $blocked = true;
+    }
+
+    if (!empty($activeOverrideByPackage[$pkgId])) {
+      $blocked = false;
+    }
+
+    $examBlockedByPackage[$pkgId] = $blocked;
+  }
+}
+
+foreach ($packages as $pk) {
+  $pkgId = (int)($pk['id'] ?? 0);
+  if ($pkgId <= 0) {
+    continue;
+  }
+  if (!empty($activeOverrideByPackage[$pkgId])) {
+    $examBlockedByPackage[$pkgId] = false;
+  } elseif (!array_key_exists($pkgId, $examBlockedByPackage)) {
+    $examBlockedByPackage[$pkgId] = false;
+  }
 }
 
 $activePausedSelect = sessions_column_exists($pdo, 'paused_remaining_seconds')
@@ -537,7 +618,7 @@ function dash_remaining_label(int $seconds): string {
 	                ?>
 		                <button
 		                  type="button"
-		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?><?= $isExamLocked ? ' is-exam-locked' : '' ?><?= $pkCode === 'BLACK' ? ' pkg-black' : '' ?>"
+		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?><?= $pkCode === 'BLACK' ? ' pkg-black' : '' ?>"
 		                  data-package-value="<?= (int)$pk['id'] ?>"
 		                  data-package-name="<?= h($pkName) ?>"
 		                  data-active-sid-exam="<?= h((string)($activeByPackage[(int)$pk['id']]['EXAM']['id'] ?? '')) ?>"
@@ -791,9 +872,11 @@ function dash_remaining_label(int $seconds): string {
       selectedMode = getMode();
       tiles.forEach(function (tile) {
         var active = (tile.getAttribute('data-package-value') === value);
+        var examLocked = (tile.getAttribute('data-package-exam-locked') === '1');
         tile.classList.toggle('is-active', active);
+        tile.classList.toggle('is-exam-locked', active && selectedMode === 'EXAM' && examLocked);
         if (active) {
-          selectedExamLocked = (tile.getAttribute('data-package-exam-locked') === '1');
+          selectedExamLocked = examLocked;
           if (selectedMode === 'TRAINING') {
             activeSid = tile.getAttribute('data-active-sid-training') || '';
             activeP = tile.getAttribute('data-active-p-training') || '1';

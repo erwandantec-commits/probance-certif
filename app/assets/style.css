@@ -230,6 +230,15 @@ body{
 .small{ font-size: 13px; color: var(--muted); }
 .error{ color: var(--danger); font-weight: 700; }
 
+.input.rule-target-invalid{
+  border-color: var(--danger) !important;
+  background: #fff5f5 !important;
+}
+
+:root[data-theme="dark"] .input.rule-target-invalid{
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
 /* Disabled buttons */
 button:disabled,
 .btn:disabled,
@@ -738,6 +747,11 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.filters-grid + .table-wrap {
+  margin-top: 10px;
 }
 
 .distribution-wrap {
@@ -2891,6 +2905,14 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
   .filters-grid {
     grid-template-columns: 1fr;
+  }
+
+  .filters-actions {
+    margin-bottom: 10px;
+  }
+
+  .filters-grid + .table-wrap {
+    margin-top: 12px;
   }
 
   .users-create-grid {

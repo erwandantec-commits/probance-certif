@@ -583,3 +583,44 @@ function certification_status_from_last_success(
     'expires_at' => $expires,
   ];
 }
+
+function failed_exam_cooldown_status_from_last_failure(
+  ?string $lastFailedAt,
+  ?DateTimeImmutable $now = null,
+  int $cooldownDays = 0
+): array {
+  if ($lastFailedAt === null || trim($lastFailedAt) === '' || $cooldownDays <= 0) {
+    return [
+      'status_key' => 'AVAILABLE',
+      'available_at' => null,
+      'remaining_days' => 0,
+    ];
+  }
+
+  if ($cooldownDays > 3650) {
+    $cooldownDays = 3650;
+  }
+
+  $now = $now ?: new DateTimeImmutable('today');
+  $last = new DateTimeImmutable($lastFailedAt);
+  $availableAt = $last->modify('+' . $cooldownDays . ' days');
+
+  if ($availableAt <= $now) {
+    return [
+      'status_key' => 'AVAILABLE',
+      'available_at' => $availableAt,
+      'remaining_days' => 0,
+    ];
+  }
+
+  $remainingDays = (int)$now->diff($availableAt)->format('%a');
+  if ($remainingDays < 1) {
+    $remainingDays = 1;
+  }
+
+  return [
+    'status_key' => 'COOLDOWN',
+    'available_at' => $availableAt,
+    'remaining_days' => $remainingDays,
+  ];
+}
