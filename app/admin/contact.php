@@ -56,6 +56,8 @@ if (!in_array($hresult, $allowedResults, true)) $hresult = 'ALL';
 $unlockDays = max(1, min(3650, (int)($_GET['unlock_days'] ?? 7)));
 $unlockError = trim((string)($_GET['unlock_err'] ?? ''));
 $unlockOk = trim((string)($_GET['unlock_ok'] ?? ''));
+$reblockError = trim((string)($_GET['reblock_err'] ?? ''));
+$reblockOk = trim((string)($_GET['reblock_ok'] ?? ''));
 
 function admin_session_type_label(string $type): string {
   return match ($type) {
@@ -85,6 +87,7 @@ if ($linkedUserId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {
   $activeOverridesStmt = $pdo->prepare("
     SELECT
       o.id,
+      o.package_id,
       o.is_active,
       o.created_at,
       o.expires_at,
@@ -169,6 +172,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       'hresult' => $hresult,
       'unlock_days' => $unlockDays,
       'unlock_err' => $err ?? 'Erreur de deblocage.',
+    ]);
+    header('Location: /admin/contact.php?' . $qs);
+    exit;
+  }
+
+  if ($action === 'reblock_exam') {
+    $packageId = (int)($_POST['reblock_package_id'] ?? 0);
+
+    if (!table_exists($pdo, 'exam_cooldown_overrides')) {
+      $err = 'Schema non migre: table exam_cooldown_overrides absente.';
+    } elseif ($linkedUserId <= 0) {
+      $err = 'Aucun compte utilisateur lie a cet email.';
+    } elseif ($packageId <= 0) {
+      $err = 'Certification invalide.';
+    } else {
+      $checkPkg = $pdo->prepare("SELECT id FROM packages WHERE id=? LIMIT 1");
+      $checkPkg->execute([$packageId]);
+      if (!$checkPkg->fetch()) {
+        $err = 'Certification introuvable.';
+      } else {
+        $disableOverrides = $pdo->prepare("
+          UPDATE exam_cooldown_overrides
+          SET is_active = 0
+          WHERE user_id = ?
+            AND package_id = ?
+            AND is_active = 1
+            AND used_at IS NULL
+            AND (expires_at IS NULL OR expires_at > NOW())
+        ");
+        $disableOverrides->execute([$linkedUserId, $packageId]);
+        if ((int)$disableOverrides->rowCount() > 0) {
+          $qs = http_build_query([
+            'email' => $email,
+            'hsort' => $hsort,
+            'hdir' => $hdir,
+            'hresult' => $hresult,
+            'reblock_ok' => '1',
+          ]);
+          header('Location: /admin/contact.php?' . $qs);
+          exit;
+        }
+        $err = 'Aucun deblocage actif a rebloquer pour cette certification.';
+      }
+    }
+
+    $qs = http_build_query([
+      'email' => $email,
+      'hsort' => $hsort,
+      'hdir' => $hdir,
+      'hresult' => $hresult,
+      'reblock_err' => $err ?? 'Erreur de rebloquage.',
     ]);
     header('Location: /admin/contact.php?' . $qs);
     exit;
@@ -275,6 +329,12 @@ $hist = $histStmt->fetchAll();
       <?php if ($unlockError !== ''): ?>
         <p class="error"><?= h($unlockError) ?></p>
       <?php endif; ?>
+      <?php if ($reblockOk === '1'): ?>
+        <p class="success">Rebloquage enregistre. Le deblocage actif a ete retire.</p>
+      <?php endif; ?>
+      <?php if ($reblockError !== ''): ?>
+        <p class="error"><?= h($reblockError) ?></p>
+      <?php endif; ?>
 
       <?php if ($linkedUserId <= 0): ?>
         <p class="error">Aucun compte utilisateur n'est lie a cet email. Deblocage impossible.</p>
@@ -324,12 +384,14 @@ $hist = $histStmt->fetchAll();
                 <th>Utilisé le</th>
                 <th>Motif</th>
                 <th>Cree par</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($activeOverrides as $ov):
                 $state = 'Inactif';
                 $stateClass = 'badge';
+                $canReblock = false;
                 if ((int)($ov['is_active'] ?? 1) === 1 && empty($ov['used_at'])) {
                   $expired = !empty($ov['expires_at']) && strtotime((string)$ov['expires_at']) < time();
                   if ($expired) {
@@ -338,6 +400,7 @@ $hist = $histStmt->fetchAll();
                   } else {
                     $state = 'Actif';
                     $stateClass = 'badge ok';
+                    $canReblock = true;
                   }
                 } elseif (!empty($ov['used_at'])) {
                   $state = 'Utilisé';
@@ -352,6 +415,22 @@ $hist = $histStmt->fetchAll();
                   <td><?= h((string)($ov['used_at'] ?? '-')) ?></td>
                   <td><?= h((string)($ov['reason'] ?? '-')) ?></td>
                   <td><?= h((string)($ov['created_by_email'] ?? '-')) ?></td>
+                  <td class="actions-cell">
+                    <?php if ($canReblock): ?>
+                      <form method="post" class="inline-action-form">
+                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                        <input type="hidden" name="action" value="reblock_exam">
+                        <input type="hidden" name="reblock_package_id" value="<?= (int)($ov['package_id'] ?? 0) ?>">
+                        <button
+                          class="btn ghost"
+                          type="submit"
+                          onclick="return confirm('Rebloquer cette certification pour ce candidat ?');"
+                        >Rebloquer</button>
+                      </form>
+                    <?php else: ?>
+                      -
+                    <?php endif; ?>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
