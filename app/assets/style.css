@@ -1043,6 +1043,15 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   text-align: center;
 }
 
+.rules-table .rule-summary-row td {
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.rules-table .rule-summary-row td:first-child {
+  text-align: right;
+}
+
 .actions-cell {
   white-space: nowrap;
 }

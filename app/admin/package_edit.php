@@ -90,8 +90,8 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PHM', 'levels' => [1], 'take' => 40],
         ['need' => 'PONE', 'levels' => [3], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 3],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
     'BLACK' => [
@@ -99,9 +99,9 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PHM', 'levels' => [2, 3], 'take' => 30],
         ['need' => 'PHM', 'levels' => [1], 'take' => 40, 'target_total' => 40],
-        ['need' => 'PONE', 'levels' => [3], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PONE', 'levels' => [3], 'take' => 3, 'target_total' => 10],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 3],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
     'SILVER' => [
@@ -109,11 +109,11 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PPM', 'levels' => [1], 'take' => 40],
         ['need' => 'PHM', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [1], 'take' => 5, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PONE', 'levels' => [3], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [2], 'take' => 2],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [1], 'take' => 5],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
     'GOLD' => [
@@ -121,12 +121,12 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PPM', 'levels' => [2, 3], 'take' => 30],
         ['need' => 'PPM', 'levels' => [1], 'take' => 40, 'target_total' => 40],
-        ['need' => 'PHM', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [1], 'take' => 5, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PHM', 'levels' => [3], 'take' => 2, 'target_total' => 10],
+        ['need' => 'PONE', 'levels' => [3], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [2], 'take' => 2],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [1], 'take' => 5],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
   ];
@@ -138,6 +138,7 @@ function package_rules_to_rows(array $rules): array {
   if (!is_array($buckets)) {
     return $rows;
   }
+  $previousTargetTotal = 0;
   foreach ($buckets as $bucket) {
     $need = strtoupper(trim((string)($bucket['need'] ?? '')));
     $levels = $bucket['levels'] ?? [];
@@ -158,14 +159,35 @@ function package_rules_to_rows(array $rules): array {
       continue;
     }
     sort($selectedLevels);
+    $targetStep = $targetTotal;
+    if ($targetStep > 0 && $targetStep >= $previousTargetTotal) {
+      $targetStep -= $previousTargetTotal;
+    }
     $rows[] = [
       'need' => $need,
       'levels' => $selectedLevels,
       'take' => $take,
-      'target_total' => $targetTotal > 0 ? $targetTotal : 0,
+      'target_total' => $targetStep > 0 ? $targetStep : 0,
     ];
+    if ($targetTotal > 0) {
+      $previousTargetTotal = $targetTotal;
+    }
   }
   return $rows;
+}
+
+function package_rule_rows_with_cumulative_targets(array $rows): array {
+  $out = [];
+  $runningTarget = 0;
+  foreach ($rows as $row) {
+    $targetStep = max(0, (int)($row['target_total'] ?? 0));
+    if ($targetStep > 0) {
+      $runningTarget += $targetStep;
+    }
+    $row['target_total'] = $runningTarget;
+    $out[] = $row;
+  }
+  return $out;
 }
 
 function package_rule_rows_from_post(): array {
@@ -214,6 +236,7 @@ function package_rule_rows_from_post(): array {
 }
 
 function package_rule_rows_to_json(array $rows, int $selectionCount): string {
+  $rows = package_rule_rows_with_cumulative_targets($rows);
   $buckets = [];
   foreach ($rows as $row) {
     $bucket = [
@@ -235,7 +258,7 @@ function package_rule_rows_to_json(array $rows, int $selectionCount): string {
 }
 
 function package_edit_validate_rule_rows(array $rows, int $selectionCount): string {
-  $lastPositiveTarget = 0;
+  $targetSum = 0;
   foreach ($rows as $idx => $row) {
     $line = $idx + 1;
     $targetTotal = (int)($row['target_total'] ?? 0);
@@ -244,12 +267,11 @@ function package_edit_validate_rule_rows(array $rows, int $selectionCount): stri
       return "Cible cumulee invalide ligne {$line} (0 a {$selectionCount}).";
     }
 
-    if ($targetTotal > 0 && $targetTotal < $lastPositiveTarget) {
-      return "Cible cumulee invalide ligne {$line} (les cibles > 0 doivent etre croissantes).";
-    }
-
     if ($targetTotal > 0) {
-      $lastPositiveTarget = $targetTotal;
+      $targetSum += $targetTotal;
+      if ($targetSum > $selectionCount) {
+        return "Cible cumulee totale invalide (0 a {$selectionCount}).";
+      }
     }
   }
 
@@ -1017,7 +1039,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                         <span>Cible cumul&eacute;e</span>
                         <span class="order-help-tip" tabindex="0" aria-label="Aide sur la cible cumulee">
                           i
-                          <span class="order-help-bubble">Stoppe le palier quand le total cumul&eacute; de questions atteint cette cible.</span>
+                          <span class="order-help-bubble">Ajoute un objectif cumul&eacute; pour ce palier. Le total correspond &agrave; la somme des lignes.</span>
                         </span>
                       </span>
                     </th>
@@ -1060,6 +1082,14 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
+                <tfoot>
+                  <tr class="rule-summary-row">
+                    <td colspan="2">Total</td>
+                    <td><span id="rule-total-take">0</span></td>
+                    <td><span id="rule-total-target">0</span></td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </section>
@@ -1357,14 +1387,39 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     var templateSelect = document.getElementById('rule-template');
     var countInput = document.querySelector('input[name="selection_count"]');
     var form = document.querySelector('form[method="post"]');
+    var totalTakeEl = document.getElementById('rule-total-take');
+    var totalTargetEl = document.getElementById('rule-total-target');
 
     function bindRowActions(row) {
       var removeBtn = row.querySelector('.rule-remove');
       if (removeBtn) {
         removeBtn.addEventListener('click', function () {
           row.remove();
+          syncRuleInputNames();
+          updateRuleTotals();
+          validateRuleTargets(false);
         });
       }
+    }
+
+    function updateRuleTotals() {
+      if (!tbody) return;
+      var totalTake = 0;
+      var totalTarget = 0;
+      tbody.querySelectorAll('.rule-row').forEach(function (row) {
+        var takeInput = row.querySelector('.rule-take');
+        var targetInput = row.querySelector('.rule-target-total');
+        var takeVal = takeInput ? parseInt(String(takeInput.value || '0'), 10) : 0;
+        var targetVal = targetInput ? parseInt(String(targetInput.value || '0'), 10) : 0;
+        if (Number.isFinite(takeVal) && takeVal > 0) {
+          totalTake += takeVal;
+        }
+        if (Number.isFinite(targetVal) && targetVal > 0) {
+          totalTarget += targetVal;
+        }
+      });
+      if (totalTakeEl) totalTakeEl.textContent = String(totalTake);
+      if (totalTargetEl) totalTargetEl.textContent = String(totalTarget);
     }
 
     function buildRowHtml(data) {
@@ -1406,6 +1461,8 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       var row = wrap.firstElementChild;
       tbody.appendChild(row);
       bindRowActions(row);
+      syncRuleInputNames();
+      updateRuleTotals();
       validateRuleTargets(false);
     }
 
@@ -1451,13 +1508,14 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     function validateRuleTargets(showPopup) {
       if (!tbody) return true;
       clearRuleTargetErrors();
+      updateRuleTotals();
 
       var maxTotal = countInput ? parseInt(String(countInput.value || '0'), 10) : 0;
       if (!Number.isFinite(maxTotal) || maxTotal < 1) {
         maxTotal = 200;
       }
 
-      var lastPositiveTarget = 0;
+      var targetSum = 0;
       var invalidInput = null;
       var message = '';
       var rows = tbody.querySelectorAll('.rule-row');
@@ -1479,14 +1537,12 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           return;
         }
 
-        if (targetVal > 0 && targetVal < lastPositiveTarget) {
-          invalidInput = targetInput;
-          message = 'Cible cumulée invalide ligne ' + line + ' (les cibles > 0 doivent être croissantes).';
-          return;
-        }
-
         if (targetVal > 0) {
-          lastPositiveTarget = targetVal;
+          targetSum += targetVal;
+          if (targetSum > maxTotal) {
+            invalidInput = targetInput;
+            message = 'Cible cumulée totale invalide (0 à ' + maxTotal + ').';
+          }
         }
       });
 
@@ -1504,9 +1560,10 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     if (tbody) {
       tbody.querySelectorAll('.rule-row').forEach(bindRowActions);
       syncRuleInputNames();
+      updateRuleTotals();
       validateRuleTargets(false);
       tbody.addEventListener('input', function (e) {
-        if (e.target && e.target.classList && e.target.classList.contains('rule-target-total')) {
+        if (e.target && e.target.classList && (e.target.classList.contains('rule-target-total') || e.target.classList.contains('rule-take'))) {
           validateRuleTargets(false);
         }
       });
@@ -1538,6 +1595,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           countInput.value = String(ruleTemplates[key].max);
         }
         syncRuleInputNames();
+        updateRuleTotals();
         validateRuleTargets(false);
       });
     }
