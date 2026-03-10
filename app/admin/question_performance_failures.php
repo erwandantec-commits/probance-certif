@@ -136,9 +136,10 @@ $rows = $stmt->fetchAll() ?: [];
 </head>
 <body>
 <div class="container admin-container">
-  <div class="card admin-card">
-    <div class="admin-head">
+  <div class="card admin-card admin-page-shell">
+    <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
+        <p class="admin-page-eyebrow">Administration</p>
         <h2 class="h1">Admin &middot; Zoom &eacute;checs question</h2>
         <p class="sub"><?= h(mb_strimwidth((string)$question['text'], 0, 140, '...', 'UTF-8')) ?></p>
       </div>
@@ -148,18 +149,35 @@ $rows = $stmt->fetchAll() ?: [];
       </div>
     </div>
 
-    <hr class="separator">
-
-    <div class="row sessions-stats">
-      <span class="badge">ID question: <?= ($question['external_id'] === null || $question['external_id'] === '') ? '-' : (int)$question['external_id'] ?></span>
-      <span class="badge">Categorie: <?= h((string)($question['category'] ?: '-')) ?></span>
-      <span class="badge bad">Echecs: <?= (int)$totalRows ?></span>
-      <span class="badge">Users distincts: <?= (int)$failedUsers ?></span>
+    <div class="admin-stats-grid">
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">ID question</span>
+        <strong class="admin-stat-value"><?= ($question['external_id'] === null || $question['external_id'] === '') ? '-' : (int)$question['external_id'] ?></strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Categorie</span>
+        <strong class="admin-stat-value admin-stat-value-sm"><?= h((string)($question['category'] ?: '-')) ?></strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Echecs</span>
+        <strong class="admin-stat-value"><?= (int)$totalRows ?></strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Users distincts</span>
+        <strong class="admin-stat-value"><?= (int)$failedUsers ?></strong>
+      </article>
     </div>
 
-    <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> echec(s))</p>
+    <div class="admin-page-layout">
+    <section class="admin-section-panel">
+    <div class="section-head admin-section-head">
+      <div>
+        <h3 class="h1">Historique des echecs</h3>
+        <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> echec(s))</p>
+      </div>
+    </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap admin-table-panel">
       <?php if (!$rows): ?>
         <p class="empty-state">Aucun &eacute;chec enregistr&eacute; sur cette question.</p>
       <?php else: ?>
@@ -242,6 +260,8 @@ $rows = $stmt->fetchAll() ?: [];
       <?php else: ?>
         <button class="btn ghost" disabled>&rarr;</button>
       <?php endif; ?>
+    </div>
+    </section>
     </div>
   </div>
 </div>

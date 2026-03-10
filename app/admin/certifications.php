@@ -223,9 +223,10 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 </head>
 <body>
   <div class="container admin-container">
-    <div class="card admin-card">
-      <div class="admin-head">
+    <div class="card admin-card admin-page-shell">
+      <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
+          <p class="admin-page-eyebrow">Administration</p>
           <h2 class="h1">Admin &middot; Certifications</h2>
           <p class="sub">Vue des Certifications et de leurs &eacute;ch&eacute;ances</p>
         </div>
@@ -234,9 +235,35 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
         </div>
       </div>
 
-      <hr class="separator">
+      <div class="admin-stats-grid">
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Certifi&eacute;es</span>
+          <strong class="admin-stat-value"><?= (int)$stats['CERTIFIED'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Expire bient&ocirc;t</span>
+          <strong class="admin-stat-value"><?= (int)$stats['SOON'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Expir&eacute;es</span>
+          <strong class="admin-stat-value"><?= (int)$stats['EXPIRED'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">R&eacute;voqu&eacute;es</span>
+          <strong class="admin-stat-value"><?= (int)$stats['REVOKED'] ?></strong>
+        </article>
+      </div>
 
-      <form method="get" class="filters-grid">
+      <div class="admin-page-layout">
+      <section class="admin-section-panel admin-section-panel-accent">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1">Filtres</h3>
+          <p class="sub">Filtrez l'&eacute;tat des certifications et exportez la vue courante.</p>
+        </div>
+      </div>
+
+      <form method="get" class="filters-grid admin-panel-surface">
         <div>
           <label class="label" for="email">Email</label>
           <input class="input" id="email" name="email" type="text" value="<?= htmlspecialchars((string)$email, ENT_QUOTES, 'UTF-8') ?>" placeholder="Email...">
@@ -271,17 +298,17 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
           <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
         </div>
       </form>
+      </section>
 
-      <div class="row sessions-stats">
-        <span class="badge ok">Certifi&eacute;s: <?= (int)$stats['CERTIFIED'] ?></span>
-        <span class="badge">Expire bient&ocirc;t: <?= (int)$stats['SOON'] ?></span>
-        <span class="badge bad">Expir&eacute;s: <?= (int)$stats['EXPIRED'] ?></span>
-        <span class="badge muted-dark">R&eacute;voqu&eacute;es: <?= (int)$stats['REVOKED'] ?></span>
+      <section class="admin-section-panel">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1">Registre des certifications</h3>
+          <p class="sub sessions-meta"><?= count($rows) ?> r&eacute;sultat(s)</p>
+        </div>
       </div>
 
-      <p class="sub sessions-meta"><?= count($rows) ?> r&eacute;sultat(s)</p>
-
-      <div class="table-wrap">
+      <div class="table-wrap admin-table-panel">
         <?php if (!$rows): ?>
           <p class="empty-state">Aucune certification trouv&eacute;e.</p>
         <?php else: ?>
@@ -339,6 +366,8 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
             </tbody>
           </table>
         <?php endif; ?>
+      </div>
+      </section>
       </div>
     </div>
   </div>

@@ -30,6 +30,29 @@ function admin_contact_package_column_exists(PDO $pdo, string $column): bool {
   return $cache[$column];
 }
 
+function admin_contact_format_cert_expiry(?DateTimeImmutable $expiresAt, bool $isRevoked): string {
+  if (!$expiresAt) {
+    return '-';
+  }
+
+  $dateLabel = $expiresAt->format('Y-m-d');
+  if ($isRevoked) {
+    return $dateLabel . ' (revoquee)';
+  }
+
+  $today = new DateTimeImmutable('today');
+  if ($expiresAt < $today) {
+    return $dateLabel . ' (expiree)';
+  }
+
+  $remainingDays = (int)$today->diff($expiresAt)->format('%a');
+  if ($remainingDays < 1) {
+    $remainingDays = 1;
+  }
+
+  return $dateLabel . ' (' . $remainingDays . ' j restants)';
+}
+
 $email = trim($_GET['email'] ?? '');
 if ($email === '') { http_response_code(400); echo "Missing email"; exit; }
 
@@ -275,9 +298,11 @@ $summary = $summaryStmt->fetch();
 
 $certsStmt = $pdo->prepare("
   SELECT
+    s.package_id,
     pk.name AS package_name,
     pk.name_color_hex AS package_color_hex,
     $certValidityDaysSelect,
+    MAX(s.started_at) AS last_started_at,
     MAX($sessionEndExpr) AS last_cert_date
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
@@ -285,11 +310,50 @@ $certsStmt = $pdo->prepare("
     AND s.status = 'TERMINATED'
     AND s.passed = 1
     AND s.session_type = 'EXAM'
-  GROUP BY pk.name, pk.name_color_hex$certValidityDaysGroup
+  GROUP BY s.package_id, pk.name, pk.name_color_hex$certValidityDaysGroup
   ORDER BY last_cert_date DESC
 ");
 $certsStmt->execute([(int)$contact['id']]);
 $certs = $certsStmt->fetchAll();
+
+$latestCertSessionStmt = $pdo->prepare("
+  SELECT s.id
+  FROM sessions s
+  WHERE s.contact_id = ?
+    AND s.package_id = ?
+    AND s.session_type = 'EXAM'
+    AND s.status = 'TERMINATED'
+    AND s.passed = 1
+  ORDER BY
+    EXISTS(SELECT 1 FROM session_questions sq WHERE sq.session_id = s.id) DESC,
+    $sessionEndExpr DESC,
+    s.id DESC
+  LIMIT 1
+");
+
+$hasRevocationsTable = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'certification_revocations'
+")->fetchColumn();
+$revokedMap = [];
+if ($hasRevocationsTable) {
+  $revokedRowsStmt = $pdo->prepare("
+    SELECT package_id, revoked_at
+    FROM certification_revocations
+    WHERE contact_id = ?
+  ");
+  $revokedRowsStmt->execute([(int)$contact['id']]);
+  foreach (($revokedRowsStmt->fetchAll() ?: []) as $rv) {
+    $revokedMap[(int)$rv['package_id']] = (string)$rv['revoked_at'];
+  }
+}
+foreach ($certs as &$certRow) {
+  $latestCertSessionStmt->execute([(int)$contact['id'], (int)($certRow['package_id'] ?? 0)]);
+  $certRow['last_session_id'] = (string)($latestCertSessionStmt->fetchColumn() ?: '');
+}
+unset($certRow);
 
 $histWhere = [];
 $histParams = [(int)$contact['id']];
@@ -367,27 +431,41 @@ $hist = $histStmt->fetchAll();
 </head>
 <body>
   <div class="container admin-container">
-    <div class="card admin-card">
-      <div class="admin-head">
+    <div class="card admin-card candidate-profile-page">
+      <div class="admin-head candidate-profile-hero">
         <div class="admin-head-copy">
+          <p class="candidate-profile-eyebrow">Administration candidat</p>
           <h2 class="h1">Admin &middot; Profil candidat</h2>
           <p class="sub"><?= h($contact['email']) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs(); ?>
+          <a class="btn ghost" href="/admin/users.php">Retour</a>
         </div>
       </div>
 
-      <hr class="separator">
-
-      <div class="row sessions-stats">
-        <span class="badge">Sessions: <?= (int)$summary['total_sessions'] ?></span>
-        <span class="badge">Derniere activite: <?= h($summary['last_activity'] ?: '-') ?></span>
-        <span class="badge ok">Certifications reussies: <?= (int)$summary['passed_exam_count'] ?></span>
-        <span class="badge">Score moyen Certification: <?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></span>
+      <div class="candidate-stats-grid">
+        <article class="candidate-stat-card">
+          <span class="candidate-stat-label">Sessions</span>
+          <strong class="candidate-stat-value"><?= (int)$summary['total_sessions'] ?></strong>
+        </article>
+        <article class="candidate-stat-card">
+          <span class="candidate-stat-label">Derniere activite</span>
+          <strong class="candidate-stat-value candidate-stat-value-sm"><?= h($summary['last_activity'] ?: '-') ?></strong>
+        </article>
+        <article class="candidate-stat-card">
+          <span class="candidate-stat-label">Certifications reussies</span>
+          <strong class="candidate-stat-value"><?= (int)$summary['passed_exam_count'] ?></strong>
+        </article>
+        <article class="candidate-stat-card">
+          <span class="candidate-stat-label">Score moyen certification</span>
+          <strong class="candidate-stat-value"><?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></strong>
+        </article>
       </div>
 
-      <div class="section-head">
+      <div class="candidate-profile-layout">
+      <section class="candidate-section candidate-section-accent">
+      <div class="section-head candidate-section-head">
         <div>
           <h2 class="h1">Deblocage exam</h2>
           <p class="sub">Rendre une certification de nouveau disponible pour ce candidat (un prochain lancement).</p>
@@ -412,7 +490,7 @@ $hist = $histStmt->fetchAll();
       <?php elseif (!$packages): ?>
         <p class="error">Aucune certification active disponible.</p>
       <?php else: ?>
-        <form method="post" class="filters-grid">
+        <form method="post" class="filters-grid candidate-inline-form">
           <input type="hidden" name="action" value="unlock_exam">
           <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
 
@@ -444,8 +522,13 @@ $hist = $histStmt->fetchAll();
       <?php endif; ?>
 
       <?php if ($activeOverrides): ?>
-        <p class="sub sessions-meta">Page <?= (int)$overridePage ?> / <?= (int)$overrideTotalPages ?> (<?= (int)$overrideTotalRows ?> resultats)</p>
-        <div class="table-wrap" style="margin-top:10px;">
+        <div class="candidate-subsection-head">
+          <div>
+            <h3 class="candidate-subsection-title">Deblocages actifs et historiques</h3>
+            <p class="sub sessions-meta">Page <?= (int)$overridePage ?> / <?= (int)$overrideTotalPages ?> (<?= (int)$overrideTotalRows ?> resultats)</p>
+          </div>
+        </div>
+        <div class="table-wrap candidate-table-wrap">
           <table class="table questions-table">
             <thead>
               <tr>
@@ -488,6 +571,7 @@ $hist = $histStmt->fetchAll();
                   <td><?= h((string)($ov['used_at'] ?? '-')) ?></td>
                   <td><?= h((string)($ov['reason'] ?? '-')) ?></td>
                   <td><?= h((string)($ov['created_by_email'] ?? '-')) ?></td>
+                  <td>-</td>
                   <td class="actions-cell">
                     <?php if ($canReblock): ?>
                       <form method="post" class="inline-action-form">
@@ -559,24 +643,29 @@ $hist = $histStmt->fetchAll();
           <?php endif; ?>
         </div>
       <?php endif; ?>
+      </section>
 
-      <div class="section-head">
+      <section class="candidate-section">
+      <div class="section-head candidate-section-head">
         <div>
           <h2 class="h1">Certifications</h2>
           <p class="sub">Derniere session certification reussie par certification.</p>
         </div>
       </div>
 
-      <div class="table-wrap">
+      <div class="table-wrap candidate-table-wrap">
         <?php if (!$certs): ?>
           <p class="empty-state">Aucune certification reussie.</p>
         <?php else: ?>
-          <table class="table questions-table">
+          <table class="table questions-table certifications-table">
             <thead>
               <tr>
                 <th>Certification</th>
-                <th>Derniere reussite</th>
+                <th>Date debut</th>
+                <th>Fin de session</th>
+                <th>Expiration</th>
                 <th>Statut</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -586,28 +675,91 @@ $hist = $histStmt->fetchAll();
                   null,
                   (int)($c['cert_validity_days'] ?? 365)
                 );
+                $packageId = (int)($c['package_id'] ?? 0);
+                $isRevoked = false;
+                if (isset($revokedMap[$packageId])) {
+                  $revokedAtRaw = trim((string)$revokedMap[$packageId]);
+                  $lastSuccessRaw = trim((string)($c['last_cert_date'] ?? ''));
+                  if ($revokedAtRaw !== '' && $lastSuccessRaw !== '') {
+                    try {
+                      $revokedAt = new DateTimeImmutable($revokedAtRaw);
+                      $lastSuccessAt = new DateTimeImmutable($lastSuccessRaw);
+                      $isRevoked = $revokedAt >= $lastSuccessAt;
+                    } catch (Throwable $e) {
+                      $isRevoked = true;
+                    }
+                  } else {
+                    $isRevoked = true;
+                  }
+                }
+                if ($isRevoked) {
+                  $certStatus = [
+                    'status_key' => 'REVOKED',
+                    'status_label' => 'Revoquee',
+                    'status_class' => 'pill danger',
+                    'expires_at' => $certStatus['expires_at'] ?? null,
+                  ];
+                }
+                $expiresAt = $certStatus['expires_at'] ?? null;
+                if (!$expiresAt instanceof DateTimeImmutable) {
+                  $expiresAt = null;
+                }
+                $sessionDetailUrl = (string)($c['last_session_id'] ?? '') !== ''
+                  ? '/admin/session.php?sid=' . urlencode((string)$c['last_session_id']) . '&return=' . urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/contact.php?email=' . $contact['email']))
+                  : '';
+                $returnUrl = '/admin/contact.php?' . http_build_query([
+                  'email' => (string)$contact['email'],
+                  'htype' => $htype,
+                  'hpackage' => $hpackage,
+                  'hstatus' => $hstatus,
+                  'hsort' => $hsort,
+                  'hdir' => $hdir,
+                  'hresult' => $hresult,
+                  'opage' => $overridePage,
+                  'hpage' => $historyPage,
+                ]);
               ?>
                 <tr>
 	                  <td><span style="<?= h(package_label_style((string)$c['package_name'], (string)($c['package_color_hex'] ?? ''))) ?>"><?= h($c['package_name']) ?></span></td>
+                  <td><?= h((string)($c['last_started_at'] ?? '-')) ?></td>
                   <td><?= h($c['last_cert_date']) ?></td>
+                  <td><?= h(admin_contact_format_cert_expiry($expiresAt, $isRevoked)) ?></td>
                   <td><span class="<?= h((string)$certStatus['status_class']) ?>"><?= h((string)$certStatus['status_label']) ?></span></td>
+                  <td class="actions-cell">
+                    <?php if ($sessionDetailUrl !== ''): ?>
+                      <a class="btn ghost icon-btn" href="<?= h($sessionDetailUrl) ?>" aria-label="Voir le detail de la session" title="Voir le detail de la session">
+                        <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+                        </svg>
+                      </a>
+                    <?php endif; ?>
+                    <?php if ($hasRevocationsTable): ?>
+                      <?php if ((string)($certStatus['status_key'] ?? '') === 'REVOKED'): ?>
+                        <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
+                           onclick="return confirm('Retablir cette certification ?');">Retablir</a>
+                      <?php else: ?>
+                        <a class="btn ghost cert-action-revoke" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
+                           onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>
+                      <?php endif; ?>
+                    <?php endif; ?>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
         <?php endif; ?>
       </div>
+      </section>
 
-      <hr class="separator">
-
-      <div id="history-sessions"></div>
-      <div class="section-head">
+      <section class="candidate-section candidate-section-wide" id="history-sessions">
+      <div class="section-head candidate-section-head">
         <div>
           <h2 class="h1">Historique des sessions</h2>
+          <p class="sub">Suivi complet des examens et tests du candidat avec filtres de consultation.</p>
         </div>
       </div>
 
-      <form method="get" class="filters-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items:end; gap:12px;">
+      <form method="get" class="filters-grid candidate-history-filters" style="grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items:end; gap:12px;">
         <input type="hidden" name="email" value="<?= h($contact['email']) ?>">
         <input type="hidden" name="hsort" value="<?= h($hsort) ?>">
         <input type="hidden" name="hdir" value="<?= h($hdir) ?>">
@@ -658,7 +810,7 @@ $hist = $histStmt->fetchAll();
         </div>
       </form>
 
-      <div class="table-wrap">
+      <div class="table-wrap candidate-table-wrap">
         <?php if (!$hist): ?>
           <p class="empty-state">Aucune session.</p>
         <?php else: ?>
@@ -792,6 +944,8 @@ $hist = $histStmt->fetchAll();
           <?php endif; ?>
         </div>
       <?php endif; ?>
+      </section>
+      </div>
     </div>
   </div>
 </body>

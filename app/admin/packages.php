@@ -178,9 +178,10 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
 </head>
 <body>
   <div class="container admin-container">
-    <div class="card admin-card">
-      <div class="admin-head">
+    <div class="card admin-card admin-page-shell">
+      <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
+          <p class="admin-page-eyebrow">Administration</p>
           <h2 class="h1">Admin &middot; Packs</h2>
           <p class="sub">Param&egrave;tres des packs</p>
         </div>
@@ -188,8 +189,6 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
           <?php render_admin_tabs('packages'); ?>
         </div>
       </div>
-
-      <hr class="separator">
 
       <?php if ($created): ?>
         <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;">Pack cree avec succes.</p>
@@ -207,11 +206,24 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
         <p class="error" style="margin:0 0 12px;"><?= h($reorderError) ?></p>
       <?php endif; ?>
 
-      <div style="margin: 0 0 12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <div class="admin-page-layout">
+      <section class="admin-section-panel admin-section-panel-accent">
+      <div class="admin-panel-toolbar">
+        <div>
+          <h3 class="h1" style="margin:0;">Gestion des packs</h3>
+          <p class="sub" style="margin:6px 0 0;">Cr&eacute;ation, ordre d'affichage, activation et disponibilit&eacute; des packs.</p>
+        </div>
         <a class="btn admin-primary-action-btn" href="/admin/pack_create.php">+ Cr&eacute;er un pack</a>
       </div>
-      <hr class="separator">
-      <div class="table-wrap">
+      </section>
+
+      <section class="admin-section-panel">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1">Catalogue des packs</h3>
+        </div>
+      </div>
+      <div class="table-wrap admin-table-panel">
         <table class="table questions-table packages-table">
           <thead>
             <tr>
@@ -296,6 +308,8 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
             <?php endforeach; ?>
           </tbody>
         </table>
+      </div>
+      </section>
       </div>
     </div>
   </div>

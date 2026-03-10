@@ -492,9 +492,10 @@ function admin_users_sort_link(array $qs, string $key): string {
 </head>
 <body>
   <div class="container admin-container">
-    <div class="card admin-card">
-      <div class="admin-head">
+    <div class="card admin-card admin-page-shell">
+      <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
+          <p class="admin-page-eyebrow">Administration</p>
           <h2 class="h1">Admin &middot; Utilisateurs</h2>
           <p class="sub">Gestion des comptes, rôles et habilitations administration</p>
         </div>
@@ -503,13 +504,29 @@ function admin_users_sort_link(array $qs, string $key): string {
         </div>
       </div>
 
-      <hr class="separator">
-
       <?php if (is_array($notice) && isset($notice['type'], $notice['text'])): ?>
         <div class="admin-notice <?= ((string)$notice['type'] === 'ok') ? 'is-ok' : 'is-bad' ?>">
           <?= h((string)$notice['text']) ?>
         </div>
       <?php endif; ?>
+
+      <div class="admin-stats-grid">
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Total comptes</span>
+          <strong class="admin-stat-value"><?= (int)$stats['total_users'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Administrateurs</span>
+          <strong class="admin-stat-value"><?= (int)$stats['total_admins'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Utilisateurs</span>
+          <strong class="admin-stat-value"><?= (int)$stats['total_standard'] ?></strong>
+        </article>
+      </div>
+
+      <div class="admin-page-layout">
+      <section class="admin-section-panel admin-section-panel-accent">
 
       <div class="users-create-toggle">
         <button
@@ -524,7 +541,7 @@ function admin_users_sort_link(array $qs, string $key): string {
       </div>
 
       <div class="users-create<?= $openCreate ? ' is-open' : '' ?>" id="users-create-panel" <?= $openCreate ? '' : 'hidden' ?>>
-        <div class="section-head">
+        <div class="section-head admin-section-head">
           <div>
             <h3 class="h1 users-create-title">Créer un utilisateur</h3>
           </div>
@@ -568,9 +585,17 @@ function admin_users_sort_link(array $qs, string $key): string {
         </form>
       </div>
 
-      <hr class="separator">
+      </section>
 
-      <form method="get" class="filters-grid users-filters">
+      <section class="admin-section-panel">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1">Annuaire des utilisateurs</h3>
+          <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> résultats)</p>
+        </div>
+      </div>
+
+      <form method="get" class="filters-grid users-filters admin-panel-surface">
         <div>
           <label class="label" for="email">Email</label>
           <input class="input" id="email" type="text" name="email" value="<?= h($emailFilter) ?>" placeholder="Email">
@@ -593,15 +618,7 @@ function admin_users_sort_link(array $qs, string $key): string {
         </div>
       </form>
 
-      <div class="row sessions-stats">
-        <span class="badge">Total: <?= (int)$stats['total_users'] ?></span>
-        <span class="badge ok">Admins: <?= (int)$stats['total_admins'] ?></span>
-        <span class="badge">Utilisateurs: <?= (int)$stats['total_standard'] ?></span>
-      </div>
-
-      <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> résultats)</p>
-
-      <div class="table-wrap">
+      <div class="table-wrap admin-table-panel">
         <?php if (!$users): ?>
           <p class="empty-state">Aucun utilisateur trouvé.</p>
         <?php else: ?>
@@ -813,6 +830,8 @@ function admin_users_sort_link(array $qs, string $key): string {
         <?php else: ?>
           <button class="btn ghost" disabled>&rarr;</button>
         <?php endif; ?>
+      </div>
+      </section>
       </div>
     </div>
   </div>

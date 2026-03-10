@@ -8,6 +8,11 @@ $pdo = db();
 $action = strtolower(trim((string)($_GET['action'] ?? 'revoke')));
 $contactId = (int)($_GET['contact_id'] ?? 0);
 $packageId = (int)($_GET['package_id'] ?? 0);
+$return = trim((string)($_GET['return'] ?? ''));
+
+if ($return === '' || preg_match('/[\r\n]/', $return) || strpos($return, '/admin/') !== 0) {
+  $return = '/admin/certifications.php';
+}
 
 if ($contactId <= 0 || $packageId <= 0) {
   http_response_code(400);
@@ -47,5 +52,5 @@ if ($action === 'undo') {
   $st->execute([$contactId, $packageId, $adminUserId]);
 }
 
-header('Location: /admin/certifications.php');
+header('Location: ' . $return);
 exit;

@@ -296,9 +296,10 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
 </head>
 <body>
 <div class="container admin-container">
-  <div class="card admin-card">
-    <div class="admin-head">
+  <div class="card admin-card admin-page-shell">
+    <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
+        <p class="admin-page-eyebrow">Administration</p>
         <h2 class="h1">Admin &middot; Performance questions</h2>
         <p class="sub">Vue agr&eacute;g&eacute;e par question sur les sessions termin&eacute;es et expir&eacute;es.</p>
       </div>
@@ -307,9 +308,35 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
       </div>
     </div>
 
-    <hr class="separator">
+    <div class="admin-stats-grid">
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Questions</span>
+        <strong class="admin-stat-value"><?= (int)$totalRows ?></strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Occurrences</span>
+        <strong class="admin-stat-value"><?= (int)$totalOccurrences ?></strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Taux reussite global</span>
+        <strong class="admin-stat-value"><?= h(number_format($globalOkRate, 1, '.', '')) ?>%</strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Taux echec global</span>
+        <strong class="admin-stat-value"><?= h(number_format($globalFailRate, 1, '.', '')) ?>%</strong>
+      </article>
+    </div>
 
-    <form method="get">
+    <div class="admin-page-layout">
+    <section class="admin-section-panel admin-section-panel-accent">
+    <div class="section-head admin-section-head">
+      <div>
+        <h3 class="h1">Filtres d'analyse</h3>
+        <p class="sub">Croisez les performances par question, cat&eacute;gorie, type de session et occurrence.</p>
+      </div>
+    </div>
+
+    <form method="get" class="admin-panel-surface">
       <div class="filters-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr)); align-items:end; margin-bottom:12px;">
         <div>
           <label class="label" for="question_id">Question ID</label>
@@ -416,17 +443,17 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
         <a class="btn ghost" href="/admin/question_performance.php">Reset</a>
       </div>
     </form>
+    </section>
 
-    <div class="row sessions-stats">
-      <span class="badge">Questions: <?= (int)$totalRows ?></span>
-      <span class="badge">Occurrences: <?= (int)$totalOccurrences ?></span>
-      <span class="badge ok">Taux reussite global: <?= h(number_format($globalOkRate, 1, '.', '')) ?>%</span>
-      <span class="badge bad">Taux echec global: <?= h(number_format($globalFailRate, 1, '.', '')) ?>%</span>
+    <section class="admin-section-panel">
+    <div class="section-head admin-section-head">
+      <div>
+        <h3 class="h1">Tableau de performance</h3>
+        <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> question(s))</p>
+      </div>
     </div>
 
-    <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> question(s))</p>
-
-    <div class="table-wrap">
+    <div class="table-wrap admin-table-panel">
       <?php if (!$rows): ?>
         <p class="empty-state">Aucune donn&eacute;e pour ces filtres.</p>
       <?php else: ?>
@@ -535,6 +562,8 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
       <?php else: ?>
         <button class="btn ghost" disabled>&rarr;</button>
       <?php endif; ?>
+    </div>
+    </section>
     </div>
   </div>
 </div>

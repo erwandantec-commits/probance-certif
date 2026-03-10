@@ -200,9 +200,10 @@ $stats = $pdo->query("
 </head>
 <body>
   <div class="container admin-container">
-    <div class="card admin-card">
-      <div class="admin-head">
+    <div class="card admin-card admin-page-shell">
+      <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
+          <p class="admin-page-eyebrow">Administration</p>
           <h2 class="h1">Admin &middot; Sessions</h2>
           <p class="sub">Pilotage des sessions et Certifications</p>
         </div>
@@ -211,9 +212,35 @@ $stats = $pdo->query("
         </div>
       </div>
 
-      <hr class="separator">
+      <div class="admin-stats-grid">
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Sessions actives</span>
+          <strong class="admin-stat-value"><?= (int)$stats['active_count'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Certifications reussies</span>
+          <strong class="admin-stat-value"><?= (int)$stats['passed_exam_count'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Sessions terminees</span>
+          <strong class="admin-stat-value"><?= (int)$stats['terminated_count'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Sessions expirees</span>
+          <strong class="admin-stat-value"><?= (int)$stats['expired_count'] ?></strong>
+        </article>
+      </div>
 
-      <form method="get" class="filters-grid sessions-filters">
+      <div class="admin-page-layout">
+      <section class="admin-section-panel admin-section-panel-accent">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1">Filtres de recherche</h3>
+          <p class="sub">Affinez la vue des sessions, exports et suivis d'examen.</p>
+        </div>
+      </div>
+
+      <form method="get" class="filters-grid sessions-filters admin-panel-surface">
         <div>
           <label class="label" for="search">Email</label>
           <input class="input" id="search" type="text" name="search" value="<?= h($search) ?>" placeholder="Email...">
@@ -259,23 +286,23 @@ $stats = $pdo->query("
           </select>
         </div>
 
-        <div class="filters-actions">
+      <div class="filters-actions">
           <button class="btn" type="submit">Filtrer</button>
           <a class="btn ghost" href="/admin/index.php">Reset</a>
           <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
         </div>
       </form>
+      </section>
 
-      <div class="row sessions-stats">
-        <span class="badge">Actives: <?= (int)$stats['active_count'] ?></span>
-        <span class="badge ok">Certifications r&eacute;ussies: <?= (int)$stats['passed_exam_count'] ?></span>
-        <span class="badge">Termin&eacute;es: <?= (int)$stats['terminated_count'] ?></span>
-        <span class="badge bad">Expir&eacute;es: <?= (int)$stats['expired_count'] ?></span>
+      <section class="admin-section-panel">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1">Liste des sessions</h3>
+          <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> r&eacute;sultats)</p>
+        </div>
       </div>
 
-      <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> r&eacute;sultats)</p>
-
-      <div class="table-wrap">
+      <div class="table-wrap admin-table-panel">
         <?php if (!$sessions): ?>
           <p class="empty-state">Aucune session trouv&eacute;e.</p>
         <?php else: ?>
@@ -429,6 +456,8 @@ $stats = $pdo->query("
         <?php else: ?>
           <button class="btn ghost" disabled>&rarr;</button>
         <?php endif; ?>
+      </div>
+      </section>
       </div>
     </div>
   </div>

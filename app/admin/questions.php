@@ -206,9 +206,10 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
 </head>
 <body>
 <div class="container admin-container">
-  <div class="card admin-card">
-    <div class="admin-head">
+  <div class="card admin-card admin-page-shell">
+    <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
+        <p class="admin-page-eyebrow">Administration</p>
         <h2 class="h1">Admin &middot; Questions</h2>
         <p class="sub">Modifier / supprimer (creation via import uniquement)</p>
       </div>
@@ -217,13 +218,16 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
       </div>
     </div>
 
-    <hr class="separator">
-
-    <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 8px;">
+    <div class="admin-page-layout">
+    <section class="admin-section-panel admin-section-panel-accent">
+    <div class="admin-panel-toolbar">
+      <div>
+        <h3 class="h1" style="margin:0;">Gestion du catalogue</h3>
+        <p class="sub" style="margin:6px 0 0;">Recherche, navigation et analyse de la banque de questions.</p>
+      </div>
       <a class="btn admin-primary-action-btn" href="/admin/import_questions.php">+ Importer</a>
     </div>
-    <hr class="separator">
-    <form method="get" class="filters-grid users-filters" style="margin-bottom:8px;">
+    <form method="get" class="filters-grid users-filters admin-panel-surface" style="margin-bottom:8px;">
       <?php foreach ($activeNeeds as $n): ?>
         <input type="hidden" name="needs[]" value="<?= h($n) ?>">
       <?php endforeach; ?>
@@ -293,10 +297,17 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
         <?php endforeach; ?>
       </div>
     </div>
+    </section>
 
-    <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
+    <section class="admin-section-panel">
+    <div class="section-head admin-section-head">
+      <div>
+        <h3 class="h1">Liste des questions</h3>
+        <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
+      </div>
+    </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap admin-table-panel">
       <?php if (!$questions): ?>
         <p class="empty-state">Aucune question.</p>
       <?php else: ?>
@@ -398,6 +409,8 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
       <?php else: ?>
         <button class="btn ghost" disabled>&rarr;</button>
       <?php endif; ?>
+    </div>
+    </section>
     </div>
   </div>
 </div>

@@ -117,9 +117,10 @@ $statusClass = match ((string)$s['status']) {
 </head>
 <body>
   <div class="container admin-container">
-    <div class="card admin-card">
-      <div class="admin-head">
+    <div class="card admin-card admin-page-shell">
+      <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
+          <p class="admin-page-eyebrow">Administration</p>
           <h2 class="h1">Admin &middot; Detail session</h2>
           <p class="sub">Analyse complete de la session</p>
         </div>
@@ -129,19 +130,42 @@ $statusClass = match ((string)$s['status']) {
         </div>
       </div>
 
-      <hr class="separator">
-
-      <div class="row sessions-stats">
-        <span class="badge">Email: <?= h($s['email']) ?></span>
-        <span class="badge">Pack: <span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h($s['package_name']) ?></span></span>
-        <span class="<?= h($statusClass) ?>">Statut: <?= h($statusLabel) ?></span>
-        <span class="badge">Score: <?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></span>
-        <span class="badge ok">Bonnes: <?= (int)$goodCount ?></span>
-        <span class="badge bad">Mauvaises: <?= (int)$badCount ?></span>
-        <span class="badge">Non repondues: <?= (int)$unansweredCount ?></span>
+      <div class="admin-stats-grid">
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Email</span>
+          <strong class="admin-stat-value admin-stat-value-sm"><?= h($s['email']) ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Score</span>
+          <strong class="admin-stat-value"><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Bonnes r&eacute;ponses</span>
+          <strong class="admin-stat-value"><?= (int)$goodCount ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Mauvaises r&eacute;ponses</span>
+          <strong class="admin-stat-value"><?= (int)$badCount ?></strong>
+        </article>
       </div>
 
-      <div class="table-wrap">
+      <div class="admin-page-layout">
+      <section class="admin-section-panel admin-section-panel-accent">
+        <div class="section-head admin-section-head">
+          <div>
+            <h3 class="h1">Contexte de session</h3>
+            <p class="sub">Pack : <span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h($s['package_name']) ?></span> · Statut : <span class="<?= h($statusClass) ?>"><?= h($statusLabel) ?></span> · Non repondues : <?= (int)$unansweredCount ?></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-section-panel">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1">Questions de la session</h3>
+        </div>
+      </div>
+      <div class="table-wrap admin-table-panel">
         <?php if (!$items): ?>
           <p class="empty-state">
             Aucune question detaillee disponible pour cette session.
@@ -181,6 +205,8 @@ $statusClass = match ((string)$s['status']) {
             </tbody>
           </table>
         <?php endif; ?>
+      </div>
+      </section>
       </div>
     </div>
   </div>
