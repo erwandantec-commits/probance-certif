@@ -2,10 +2,9 @@
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/_auth.php';
 require_once __DIR__ . '/_nav.php';
+require_once __DIR__ . '/../utils.php';
 
 $pdo = db();
-
-function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
 function normalize_header(string $value): string {
   $value = trim(mb_strtolower($value, 'UTF-8'));
@@ -447,12 +446,14 @@ function validate_and_prepare_rows(array $rows, array $map): array {
       }
     }
 
-    $allowMulti = count($correctIndexes) > 1 ? 1 : 0;
     if ($isBoolean) {
       if (count($correctIndexes) !== 1) {
         $rowErrors[] = "VRAI/FAUX: une seule bonne reponse autorisee.";
       }
       $questionType = 'TRUE_FALSE';
+      $allowMulti = 0;
+    } elseif (count($correctIndexes) === 1) {
+      $questionType = 'SINGLE';
       $allowMulti = 0;
     } else {
       $questionType = 'MULTI';

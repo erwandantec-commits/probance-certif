@@ -1,0 +1,562 @@
+<?php
+require_once __DIR__ . '/_auth.php';
+require_admin();
+require_once __DIR__ . '/_nav.php';
+
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../utils.php';
+$pdo = db();
+
+$category = trim((string)($_GET['category'] ?? ''));
+$questionSearch = trim((string)($_GET['q'] ?? ''));
+$questionIdRaw = trim((string)($_GET['question_id'] ?? ''));
+$sessionType = strtoupper(trim((string)($_GET['session_type'] ?? 'ALL')));
+$packageId = (int)($_GET['package_id'] ?? 0);
+$sort = trim((string)($_GET['sort'] ?? 'fail_rate'));
+$dir = strtoupper(trim((string)($_GET['dir'] ?? 'DESC')));
+$page = max(1, (int)($_GET['page'] ?? 1));
+$limit = 20;
+$okRateOp = trim((string)($_GET['ok_rate_op'] ?? ''));
+$okRateValueRaw = trim((string)($_GET['ok_rate_value'] ?? ''));
+$okRateValue2Raw = trim((string)($_GET['ok_rate_value2'] ?? ''));
+$failRateOp = trim((string)($_GET['fail_rate_op'] ?? ''));
+$failRateValueRaw = trim((string)($_GET['fail_rate_value'] ?? ''));
+$failRateValue2Raw = trim((string)($_GET['fail_rate_value2'] ?? ''));
+$occurrenceOp = trim((string)($_GET['occurrence_op'] ?? ''));
+$occurrenceValueRaw = trim((string)($_GET['occurrence_value'] ?? ''));
+$occurrenceValue2Raw = trim((string)($_GET['occurrence_value2'] ?? ''));
+
+if (!in_array($sessionType, ['ALL', 'EXAM', 'TRAINING'], true)) {
+  $sessionType = 'ALL';
+}
+if (!in_array($sort, ['question_text', 'category', 'occurrence_count', 'ok_rate', 'fail_rate'], true)) {
+  $sort = 'fail_rate';
+}
+if (!in_array($dir, ['ASC', 'DESC'], true)) {
+  $dir = 'DESC';
+}
+if (!in_array($okRateOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
+  $okRateOp = '';
+}
+if (!in_array($failRateOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
+  $failRateOp = '';
+}
+if (!in_array($occurrenceOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
+  $occurrenceOp = '';
+}
+
+function performance_parse_percent(?string $raw): ?float {
+  $raw = trim((string)$raw);
+  if ($raw === '' || !is_numeric($raw)) {
+    return null;
+  }
+  $value = (float)$raw;
+  if ($value < 0 || $value > 100) {
+    return null;
+  }
+  return round($value, 1);
+}
+
+function performance_having_clause(string $field, string $operator, ?float $value1, ?float $value2, array &$params): ?string {
+  if ($operator === '' || $value1 === null) {
+    return null;
+  }
+  if ($operator === 'between') {
+    if ($value2 === null) {
+      return null;
+    }
+    $params[] = min($value1, $value2);
+    $params[] = max($value1, $value2);
+    return "$field BETWEEN ? AND ?";
+  }
+  $params[] = $value1;
+  return match ($operator) {
+    'eq' => "$field = ?",
+    'gte' => "$field >= ?",
+    'lte' => "$field <= ?",
+    default => null,
+  };
+}
+
+function performance_parse_int(?string $raw): ?int {
+  $raw = trim((string)$raw);
+  if ($raw === '' || !preg_match('/^\d+$/', $raw)) {
+    return null;
+  }
+  return (int)$raw;
+}
+
+function performance_having_int_clause(string $field, string $operator, ?int $value1, ?int $value2, array &$params): ?string {
+  if ($operator === '' || $value1 === null) {
+    return null;
+  }
+  if ($operator === 'between') {
+    if ($value2 === null) {
+      return null;
+    }
+    $params[] = min($value1, $value2);
+    $params[] = max($value1, $value2);
+    return "$field BETWEEN ? AND ?";
+  }
+  $params[] = $value1;
+  return match ($operator) {
+    'eq' => "$field = ?",
+    'gte' => "$field >= ?",
+    'lte' => "$field <= ?",
+    default => null,
+  };
+}
+
+$okRateValue = performance_parse_percent($okRateValueRaw);
+$okRateValue2 = performance_parse_percent($okRateValue2Raw);
+$failRateValue = performance_parse_percent($failRateValueRaw);
+$failRateValue2 = performance_parse_percent($failRateValue2Raw);
+$occurrenceValue = performance_parse_int($occurrenceValueRaw);
+$occurrenceValue2 = performance_parse_int($occurrenceValue2Raw);
+$questionId = ($questionIdRaw !== '' && preg_match('/^\d+$/', $questionIdRaw)) ? (int)$questionIdRaw : null;
+
+$packages = $pdo->query("SELECT id, name, name_color_hex FROM packages ORDER BY name ASC")->fetchAll() ?: [];
+$packageIds = array_map(fn($pkg) => (int)$pkg['id'], $packages);
+if ($packageId > 0 && !in_array($packageId, $packageIds, true)) {
+  $packageId = 0;
+}
+
+$categoryRows = $pdo->query("
+  SELECT DISTINCT TRIM(category) AS category_name
+  FROM questions
+  WHERE category IS NOT NULL AND TRIM(category) <> ''
+  ORDER BY category_name ASC
+")->fetchAll() ?: [];
+
+$where = ["s.status IN ('TERMINATED', 'EXPIRED')"];
+$params = [];
+if ($sessionType !== 'ALL') {
+  $where[] = "s.session_type = ?";
+  $params[] = $sessionType;
+}
+if ($packageId > 0) {
+  $where[] = "s.package_id = ?";
+  $params[] = $packageId;
+}
+if ($category !== '') {
+  $where[] = "q0.category = ?";
+  $params[] = $category;
+}
+if ($questionSearch !== '') {
+  $where[] = "q0.text LIKE ?";
+  $params[] = '%' . $questionSearch . '%';
+}
+if ($questionId !== null) {
+  $where[] = "q0.external_id = ?";
+  $params[] = $questionId;
+}
+$whereSql = implode("\n      AND ", $where);
+$havingParams = [];
+$havingParts = [];
+$okHaving = performance_having_clause('ROUND((100.0 * SUM(CASE WHEN perf.answer_status = \'OK\' THEN 1 ELSE 0 END)) / COUNT(*), 1)', $okRateOp, $okRateValue, $okRateValue2, $havingParams);
+if ($okHaving !== null) {
+  $havingParts[] = $okHaving;
+}
+$failHaving = performance_having_clause('ROUND((100.0 * SUM(CASE WHEN perf.answer_status = \'KO\' THEN 1 ELSE 0 END)) / COUNT(*), 1)', $failRateOp, $failRateValue, $failRateValue2, $havingParams);
+if ($failHaving !== null) {
+  $havingParts[] = $failHaving;
+}
+$occurrenceHaving = performance_having_int_clause('COUNT(*)', $occurrenceOp, $occurrenceValue, $occurrenceValue2, $havingParams);
+if ($occurrenceHaving !== null) {
+  $havingParts[] = $occurrenceHaving;
+}
+$havingSql = $havingParts ? ('HAVING ' . implode(' AND ', $havingParts)) : '';
+
+$perfFromSql = "
+  FROM (
+    SELECT
+      sq.session_id,
+      sq.question_id,
+      CASE
+        WHEN COALESCE(ans.selected_correct_count, 0) = qstats.correct_count
+         AND COALESCE(ans.selected_total_count, 0) = qstats.correct_count
+        THEN 'OK'
+        WHEN COALESCE(ans.selected_total_count, 0) = 0 THEN 'UNANSWERED'
+        ELSE 'KO'
+      END AS answer_status
+    FROM session_questions sq
+    JOIN sessions s ON s.id = sq.session_id
+    JOIN questions q0 ON q0.id = sq.question_id
+    JOIN (
+      SELECT
+        qo.question_id,
+        COUNT(CASE WHEN qo.is_correct = 1 THEN 1 END) AS correct_count
+      FROM question_options qo
+      GROUP BY qo.question_id
+    ) qstats ON qstats.question_id = sq.question_id
+    LEFT JOIN (
+      SELECT
+        ao.session_id,
+        ao.question_id,
+        COUNT(*) AS selected_total_count,
+        COUNT(CASE WHEN qo.is_correct = 1 THEN 1 END) AS selected_correct_count
+      FROM answer_options ao
+      JOIN question_options qo ON qo.id = ao.option_id
+      GROUP BY ao.session_id, ao.question_id
+    ) ans ON ans.session_id = sq.session_id AND ans.question_id = sq.question_id
+    WHERE $whereSql
+  ) perf
+  JOIN questions q ON q.id = perf.question_id
+";
+
+$countStmt = $pdo->prepare("
+  SELECT COUNT(*)
+  FROM (
+    SELECT q.id
+    $perfFromSql
+    GROUP BY q.id
+    $havingSql
+  ) question_perf
+");
+$countStmt->execute(array_merge($params, $havingParams));
+$totalRows = (int)$countStmt->fetchColumn();
+$totalPages = max(1, (int)ceil($totalRows / $limit));
+if ($page > $totalPages) {
+  $page = $totalPages;
+}
+$offset = ($page - 1) * $limit;
+
+$sql = "
+  SELECT
+    q.id,
+    q.external_id,
+    q.text AS question_text,
+    COALESCE(NULLIF(TRIM(q.category), ''), '-') AS category,
+    COUNT(*) AS occurrence_count,
+    SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END) AS ok_count,
+    SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END) AS fail_count,
+    SUM(CASE WHEN perf.answer_status = 'UNANSWERED' THEN 1 ELSE 0 END) AS unanswered_count,
+    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
+    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
+  $perfFromSql
+  GROUP BY q.id, q.external_id, q.text, q.category
+  $havingSql
+  ORDER BY $sort $dir, occurrence_count DESC, q.id DESC
+  LIMIT ? OFFSET ?
+";
+$stmt = $pdo->prepare($sql);
+$bindIndex = 1;
+foreach (array_merge($params, $havingParams) as $param) {
+  $stmt->bindValue($bindIndex++, $param, is_int($param) ? PDO::PARAM_INT : PDO::PARAM_STR);
+}
+$stmt->bindValue($bindIndex++, $limit, PDO::PARAM_INT);
+$stmt->bindValue($bindIndex++, $offset, PDO::PARAM_INT);
+$stmt->execute();
+$rows = $stmt->fetchAll() ?: [];
+
+$rankingSql = "
+  SELECT
+    q.id,
+    q.external_id,
+    q.text AS question_text,
+    COALESCE(NULLIF(TRIM(q.category), ''), '-') AS category,
+    COUNT(*) AS occurrence_count,
+    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
+    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
+  $perfFromSql
+  GROUP BY q.id, q.external_id, q.text, q.category
+  $havingSql
+  ORDER BY ok_rate DESC, occurrence_count DESC, q.id ASC
+";
+$rankingStmt = $pdo->prepare($rankingSql);
+$rankingStmt->execute(array_merge($params, $havingParams));
+$rankingRows = $rankingStmt->fetchAll() ?: [];
+$rankByQuestionId = [];
+foreach ($rankingRows as $index => $rankingRow) {
+  $rankByQuestionId[(int)$rankingRow['id']] = $index + 1;
+}
+
+$summaryStmt = $pdo->prepare("
+  SELECT
+    COUNT(*) AS occurrence_count,
+    SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END) AS ok_count,
+    SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END) AS fail_count,
+    SUM(CASE WHEN perf.answer_status = 'UNANSWERED' THEN 1 ELSE 0 END) AS unanswered_count
+  $perfFromSql
+");
+$summaryStmt->execute($params);
+$summary = $summaryStmt->fetch() ?: ['occurrence_count' => 0, 'ok_count' => 0, 'fail_count' => 0, 'unanswered_count' => 0];
+$totalOccurrences = (int)($summary['occurrence_count'] ?? 0);
+$globalOkRate = $totalOccurrences > 0 ? round(((int)$summary['ok_count'] * 100) / $totalOccurrences, 1) : 0.0;
+$globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 100) / $totalOccurrences, 1) : 0.0;
+?>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Admin &middot; Performance questions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <script src="/assets/theme-toggle.js?v=1"></script>
+</head>
+<body>
+<div class="container admin-container">
+  <div class="card admin-card">
+    <div class="admin-head">
+      <div class="admin-head-copy">
+        <h2 class="h1">Admin &middot; Performance questions</h2>
+        <p class="sub">Vue agr&eacute;g&eacute;e par question sur les sessions termin&eacute;es et expir&eacute;es.</p>
+      </div>
+      <div class="admin-head-actions">
+        <?php render_admin_tabs('performance'); ?>
+      </div>
+    </div>
+
+    <hr class="separator">
+
+    <form method="get">
+      <div class="filters-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr)); align-items:end; margin-bottom:12px;">
+        <div>
+          <label class="label" for="question_id">Question ID</label>
+          <input class="input" id="question_id" name="question_id" type="text" inputmode="numeric" pattern="[0-9]*" value="<?= h($questionIdRaw) ?>" placeholder="ID">
+        </div>
+        <div>
+          <label class="label" for="q">Question</label>
+          <input class="input" id="q" name="q" type="text" value="<?= h($questionSearch) ?>" placeholder="Contient...">
+        </div>
+        <div>
+          <label class="label" for="session_type">Type</label>
+          <select class="input" id="session_type" name="session_type">
+            <option value="ALL" <?= $sessionType === 'ALL' ? 'selected' : '' ?>>Tous</option>
+            <option value="EXAM" <?= $sessionType === 'EXAM' ? 'selected' : '' ?>>Certification</option>
+            <option value="TRAINING" <?= $sessionType === 'TRAINING' ? 'selected' : '' ?>>Test</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="package_id">Package</label>
+          <select class="input" id="package_id" name="package_id">
+            <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>>Tous</option>
+            <?php foreach ($packages as $pkg): ?>
+              <option value="<?= (int)$pkg['id'] ?>" <?= $packageId === (int)$pkg['id'] ? 'selected' : '' ?>><?= h((string)$pkg['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="category">Categorie</label>
+          <select class="input" id="category" name="category">
+            <option value="" <?= $category === '' ? 'selected' : '' ?>>Toutes</option>
+            <?php foreach ($categoryRows as $cat): ?>
+              <?php $catName = (string)($cat['category_name'] ?? ''); ?>
+              <option value="<?= h($catName) ?>" <?= $category === $catName ? 'selected' : '' ?>><?= h($catName) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+
+      <div class="filters-grid" style="grid-template-columns: repeat(3, minmax(0, 180px)); align-items:end; margin-bottom:12px;">
+        <div>
+          <label class="label" for="ok_rate_op">Taux reussite</label>
+          <select class="input" id="ok_rate_op" name="ok_rate_op">
+            <option value="" <?= $okRateOp === '' ? 'selected' : '' ?>>Tous</option>
+            <option value="eq" <?= $okRateOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
+            <option value="gte" <?= $okRateOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
+            <option value="lte" <?= $okRateOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
+            <option value="between" <?= $okRateOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="ok_rate_value">Valeur 1</label>
+          <input class="input" id="ok_rate_value" name="ok_rate_value" type="number" min="0" max="100" step="0.1" value="<?= h($okRateValueRaw) ?>" placeholder="%">
+        </div>
+        <div id="ok-rate-value2-wrap" style="<?= $okRateOp === 'between' ? '' : 'display:none;' ?>">
+          <label class="label" for="ok_rate_value2">Valeur 2</label>
+          <input class="input" id="ok_rate_value2" name="ok_rate_value2" type="number" min="0" max="100" step="0.1" value="<?= h($okRateValue2Raw) ?>" placeholder="%">
+        </div>
+      </div>
+
+      <div class="filters-grid" style="grid-template-columns: repeat(3, minmax(0, 180px)); align-items:end;">
+        <div>
+          <label class="label" for="fail_rate_op">Taux echec</label>
+          <select class="input" id="fail_rate_op" name="fail_rate_op">
+            <option value="" <?= $failRateOp === '' ? 'selected' : '' ?>>Tous</option>
+            <option value="eq" <?= $failRateOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
+            <option value="gte" <?= $failRateOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
+            <option value="lte" <?= $failRateOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
+            <option value="between" <?= $failRateOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="fail_rate_value">Valeur 1</label>
+          <input class="input" id="fail_rate_value" name="fail_rate_value" type="number" min="0" max="100" step="0.1" value="<?= h($failRateValueRaw) ?>" placeholder="%">
+        </div>
+        <div id="fail-rate-value2-wrap" style="<?= $failRateOp === 'between' ? '' : 'display:none;' ?>">
+          <label class="label" for="fail_rate_value2">Valeur 2</label>
+          <input class="input" id="fail_rate_value2" name="fail_rate_value2" type="number" min="0" max="100" step="0.1" value="<?= h($failRateValue2Raw) ?>" placeholder="%">
+        </div>
+      </div>
+
+      <div class="filters-grid" style="grid-template-columns: repeat(3, minmax(0, 180px)); align-items:end; margin-top:12px;">
+        <div>
+          <label class="label" for="occurrence_op">Nb occurrence</label>
+          <select class="input" id="occurrence_op" name="occurrence_op">
+            <option value="" <?= $occurrenceOp === '' ? 'selected' : '' ?>>Tous</option>
+            <option value="eq" <?= $occurrenceOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
+            <option value="gte" <?= $occurrenceOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
+            <option value="lte" <?= $occurrenceOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
+            <option value="between" <?= $occurrenceOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="occurrence_value">Valeur 1</label>
+          <input class="input" id="occurrence_value" name="occurrence_value" type="number" min="0" step="1" value="<?= h($occurrenceValueRaw) ?>" placeholder="nb">
+        </div>
+        <div id="occurrence-value2-wrap" style="<?= $occurrenceOp === 'between' ? '' : 'display:none;' ?>">
+          <label class="label" for="occurrence_value2">Valeur 2</label>
+          <input class="input" id="occurrence_value2" name="occurrence_value2" type="number" min="0" step="1" value="<?= h($occurrenceValue2Raw) ?>" placeholder="nb">
+        </div>
+      </div>
+
+      <div class="filters-actions" style="margin-top:12px;">
+        <button class="btn" type="submit">Filtrer</button>
+        <a class="btn ghost" href="/admin/question_performance.php">Reset</a>
+      </div>
+    </form>
+
+    <div class="row sessions-stats">
+      <span class="badge">Questions: <?= (int)$totalRows ?></span>
+      <span class="badge">Occurrences: <?= (int)$totalOccurrences ?></span>
+      <span class="badge ok">Taux reussite global: <?= h(number_format($globalOkRate, 1, '.', '')) ?>%</span>
+      <span class="badge bad">Taux echec global: <?= h(number_format($globalFailRate, 1, '.', '')) ?>%</span>
+    </div>
+
+    <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> question(s))</p>
+
+    <div class="table-wrap">
+      <?php if (!$rows): ?>
+        <p class="empty-state">Aucune donn&eacute;e pour ces filtres.</p>
+      <?php else: ?>
+        <table class="table questions-table performance-table">
+          <thead>
+            <tr>
+              <?php
+                $qs = $_GET;
+                unset($qs['page']);
+                $base = '/admin/question_performance.php?';
+              ?>
+              <th>Rang</th>
+              <th>ID</th>
+              <th>
+                <?php $urlQs = $qs; $urlQs['sort'] = 'question_text'; $urlQs['dir'] = ($sort === 'question_text' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Question</a>
+              </th>
+              <th>
+                <?php $urlQs = $qs; $urlQs['sort'] = 'category'; $urlQs['dir'] = ($sort === 'category' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Categorie</a>
+              </th>
+              <th>
+                <?php $urlQs = $qs; $urlQs['sort'] = 'occurrence_count'; $urlQs['dir'] = ($sort === 'occurrence_count' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Nb occurrence</a>
+              </th>
+              <th>
+                <?php $urlQs = $qs; $urlQs['sort'] = 'ok_rate'; $urlQs['dir'] = ($sort === 'ok_rate' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux reussite</a>
+              </th>
+              <th>
+                <?php $urlQs = $qs; $urlQs['sort'] = 'fail_rate'; $urlQs['dir'] = ($sort === 'fail_rate' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux echec</a>
+              </th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+              <?php foreach ($rows as $row): ?>
+              <?php $returnTo = (string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance.php'); ?>
+              <tr>
+                <td><?= (int)($rankByQuestionId[(int)$row['id']] ?? 0) ?></td>
+                <td><?= ($row['external_id'] === null || $row['external_id'] === '') ? '-' : (int)$row['external_id'] ?></td>
+                <td><?= h(mb_strimwidth((string)$row['question_text'], 0, 110, '...', 'UTF-8')) ?></td>
+                <td><?= h((string)$row['category']) ?></td>
+                <td><?= (int)$row['occurrence_count'] ?></td>
+                <td><span class="badge ok"><?= h(number_format((float)$row['ok_rate'], 1, '.', '')) ?>%</span></td>
+                <td><span class="badge bad"><?= h(number_format((float)$row['fail_rate'], 1, '.', '')) ?>%</span></td>
+                <td class="actions-cell">
+                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$row['id'] ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Modifier la question" title="Modifier la question">
+                    <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
+                    </svg>
+                  </a>
+                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Voir les echecs" title="Voir les echecs">
+                    <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+                    </svg>
+                  </a>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php endif; ?>
+    </div>
+
+    <?php
+      $qs = $_GET;
+      unset($qs['page']);
+      $common = $qs ? ('?' . http_build_query($qs)) : '';
+      $sep = $common ? '&' : '?';
+    ?>
+    <div class="sessions-pagination">
+      <?php if ($page > 1): ?>
+        <a class="btn ghost" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=' . ($page - 1)) ?>">&larr;</a>
+      <?php else: ?>
+        <button class="btn ghost" disabled>&larr;</button>
+      <?php endif; ?>
+      <?php if ($totalPages <= 7): ?>
+        <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+          <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+        <?php endfor; ?>
+      <?php else: ?>
+        <a class="btn <?= $page === 1 ? '' : 'ghost' ?>" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=1') ?>">1</a>
+        <?php if ($page <= 4): ?>
+          <?php for ($p = 2; $p <= 5; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+        <?php elseif ($page >= ($totalPages - 3)): ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php for ($p = $totalPages - 4; $p <= $totalPages - 1; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+        <?php else: ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+          <?php for ($p = $page - 1; $p <= $page + 1; $p++): ?>
+            <a class="btn <?= $p === $page ? '' : 'ghost' ?>" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=' . $p) ?>"><?= (int)$p ?></a>
+          <?php endfor; ?>
+          <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+        <?php endif; ?>
+        <a class="btn <?= $totalPages === $page ? '' : 'ghost' ?>" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=' . $totalPages) ?>"><?= (int)$totalPages ?></a>
+      <?php endif; ?>
+      <?php if ($page < $totalPages): ?>
+        <a class="btn ghost" href="<?= h('/admin/question_performance.php' . $common . $sep . 'page=' . ($page + 1)) ?>">&rarr;</a>
+      <?php else: ?>
+        <button class="btn ghost" disabled>&rarr;</button>
+      <?php endif; ?>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    function bindConditionalSecondValue(selectId, wrapId) {
+      var operatorSelect = document.getElementById(selectId);
+      var secondValueWrap = document.getElementById(wrapId);
+      if (!operatorSelect || !secondValueWrap) return;
+
+      function syncVisibility() {
+        secondValueWrap.style.display = operatorSelect.value === 'between' ? '' : 'none';
+      }
+
+      operatorSelect.addEventListener('change', syncVisibility);
+      syncVisibility();
+    }
+
+    bindConditionalSecondValue('ok_rate_op', 'ok-rate-value2-wrap');
+    bindConditionalSecondValue('fail_rate_op', 'fail-rate-value2-wrap');
+    bindConditionalSecondValue('occurrence_op', 'occurrence-value2-wrap');
+  })();
+</script>
+</body>
+</html>

@@ -684,7 +684,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       </td>
                       <td><input class="input rule-take" type="number" name="rule_take[]" min="1" max="200" value="<?= (int)($row['take'] ?? 0) ?>"></td>
                       <td><input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>"></td>
-                      <td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>
+                      <td>
+                        <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier">
+                          <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
@@ -813,7 +819,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           '</td>' +
           '<td><input class="input rule-take" type="number" min="1" max="200" value="' + take + '"></td>' +
           '<td><input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '"></td>' +
-          '<td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>' +
+          '<td><button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier"><svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/></svg></button></td>' +
         '</tr>';
     }
 

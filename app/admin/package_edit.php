@@ -1050,7 +1050,13 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                       </td>
                       <td><input class="input rule-take" type="number" name="rule_take[]" min="1" max="200" value="<?= (int)($row['take'] ?? 0) ?>"></td>
                       <td><input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>"></td>
-                      <td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>
+                      <td>
+                        <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier">
+                          <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
@@ -1178,12 +1184,20 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   <td>
                     <?php
                       $qt = (string)($q['question_type'] ?? 'MULTI');
-                      echo h($qt === 'TRUE_FALSE' ? 'Vrai / Faux' : 'Choix multiple');
+                      echo h(match ($qt) {
+                        'TRUE_FALSE' => 'Vrai / Faux',
+                        'SINGLE' => 'Choix unique',
+                        default => 'Choix multiple',
+                      });
                     ?>
                   </td>
                   <td><?= (int)($q['option_count'] ?? 0) ?></td>
                   <td class="actions-cell">
-                    <a class="btn ghost" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?>">Modifier</a>
+                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?>" aria-label="Modifier la question" title="Modifier la question">
+                      <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
+                      </svg>
+                    </a>
                     <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?>"
                        aria-label="Supprimer cette question"
                        title="Supprimer"
@@ -1381,7 +1395,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           '</td>' +
           '<td><input class="input rule-take" type="number" min="1" max="200" value="' + take + '"></td>' +
           '<td><input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '"></td>' +
-          '<td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>' +
+          '<td><button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier"><svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/></svg></button></td>' +
         '</tr>';
     }
 

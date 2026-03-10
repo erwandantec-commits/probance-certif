@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $pdo->commit();
       admin_users_clear_edit_form();
       admin_users_set_notice('ok', 'Utilisateur mis a jour: ' . $email . '.');
-      admin_users_redirect(['search' => $email]);
+      admin_users_redirect();
     } catch (Throwable $e) {
       if ($pdo->inTransaction()) {
         $pdo->rollBack();
@@ -697,7 +697,11 @@ function admin_users_sort_link(array $qs, string $key): string {
                   <td><?= (int)$u['passed_exam_count'] ?></td>
                   <td><?= h($lastSessionAt) ?></td>
                   <td class="actions-cell">
-                    <a class="btn ghost" href="<?= h($editLink) ?>"><?= $isOpenEdit ? 'Edition...' : 'Modifier' ?></a>
+                    <a class="btn ghost icon-btn" href="<?= h($editLink) ?>" aria-label="<?= h($isOpenEdit ? 'Edition en cours' : 'Modifier cet utilisateur') ?>" title="<?= h($isOpenEdit ? 'Edition en cours' : 'Modifier cet utilisateur') ?>">
+                      <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
+                      </svg>
+                    </a>
                     <form method="post" class="inline-action-form">
                       <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
                       <input type="hidden" name="action" value="delete_user">

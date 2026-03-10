@@ -399,30 +399,47 @@ function compute_score_percent_from_raw(int $rawScore, int $maxPoints): float {
 }
 
 function compute_session_score_snapshot(PDO $pdo, string $sessionId): array {
-  // Max is the sum of all correct options (+1 each).
+  // Max is 1 point per question in the session.
   $maxStmt = $pdo->prepare("
-    SELECT COALESCE(SUM(CASE WHEN qo.is_correct=1 THEN 1 ELSE 0 END), 0) AS max_points
+    SELECT COUNT(*) AS max_points
     FROM session_questions sq
-    JOIN question_options qo ON qo.question_id = sq.question_id
     WHERE sq.session_id=?
   ");
   $maxStmt->execute([$sessionId]);
   $maxPoints = (int)($maxStmt->fetch()['max_points'] ?? 0);
 
-  // Raw score follows business rules aligned with correction feedback:
-  // correct = +1, wrong = 0, unanswered = 0.
+  // Raw score follows exact-match business rules:
+  // +1 if all and only correct answers are selected for a question, otherwise 0.
   $rawStmt = $pdo->prepare("
     SELECT COALESCE(SUM(
       CASE
-        WHEN qo.is_correct = 1 THEN 1
+        WHEN COALESCE(ans.selected_correct_count, 0) = qstats.correct_count
+         AND COALESCE(ans.selected_total_count, 0) = qstats.correct_count
+        THEN 1
         ELSE 0
       END
     ), 0) AS raw_score
-    FROM answer_options ao
-    JOIN question_options qo ON qo.id = ao.option_id
-    WHERE ao.session_id=?
+    FROM (
+      SELECT
+        sq.question_id,
+        COUNT(CASE WHEN qo.is_correct = 1 THEN 1 END) AS correct_count
+      FROM session_questions sq
+      JOIN question_options qo ON qo.question_id = sq.question_id
+      WHERE sq.session_id=?
+      GROUP BY sq.question_id
+    ) qstats
+    LEFT JOIN (
+      SELECT
+        ao.question_id,
+        COUNT(*) AS selected_total_count,
+        COUNT(CASE WHEN qo.is_correct = 1 THEN 1 END) AS selected_correct_count
+      FROM answer_options ao
+      JOIN question_options qo ON qo.id = ao.option_id
+      WHERE ao.session_id=?
+      GROUP BY ao.question_id
+    ) ans ON ans.question_id = qstats.question_id
   ");
-  $rawStmt->execute([$sessionId]);
+  $rawStmt->execute([$sessionId, $sessionId]);
   $rawScore = (int)($rawStmt->fetch()['raw_score'] ?? 0);
 
   $scorePercent = compute_score_percent_from_raw($rawScore, $maxPoints);

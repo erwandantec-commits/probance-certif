@@ -277,7 +277,11 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                   </span>
                 </td>
                 <td class="actions-cell">
-                  <a class="btn ghost" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>">Modifier</a>
+                  <a class="btn ghost icon-btn" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>" aria-label="Modifier ce pack" title="Modifier ce pack">
+                    <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
+                    </svg>
+                  </a>
                   <a class="btn ghost icon-btn danger"
                      href="/admin/package_delete.php?id=<?= (int)$pk['id'] ?>"
                      aria-label="Supprimer ce pack"

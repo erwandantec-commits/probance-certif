@@ -681,6 +681,23 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   width: 96px;
 }
 
+:root[data-theme="dark"] .question-option-row {
+  border-color: #334155;
+  background: #111827;
+}
+
+:root[data-theme="dark"] .question-option-label {
+  color: #e2e8f0;
+}
+
+:root[data-theme="dark"] .question-option-check {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .question-option-check input[type="checkbox"] {
+  accent-color: #60a5fa;
+}
+
 .question-actions {
   margin-top: 14px;
   display: flex;
@@ -932,11 +949,13 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .rules-table {
-  min-width: 860px;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
 }
 
 .rules-table th {
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .rules-table tbody tr:nth-child(even) {
@@ -950,15 +969,15 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .rule-levels-cell {
-  white-space: nowrap;
-  min-width: 220px;
+  white-space: normal;
+  min-width: 0;
 }
 
 .rule-level-check {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-right: 8px;
+  margin-right: 6px;
   margin-bottom: 4px;
   font-weight: 600;
   border: 1px solid var(--border);
@@ -979,17 +998,14 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .rule-remove-btn {
-  padding: 8px 10px;
-  min-width: 106px;
-  color: #991b1b;
-  border-color: #fecaca;
-  background: #fff7f7;
+  padding: 0;
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
 }
 
 .rule-remove-btn:hover {
-  color: #7f1d1d;
-  border-color: #fca5a5;
-  background: #fff1f1;
+  background: inherit;
 }
 
 .rule-builder .input {
@@ -999,8 +1015,32 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
 .rules-table .rule-take,
 .rules-table .rule-target-total {
-  min-width: 90px;
-  max-width: 130px;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.rules-table th:nth-child(1),
+.rules-table td:nth-child(1) {
+  width: 24%;
+}
+
+.rules-table th:nth-child(2),
+.rules-table td:nth-child(2) {
+  width: 30%;
+}
+
+.rules-table th:nth-child(3),
+.rules-table td:nth-child(3),
+.rules-table th:nth-child(4),
+.rules-table td:nth-child(4) {
+  width: 16%;
+}
+
+.rules-table th:nth-child(5),
+.rules-table td:nth-child(5) {
+  width: 72px;
+  text-align: center;
 }
 
 .actions-cell {
@@ -1031,6 +1071,12 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .icon-eye {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.icon-edit {
   width: 18px;
   height: 18px;
   fill: currentColor;
@@ -1249,6 +1295,30 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
 .sessions-table .actions-cell .btn {
   margin-right: 0;
+}
+
+.performance-table .actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.performance-table .actions-cell .btn {
+  margin-right: 0;
+  flex: 0 0 auto;
+}
+
+.performance-table th:last-child,
+.performance-table td:last-child {
+  width: 112px;
+  min-width: 112px;
+  text-align: center;
+}
+
+:root[data-theme="dark"] .performance-table .actions-cell .icon-btn {
+  color: #ffffff;
 }
 
 .certifications-table {
@@ -1669,6 +1739,27 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   margin: 8px 0 0;
   color: #64748b;
   font-size: 12px;
+}
+
+:root[data-theme="dark"] .pack-config-card-title {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .pack-appearance-fields > .pack-color-field,
+:root[data-theme="dark"] .pack-appearance-fields > .badge-picker-field {
+  border-color: #334155;
+  background: linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.82));
+}
+
+:root[data-theme="dark"] .badge-current {
+  background: #111827;
+  border-color: #334155;
+}
+
+:root[data-theme="dark"] .badge-current-meta,
+:root[data-theme="dark"] .badge-picker-hint,
+:root[data-theme="dark"] .pack-color-code {
+  color: #cbd5e1;
 }
 
 @media (max-width: 680px) {

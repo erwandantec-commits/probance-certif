@@ -136,6 +136,15 @@ foreach ($options as $o) {
     $correctIds[] = (int)$o['id'];
   }
 }
+$effectiveQType = $qType;
+if ($qType !== 'TRUE_FALSE') {
+  $effectiveQType = count($correctIds) === 1 ? 'SINGLE' : 'MULTI';
+}
+$questionTypeHintKey = match ($effectiveQType) {
+  'MULTI' => 'exam.answer_mode_multi',
+  'SINGLE' => 'exam.answer_mode_single',
+  default => '',
+};
 sort($selectedIds);
 sort($correctIds);
 $isQuestionCorrect = ($selectedIds === $correctIds);
@@ -153,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   if ($isTraining && isset($_POST['check'])) {
     $hasAnswer = false;
-    if ($qType === 'MULTI') {
+    if ($effectiveQType === 'MULTI') {
       $posted = $_POST['answer'] ?? [];
       $hasAnswer = is_array($posted) && count($posted) > 0;
     } else {
@@ -175,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (isset($_POST['skip']) && $allowSkip && !$isTraining) {
         $picked = [];
       } else {
-        if ($qType === 'MULTI') {
+        if ($effectiveQType === 'MULTI') {
           $picked = $_POST['answer'] ?? [];
           if (!is_array($picked)) {
             $picked = [];
@@ -291,6 +300,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 	      <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border);">
 	        <p style="font-size:18px; margin-top:0;"><b><?= h(localize_text((string)$q['text'], $lang)) ?></b></p>
+          <?php if ($questionTypeHintKey !== ''): ?>
+            <p class="small" style="margin-top:8px;"><?= h(t($questionTypeHintKey, [], $lang)) ?></p>
+          <?php endif; ?>
 
           <?php if ($formError !== ''): ?>
             <p class="error"><?= h($formError) ?></p>
@@ -299,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	        <?php foreach ($options as $o):
 	          $oid = (int)$o['id'];
 	          $isChecked = isset($selectedMap[$oid]);
-		          $isMulti = ($qType === 'MULTI');
+		          $isMulti = ($effectiveQType === 'MULTI');
             $isCorrectOption = (int)($o['is_correct'] ?? 0) === 1;
             $optionClass = 'exam-option';
             if ($showFeedback) {
@@ -336,15 +348,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
           <?php endif; ?>
 
-	        <?php if ($allowSkip && !$showFeedback && !$isTraining): ?>
-	          <button class="btn ghost" name="skip" value="1" style="margin-top:6px;"><?= h(t('exam.skip', [], $lang)) ?></button>
-	        <?php endif; ?>
 	      </div>
 
 	      <div class="exam-actions" style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
           <?php if ($isTraining): ?>
             <?php if (!$showFeedback): ?>
-              <button type="submit" class="btn" name="check" value="1">
+              <button type="submit" class="btn" id="exam-primary-submit" name="check" value="1">
                 <?= h(t('exam.validate', [], $lang)) ?>
               </button>
             <?php elseif ((int)$p < (int)$total): ?>
@@ -354,11 +363,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
           <?php else: ?>
             <?php if ((int)$p < (int)$total): ?>
-              <button type="submit" class="btn" name="next" value="1">
+              <button type="submit" class="btn" id="exam-primary-submit" name="next" value="1">
                 <?= h(t('exam.validate', [], $lang)) ?>
               </button>
             <?php else: ?>
-              <button type="submit" class="btn" name="finish" value="1">
+              <button type="submit" class="btn" id="exam-primary-submit" name="finish" value="1">
                 <?= h(t('exam.validate', [], $lang)) ?>
               </button>
             <?php endif; ?>
@@ -389,6 +398,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   (function () {
     var form = document.getElementById('exam-form');
     if (!form) return;
+    var primarySubmit = document.getElementById('exam-primary-submit');
+    var answerInputs = Array.prototype.slice.call(form.querySelectorAll('input[name="answer"], input[name="answer[]"]'));
+
+    function syncPrimarySubmitState() {
+      if (!primarySubmit) return;
+      var hasCheckedAnswer = answerInputs.some(function (input) {
+        return input.checked;
+      });
+      primarySubmit.disabled = !hasCheckedAnswer;
+    }
+
+    if (primarySubmit && answerInputs.length > 0 && !primarySubmit.disabled) {
+      syncPrimarySubmitState();
+      answerInputs.forEach(function (input) {
+        input.addEventListener('change', syncPrimarySubmitState);
+      });
+    }
 
     form.addEventListener('submit', function (e) {
       var submitter = e.submitter;

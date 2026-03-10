@@ -7,7 +7,9 @@ function uuidv4(): string {
   return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
-function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+if (!function_exists('h')) {
+  function h($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+}
 
 function normalize_hex_color(?string $color): ?string {
   if (!is_string($color)) return null;
@@ -95,31 +97,13 @@ function validateAnswerSelection(array $question, array $selectedOptionIds): arr
 
 /**
  * Compute score:
- * - sum by selected options with fixed policy:
- *   correct => +1, incorrect => 0
- * - skip => 0
+ * - exact match only:
+ *   all correct options selected and no wrong option => +1
+ *   otherwise => 0
  */
 function computeScore(array $question, array $selectedOptionIds): int {
 
-  if (count($selectedOptionIds) === 0) return 0;
-
-  $selectedOptionIds = array_values(array_unique(array_map('intval', $selectedOptionIds)));
-
-  // Build score map option_id => points
-  $scoreMap = [];
-  foreach (($question['options'] ?? []) as $opt) {
-    $id = (int)($opt['id'] ?? 0);
-    if ($id <= 0) continue;
-
-    $scoreMap[$id] = !empty($opt['is_correct']) ? 1 : 0;
-  }
-
-  $score = 0;
-  foreach ($selectedOptionIds as $oid) {
-    $score += $scoreMap[$oid] ?? 0;
-  }
-
-  return $score;
+  return isPerfectAnswer($question, $selectedOptionIds) ? 1 : 0;
 }
 
 

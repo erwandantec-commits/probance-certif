@@ -44,9 +44,14 @@ $certValidityDaysGroup = $hasCertValidityDaysColumn ? ", pk.cert_validity_days" 
 
 $hsort = $_GET['hsort'] ?? 'started_at';
 $hdir  = strtoupper($_GET['hdir'] ?? 'DESC');
+$htype = strtoupper(trim((string)($_GET['htype'] ?? 'ALL')));
+$hstatus = strtoupper(trim((string)($_GET['hstatus'] ?? 'ALL')));
+$hpackage = trim((string)($_GET['hpackage'] ?? 'ALL'));
 
 $allowedSort = ['started_at', 'score_percent'];
 $allowedDir  = ['ASC', 'DESC'];
+if (!in_array($htype, ['ALL', 'EXAM', 'TRAINING'], true)) $htype = 'ALL';
+if (!in_array($hstatus, ['ALL', 'ACTIVE', 'TERMINATED', 'EXPIRED'], true)) $hstatus = 'ALL';
 if (!in_array($hsort, $allowedSort, true)) $hsort = 'started_at';
 if (!in_array($hdir, $allowedDir, true)) $hdir = 'DESC';
 
@@ -58,6 +63,10 @@ $unlockError = trim((string)($_GET['unlock_err'] ?? ''));
 $unlockOk = trim((string)($_GET['unlock_ok'] ?? ''));
 $reblockError = trim((string)($_GET['reblock_err'] ?? ''));
 $reblockOk = trim((string)($_GET['reblock_ok'] ?? ''));
+$overridePage = max(1, (int)($_GET['opage'] ?? 1));
+$historyPage = max(1, (int)($_GET['hpage'] ?? 1));
+$overrideLimit = 10;
+$historyLimit = 10;
 
 function admin_session_type_label(string $type): string {
   return match ($type) {
@@ -81,9 +90,28 @@ $hasDisplayOrderColumn = admin_contact_package_column_exists($pdo, 'display_orde
 $packageOrder = $hasDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id ASC";
 $packagesStmt = $pdo->query("SELECT id, name, name_color_hex FROM packages WHERE is_active=1 $packageOrder");
 $packages = $packagesStmt->fetchAll() ?: [];
+$packageIds = array_map(fn($pkg) => (string)$pkg['id'], $packages);
+if ($hpackage !== 'ALL' && !in_array($hpackage, $packageIds, true)) {
+  $hpackage = 'ALL';
+}
 
 $activeOverrides = [];
+$overrideTotalRows = 0;
+$overrideTotalPages = 1;
 if ($linkedUserId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {
+  $activeOverridesCountStmt = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM exam_cooldown_overrides o
+    WHERE o.user_id = ?
+  ");
+  $activeOverridesCountStmt->execute([$linkedUserId]);
+  $overrideTotalRows = (int)$activeOverridesCountStmt->fetchColumn();
+  $overrideTotalPages = max(1, (int)ceil($overrideTotalRows / $overrideLimit));
+  if ($overridePage > $overrideTotalPages) {
+    $overridePage = $overrideTotalPages;
+  }
+  $overrideOffset = ($overridePage - 1) * $overrideLimit;
+
   $activeOverridesStmt = $pdo->prepare("
     SELECT
       o.id,
@@ -101,9 +129,12 @@ if ($linkedUserId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {
     LEFT JOIN users cu ON cu.id = o.created_by_user_id
     WHERE o.user_id = ?
     ORDER BY o.created_at DESC, o.id DESC
-    LIMIT 20
+    LIMIT ? OFFSET ?
   ");
-  $activeOverridesStmt->execute([$linkedUserId]);
+  $activeOverridesStmt->bindValue(1, $linkedUserId, PDO::PARAM_INT);
+  $activeOverridesStmt->bindValue(2, $overrideLimit, PDO::PARAM_INT);
+  $activeOverridesStmt->bindValue(3, $overrideOffset, PDO::PARAM_INT);
+  $activeOverridesStmt->execute();
   $activeOverrides = $activeOverridesStmt->fetchAll() ?: [];
 }
 
@@ -260,6 +291,44 @@ $certsStmt = $pdo->prepare("
 $certsStmt->execute([(int)$contact['id']]);
 $certs = $certsStmt->fetchAll();
 
+$histWhere = [];
+$histParams = [(int)$contact['id']];
+if ($htype !== 'ALL') {
+  $histWhere[] = "s.session_type = ?";
+  $histParams[] = $htype;
+}
+if ($hstatus !== 'ALL') {
+  $histWhere[] = "s.status = ?";
+  $histParams[] = $hstatus;
+}
+if ($hpackage !== 'ALL') {
+  $histWhere[] = "s.package_id = ?";
+  $histParams[] = (int)$hpackage;
+}
+$histWhere[] = "(
+  ? = 'ALL'
+  OR (? = 'PASSED' AND s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=1)
+  OR (? = 'FAILED' AND s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=0)
+)";
+$histParams[] = $hresult;
+$histParams[] = $hresult;
+$histParams[] = $hresult;
+$histWhereSql = implode("\n    AND ", $histWhere);
+
+$histCountStmt = $pdo->prepare("
+  SELECT COUNT(*)
+  FROM sessions s
+  WHERE s.contact_id = ?
+    AND $histWhereSql
+");
+$histCountStmt->execute($histParams);
+$histTotalRows = (int)$histCountStmt->fetchColumn();
+$histTotalPages = max(1, (int)ceil($histTotalRows / $historyLimit));
+if ($historyPage > $histTotalPages) {
+  $historyPage = $histTotalPages;
+}
+$historyOffset = ($historyPage - 1) * $historyLimit;
+
 $histStmt = $pdo->prepare("
   SELECT
     s.id,
@@ -274,15 +343,17 @@ $histStmt = $pdo->prepare("
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.contact_id = ?
-    AND (
-      ? = 'ALL'
-      OR (? = 'PASSED' AND s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=1)
-      OR (? = 'FAILED' AND s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=0)
-    )
+    AND $histWhereSql
   ORDER BY s.$hsort $hdir
-  LIMIT 200
+  LIMIT ? OFFSET ?
 ");
-$histStmt->execute([(int)$contact['id'], $hresult, $hresult, $hresult]);
+$histBindIndex = 1;
+foreach ($histParams as $param) {
+  $histStmt->bindValue($histBindIndex++, $param, is_int($param) ? PDO::PARAM_INT : PDO::PARAM_STR);
+}
+$histStmt->bindValue($histBindIndex++, $historyLimit, PDO::PARAM_INT);
+$histStmt->bindValue($histBindIndex++, $historyOffset, PDO::PARAM_INT);
+$histStmt->execute();
 $hist = $histStmt->fetchAll();
 ?>
 <!doctype html>
@@ -373,6 +444,7 @@ $hist = $histStmt->fetchAll();
       <?php endif; ?>
 
       <?php if ($activeOverrides): ?>
+        <p class="sub sessions-meta">Page <?= (int)$overridePage ?> / <?= (int)$overrideTotalPages ?> (<?= (int)$overrideTotalRows ?> resultats)</p>
         <div class="table-wrap" style="margin-top:10px;">
           <table class="table questions-table">
             <thead>
@@ -384,6 +456,7 @@ $hist = $histStmt->fetchAll();
                 <th>Utilisé le</th>
                 <th>Motif</th>
                 <th>Cree par</th>
+                <th>Resultat</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -436,6 +509,55 @@ $hist = $histStmt->fetchAll();
             </tbody>
           </table>
         </div>
+
+        <?php
+          $overrideQs = $_GET;
+          $overrideQs['email'] = $contact['email'];
+          unset($overrideQs['opage']);
+          $overrideBase = '/admin/contact.php';
+          $overrideCommon = '?' . http_build_query($overrideQs);
+        ?>
+        <div class="sessions-pagination">
+          <?php if ($overridePage > 1): ?>
+            <a class="btn ghost" href="<?= h($overrideBase . $overrideCommon . '&opage=' . ($overridePage - 1)) ?>">&larr;</a>
+          <?php else: ?>
+            <button class="btn ghost" disabled>&larr;</button>
+          <?php endif; ?>
+
+          <?php if ($overrideTotalPages <= 7): ?>
+            <?php for ($p = 1; $p <= $overrideTotalPages; $p++): ?>
+              <a class="btn <?= $p === $overridePage ? '' : 'ghost' ?>" href="<?= h($overrideBase . $overrideCommon . '&opage=' . $p) ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+          <?php else: ?>
+            <a class="btn <?= $overridePage === 1 ? '' : 'ghost' ?>" href="<?= h($overrideBase . $overrideCommon . '&opage=1') ?>">1</a>
+
+            <?php if ($overridePage <= 4): ?>
+              <?php for ($p = 2; $p <= 5; $p++): ?>
+                <a class="btn <?= $p === $overridePage ? '' : 'ghost' ?>" href="<?= h($overrideBase . $overrideCommon . '&opage=' . $p) ?>"><?= (int)$p ?></a>
+              <?php endfor; ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php elseif ($overridePage >= ($overrideTotalPages - 3)): ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+              <?php for ($p = $overrideTotalPages - 4; $p <= $overrideTotalPages - 1; $p++): ?>
+                <a class="btn <?= $p === $overridePage ? '' : 'ghost' ?>" href="<?= h($overrideBase . $overrideCommon . '&opage=' . $p) ?>"><?= (int)$p ?></a>
+              <?php endfor; ?>
+            <?php else: ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+              <?php for ($p = $overridePage - 1; $p <= $overridePage + 1; $p++): ?>
+                <a class="btn <?= $p === $overridePage ? '' : 'ghost' ?>" href="<?= h($overrideBase . $overrideCommon . '&opage=' . $p) ?>"><?= (int)$p ?></a>
+              <?php endfor; ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php endif; ?>
+
+            <a class="btn <?= $overrideTotalPages === $overridePage ? '' : 'ghost' ?>" href="<?= h($overrideBase . $overrideCommon . '&opage=' . $overrideTotalPages) ?>"><?= (int)$overrideTotalPages ?></a>
+          <?php endif; ?>
+
+          <?php if ($overridePage < $overrideTotalPages): ?>
+            <a class="btn ghost" href="<?= h($overrideBase . $overrideCommon . '&opage=' . ($overridePage + 1)) ?>">&rarr;</a>
+          <?php else: ?>
+            <button class="btn ghost" disabled>&rarr;</button>
+          <?php endif; ?>
+        </div>
       <?php endif; ?>
 
       <div class="section-head">
@@ -478,16 +600,48 @@ $hist = $histStmt->fetchAll();
 
       <hr class="separator">
 
+      <div id="history-sessions"></div>
       <div class="section-head">
         <div>
           <h2 class="h1">Historique des sessions</h2>
         </div>
       </div>
 
-      <form method="get" class="filters-grid">
+      <form method="get" class="filters-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items:end; gap:12px;">
         <input type="hidden" name="email" value="<?= h($contact['email']) ?>">
         <input type="hidden" name="hsort" value="<?= h($hsort) ?>">
         <input type="hidden" name="hdir" value="<?= h($hdir) ?>">
+
+        <div>
+          <label class="label" for="htype">Type</label>
+          <select class="input" id="htype" name="htype">
+            <option value="ALL" <?= $htype==='ALL'?'selected':'' ?>>Tous</option>
+            <option value="EXAM" <?= $htype==='EXAM'?'selected':'' ?>>Certification</option>
+            <option value="TRAINING" <?= $htype==='TRAINING'?'selected':'' ?>>Test</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="label" for="hpackage">Package</label>
+          <select class="input" id="hpackage" name="hpackage">
+            <option value="ALL" <?= $hpackage==='ALL'?'selected':'' ?>>Tous</option>
+            <?php foreach ($packages as $pkg): ?>
+              <option value="<?= (int)$pkg['id'] ?>" <?= $hpackage===(string)$pkg['id']?'selected':'' ?>>
+                <?= h(localize_text((string)$pkg['name'], 'fr')) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div>
+          <label class="label" for="hstatus">Statut</label>
+          <select class="input" id="hstatus" name="hstatus">
+            <option value="ALL" <?= $hstatus==='ALL'?'selected':'' ?>>Tous</option>
+            <option value="ACTIVE" <?= $hstatus==='ACTIVE'?'selected':'' ?>>Actif</option>
+            <option value="TERMINATED" <?= $hstatus==='TERMINATED'?'selected':'' ?>>Termine</option>
+            <option value="EXPIRED" <?= $hstatus==='EXPIRED'?'selected':'' ?>>Expire</option>
+          </select>
+        </div>
 
         <div>
           <label class="label" for="hresult">Resultat</label>
@@ -508,6 +662,7 @@ $hist = $histStmt->fetchAll();
         <?php if (!$hist): ?>
           <p class="empty-state">Aucune session.</p>
         <?php else: ?>
+          <p class="sub sessions-meta">Page <?= (int)$historyPage ?> / <?= (int)$histTotalPages ?> (<?= (int)$histTotalRows ?> resultats)</p>
           <table class="table questions-table">
             <thead>
               <tr>
@@ -543,7 +698,7 @@ $hist = $histStmt->fetchAll();
                   </a>
                 </th>
                 <th>Resultat</th>
-                <th></th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -574,7 +729,11 @@ $hist = $histStmt->fetchAll();
                     <?php endif; ?>
                   </td>
                   <td class="actions-cell">
-                    <a class="btn ghost" href="/admin/session.php?sid=<?= h($s['id']) ?>">Voir</a>
+                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?>" aria-label="Voir le detail" title="Voir le detail">
+                      <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+                      </svg>
+                    </a>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -582,6 +741,57 @@ $hist = $histStmt->fetchAll();
           </table>
         <?php endif; ?>
       </div>
+
+      <?php if ($hist): ?>
+        <?php
+          $historyQs = $_GET;
+          $historyQs['email'] = $contact['email'];
+          unset($historyQs['hpage']);
+          $historyBase = '/admin/contact.php';
+          $historyCommon = '?' . http_build_query($historyQs);
+        ?>
+        <div class="sessions-pagination">
+          <?php if ($historyPage > 1): ?>
+            <a class="btn ghost" href="<?= h($historyBase . $historyCommon . '&hpage=' . ($historyPage - 1) . '#history-sessions') ?>">&larr;</a>
+          <?php else: ?>
+            <button class="btn ghost" disabled>&larr;</button>
+          <?php endif; ?>
+
+          <?php if ($histTotalPages <= 7): ?>
+            <?php for ($p = 1; $p <= $histTotalPages; $p++): ?>
+              <a class="btn <?= $p === $historyPage ? '' : 'ghost' ?>" href="<?= h($historyBase . $historyCommon . '&hpage=' . $p . '#history-sessions') ?>"><?= (int)$p ?></a>
+            <?php endfor; ?>
+          <?php else: ?>
+            <a class="btn <?= $historyPage === 1 ? '' : 'ghost' ?>" href="<?= h($historyBase . $historyCommon . '&hpage=1#history-sessions') ?>">1</a>
+
+            <?php if ($historyPage <= 4): ?>
+              <?php for ($p = 2; $p <= 5; $p++): ?>
+                <a class="btn <?= $p === $historyPage ? '' : 'ghost' ?>" href="<?= h($historyBase . $historyCommon . '&hpage=' . $p . '#history-sessions') ?>"><?= (int)$p ?></a>
+              <?php endfor; ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php elseif ($historyPage >= ($histTotalPages - 3)): ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+              <?php for ($p = $histTotalPages - 4; $p <= $histTotalPages - 1; $p++): ?>
+                <a class="btn <?= $p === $historyPage ? '' : 'ghost' ?>" href="<?= h($historyBase . $historyCommon . '&hpage=' . $p . '#history-sessions') ?>"><?= (int)$p ?></a>
+              <?php endfor; ?>
+            <?php else: ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+              <?php for ($p = $historyPage - 1; $p <= $historyPage + 1; $p++): ?>
+                <a class="btn <?= $p === $historyPage ? '' : 'ghost' ?>" href="<?= h($historyBase . $historyCommon . '&hpage=' . $p . '#history-sessions') ?>"><?= (int)$p ?></a>
+              <?php endfor; ?>
+              <span class="pagination-ellipsis" aria-hidden="true" style="position:relative; top:10px;">...</span>
+            <?php endif; ?>
+
+            <a class="btn <?= $histTotalPages === $historyPage ? '' : 'ghost' ?>" href="<?= h($historyBase . $historyCommon . '&hpage=' . $histTotalPages . '#history-sessions') ?>"><?= (int)$histTotalPages ?></a>
+          <?php endif; ?>
+
+          <?php if ($historyPage < $histTotalPages): ?>
+            <a class="btn ghost" href="<?= h($historyBase . $historyCommon . '&hpage=' . ($historyPage + 1) . '#history-sessions') ?>">&rarr;</a>
+          <?php else: ?>
+            <button class="btn ghost" disabled>&rarr;</button>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
     </div>
   </div>
 </body>
