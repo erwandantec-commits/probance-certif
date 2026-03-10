@@ -22,14 +22,14 @@ $okRateValue2Raw = trim((string)($_GET['ok_rate_value2'] ?? ''));
 $failRateOp = trim((string)($_GET['fail_rate_op'] ?? ''));
 $failRateValueRaw = trim((string)($_GET['fail_rate_value'] ?? ''));
 $failRateValue2Raw = trim((string)($_GET['fail_rate_value2'] ?? ''));
-$occurrenceOp = trim((string)($_GET['occurrence_op'] ?? ''));
-$occurrenceValueRaw = trim((string)($_GET['occurrence_value'] ?? ''));
-$occurrenceValue2Raw = trim((string)($_GET['occurrence_value2'] ?? ''));
+$responseOp = trim((string)($_GET['response_op'] ?? ''));
+$responseValueRaw = trim((string)($_GET['response_value'] ?? ''));
+$responseValue2Raw = trim((string)($_GET['response_value2'] ?? ''));
 
 if (!in_array($sessionType, ['ALL', 'EXAM', 'TRAINING'], true)) {
   $sessionType = 'ALL';
 }
-if (!in_array($sort, ['question_text', 'category', 'occurrence_count', 'ok_rate', 'fail_rate'], true)) {
+if (!in_array($sort, ['question_text', 'category', 'response_count', 'ok_rate', 'fail_rate'], true)) {
   $sort = 'fail_rate';
 }
 if (!in_array($dir, ['ASC', 'DESC'], true)) {
@@ -41,8 +41,8 @@ if (!in_array($okRateOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
 if (!in_array($failRateOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
   $failRateOp = '';
 }
-if (!in_array($occurrenceOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
-  $occurrenceOp = '';
+if (!in_array($responseOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
+  $responseOp = '';
 }
 
 function performance_parse_percent(?string $raw): ?float {
@@ -111,8 +111,8 @@ $okRateValue = performance_parse_percent($okRateValueRaw);
 $okRateValue2 = performance_parse_percent($okRateValue2Raw);
 $failRateValue = performance_parse_percent($failRateValueRaw);
 $failRateValue2 = performance_parse_percent($failRateValue2Raw);
-$occurrenceValue = performance_parse_int($occurrenceValueRaw);
-$occurrenceValue2 = performance_parse_int($occurrenceValue2Raw);
+$responseValue = performance_parse_int($responseValueRaw);
+$responseValue2 = performance_parse_int($responseValue2Raw);
 $questionId = ($questionIdRaw !== '' && preg_match('/^\d+$/', $questionIdRaw)) ? (int)$questionIdRaw : null;
 
 $packages = $pdo->query("SELECT id, name, name_color_hex FROM packages ORDER BY name ASC")->fetchAll() ?: [];
@@ -161,9 +161,9 @@ $failHaving = performance_having_clause('ROUND((100.0 * SUM(CASE WHEN perf.answe
 if ($failHaving !== null) {
   $havingParts[] = $failHaving;
 }
-$occurrenceHaving = performance_having_int_clause('COUNT(*)', $occurrenceOp, $occurrenceValue, $occurrenceValue2, $havingParams);
-if ($occurrenceHaving !== null) {
-  $havingParts[] = $occurrenceHaving;
+$responseHaving = performance_having_int_clause('COUNT(*)', $responseOp, $responseValue, $responseValue2, $havingParams);
+if ($responseHaving !== null) {
+  $havingParts[] = $responseHaving;
 }
 $havingSql = $havingParts ? ('HAVING ' . implode(' AND ', $havingParts)) : '';
 
@@ -203,12 +203,15 @@ $perfFromSql = "
   ) perf
   JOIN questions q ON q.id = perf.question_id
 ";
+$answeredPerfFromSql = $perfFromSql . "
+  WHERE perf.answer_status <> 'UNANSWERED'
+";
 
 $countStmt = $pdo->prepare("
   SELECT COUNT(*)
   FROM (
     SELECT q.id
-    $perfFromSql
+    $answeredPerfFromSql
     GROUP BY q.id
     $havingSql
   ) question_perf
@@ -227,16 +230,15 @@ $sql = "
     q.external_id,
     q.text AS question_text,
     COALESCE(NULLIF(TRIM(q.category), ''), '-') AS category,
-    COUNT(*) AS occurrence_count,
+    COUNT(*) AS response_count,
     SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END) AS ok_count,
     SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END) AS fail_count,
-    SUM(CASE WHEN perf.answer_status = 'UNANSWERED' THEN 1 ELSE 0 END) AS unanswered_count,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
-  $perfFromSql
+  $answeredPerfFromSql
   GROUP BY q.id, q.external_id, q.text, q.category
   $havingSql
-  ORDER BY $sort $dir, occurrence_count DESC, q.id DESC
+  ORDER BY $sort $dir, response_count DESC, q.id DESC
   LIMIT ? OFFSET ?
 ";
 $stmt = $pdo->prepare($sql);
@@ -255,13 +257,13 @@ $rankingSql = "
     q.external_id,
     q.text AS question_text,
     COALESCE(NULLIF(TRIM(q.category), ''), '-') AS category,
-    COUNT(*) AS occurrence_count,
+    COUNT(*) AS response_count,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
-  $perfFromSql
+  $answeredPerfFromSql
   GROUP BY q.id, q.external_id, q.text, q.category
   $havingSql
-  ORDER BY ok_rate DESC, occurrence_count DESC, q.id ASC
+  ORDER BY ok_rate DESC, response_count DESC, q.id ASC
 ";
 $rankingStmt = $pdo->prepare($rankingSql);
 $rankingStmt->execute(array_merge($params, $havingParams));
@@ -273,17 +275,16 @@ foreach ($rankingRows as $index => $rankingRow) {
 
 $summaryStmt = $pdo->prepare("
   SELECT
-    COUNT(*) AS occurrence_count,
+    COUNT(*) AS response_count,
     SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END) AS ok_count,
-    SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END) AS fail_count,
-    SUM(CASE WHEN perf.answer_status = 'UNANSWERED' THEN 1 ELSE 0 END) AS unanswered_count
-  $perfFromSql
+    SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END) AS fail_count
+  $answeredPerfFromSql
 ");
 $summaryStmt->execute($params);
-$summary = $summaryStmt->fetch() ?: ['occurrence_count' => 0, 'ok_count' => 0, 'fail_count' => 0, 'unanswered_count' => 0];
-$totalOccurrences = (int)($summary['occurrence_count'] ?? 0);
-$globalOkRate = $totalOccurrences > 0 ? round(((int)$summary['ok_count'] * 100) / $totalOccurrences, 1) : 0.0;
-$globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 100) / $totalOccurrences, 1) : 0.0;
+$summary = $summaryStmt->fetch() ?: ['response_count' => 0, 'ok_count' => 0, 'fail_count' => 0];
+$totalResponses = (int)($summary['response_count'] ?? 0);
+$globalOkRate = $totalResponses > 0 ? round(((int)$summary['ok_count'] * 100) / $totalResponses, 1) : 0.0;
+$globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100) / $totalResponses, 1) : 0.0;
 ?>
 <!doctype html>
 <html lang="fr">
@@ -301,7 +302,7 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
       <div class="admin-head-copy">
         <p class="admin-page-eyebrow">Administration</p>
         <h2 class="h1">Admin &middot; Performance questions</h2>
-        <p class="sub">Vue agr&eacute;g&eacute;e par question sur les sessions termin&eacute;es et expir&eacute;es.</p>
+        <p class="sub">Vue agr&eacute;g&eacute;e par question sur les r&eacute;ponses des sessions termin&eacute;es et expir&eacute;es.</p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('performance'); ?>
@@ -314,8 +315,8 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
         <strong class="admin-stat-value"><?= (int)$totalRows ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Occurrences</span>
-        <strong class="admin-stat-value"><?= (int)$totalOccurrences ?></strong>
+        <span class="admin-stat-label">Reponses</span>
+        <strong class="admin-stat-value"><?= (int)$totalResponses ?></strong>
       </article>
       <article class="admin-stat-card">
         <span class="admin-stat-label">Taux reussite global</span>
@@ -332,7 +333,7 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
     <div class="section-head admin-section-head">
       <div>
         <h3 class="h1">Filtres d'analyse</h3>
-        <p class="sub">Croisez les performances par question, cat&eacute;gorie, type de session et occurrence.</p>
+        <p class="sub">Croisez les performances par question, cat&eacute;gorie, type de session et nombre de r&eacute;ponses.</p>
       </div>
     </div>
 
@@ -419,22 +420,22 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
 
       <div class="filters-grid" style="grid-template-columns: repeat(3, minmax(0, 180px)); align-items:end; margin-top:12px;">
         <div>
-          <label class="label" for="occurrence_op">Nb occurrence</label>
-          <select class="input" id="occurrence_op" name="occurrence_op">
-            <option value="" <?= $occurrenceOp === '' ? 'selected' : '' ?>>Tous</option>
-            <option value="eq" <?= $occurrenceOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
-            <option value="gte" <?= $occurrenceOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
-            <option value="lte" <?= $occurrenceOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
-            <option value="between" <?= $occurrenceOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
+          <label class="label" for="response_op">Nb reponses</label>
+          <select class="input" id="response_op" name="response_op">
+            <option value="" <?= $responseOp === '' ? 'selected' : '' ?>>Tous</option>
+            <option value="eq" <?= $responseOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
+            <option value="gte" <?= $responseOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
+            <option value="lte" <?= $responseOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
+            <option value="between" <?= $responseOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
           </select>
         </div>
         <div>
-          <label class="label" for="occurrence_value">Valeur 1</label>
-          <input class="input" id="occurrence_value" name="occurrence_value" type="number" min="0" step="1" value="<?= h($occurrenceValueRaw) ?>" placeholder="nb">
+          <label class="label" for="response_value">Valeur 1</label>
+          <input class="input" id="response_value" name="response_value" type="number" min="0" step="1" value="<?= h($responseValueRaw) ?>" placeholder="nb">
         </div>
-        <div id="occurrence-value2-wrap" style="<?= $occurrenceOp === 'between' ? '' : 'display:none;' ?>">
-          <label class="label" for="occurrence_value2">Valeur 2</label>
-          <input class="input" id="occurrence_value2" name="occurrence_value2" type="number" min="0" step="1" value="<?= h($occurrenceValue2Raw) ?>" placeholder="nb">
+        <div id="response-value2-wrap" style="<?= $responseOp === 'between' ? '' : 'display:none;' ?>">
+          <label class="label" for="response_value2">Valeur 2</label>
+          <input class="input" id="response_value2" name="response_value2" type="number" min="0" step="1" value="<?= h($responseValue2Raw) ?>" placeholder="nb">
         </div>
       </div>
 
@@ -476,8 +477,8 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
                 <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Categorie</a>
               </th>
               <th>
-                <?php $urlQs = $qs; $urlQs['sort'] = 'occurrence_count'; $urlQs['dir'] = ($sort === 'occurrence_count' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Nb occurrence</a>
+                <?php $urlQs = $qs; $urlQs['sort'] = 'response_count'; $urlQs['dir'] = ($sort === 'response_count' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Nb reponses</a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'ok_rate'; $urlQs['dir'] = ($sort === 'ok_rate' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
@@ -498,7 +499,7 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
                 <td><?= ($row['external_id'] === null || $row['external_id'] === '') ? '-' : (int)$row['external_id'] ?></td>
                 <td><?= h(mb_strimwidth((string)$row['question_text'], 0, 110, '...', 'UTF-8')) ?></td>
                 <td><?= h((string)$row['category']) ?></td>
-                <td><?= (int)$row['occurrence_count'] ?></td>
+                <td><?= (int)$row['response_count'] ?></td>
                 <td><span class="badge ok"><?= h(number_format((float)$row['ok_rate'], 1, '.', '')) ?>%</span></td>
                 <td><span class="badge bad"><?= h(number_format((float)$row['fail_rate'], 1, '.', '')) ?>%</span></td>
                 <td class="actions-cell">
@@ -584,7 +585,7 @@ $globalFailRate = $totalOccurrences > 0 ? round(((int)$summary['fail_count'] * 1
 
     bindConditionalSecondValue('ok_rate_op', 'ok-rate-value2-wrap');
     bindConditionalSecondValue('fail_rate_op', 'fail-rate-value2-wrap');
-    bindConditionalSecondValue('occurrence_op', 'occurrence-value2-wrap');
+    bindConditionalSecondValue('response_op', 'response-value2-wrap');
   })();
 </script>
 </body>
