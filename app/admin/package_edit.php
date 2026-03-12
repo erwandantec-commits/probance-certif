@@ -1084,9 +1084,9 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                 </tbody>
                 <tfoot>
                   <tr class="rule-summary-row">
-                    <td colspan="2">Total</td>
-                    <td><span id="rule-total-take">0</span></td>
-                    <td><span id="rule-total-target">0</span></td>
+                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label">Total</span></td>
+                    <td class="rule-summary-value"><span id="rule-total-take" class="rule-summary-number">0</span></td>
+                    <td class="rule-summary-value"><span id="rule-total-target" class="rule-summary-number">0</span></td>
                     <td></td>
                   </tr>
                 </tfoot>

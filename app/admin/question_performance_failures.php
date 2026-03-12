@@ -37,7 +37,7 @@ if ($qid <= 0) {
 }
 
 $questionStmt = $pdo->prepare("
-  SELECT id, external_id, text, knowledge_required_csv
+  SELECT id, external_id, text
   FROM questions
   WHERE id = ?
   LIMIT 1
@@ -234,10 +234,6 @@ $rows = $stmt->fetchAll() ?: [];
       <article class="admin-stat-card">
         <span class="admin-stat-label">ID question</span>
         <strong class="admin-stat-value"><?= ($question['external_id'] === null || $question['external_id'] === '') ? '-' : (int)$question['external_id'] ?></strong>
-      </article>
-      <article class="admin-stat-card">
-        <span class="admin-stat-label">Connaissances requises</span>
-        <strong class="admin-stat-value admin-stat-value-sm"><?= h((string)($question['knowledge_required_csv'] ?: '-')) ?></strong>
       </article>
       <article class="admin-stat-card">
         <span class="admin-stat-label">Reussites</span>
