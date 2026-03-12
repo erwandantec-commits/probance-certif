@@ -54,12 +54,12 @@ function package_label_style(string $packageName, ?string $customColor = null): 
  * Validate user selection for a question.
  * $question must contain:
  * - question_type: SINGLE|MULTI|TRUE_FALSE
- * - allow_skip: bool (optional, default true)
+ * - allow_skip: bool (optional, default false)
  * - options: array of ['id'=>int, ...]
  */
 function validateAnswerSelection(array $question, array $selectedOptionIds): array {
 
-  $allowSkip = $question['allow_skip'] ?? true;
+  $allowSkip = $question['allow_skip'] ?? false;
 
   // sanitize ids (array may contain strings)
   $selectedOptionIds = array_values(array_unique(array_map('intval', $selectedOptionIds)));

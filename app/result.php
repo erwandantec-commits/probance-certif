@@ -107,7 +107,10 @@ function result_status_label(string $status, string $lang): string {
 $isTrainingSession = (($s['session_type'] ?? 'EXAM') === 'TRAINING');
 $displayStatus = result_display_status($s);
 $canShowReview = $isTrainingSession && in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true);
+$reviewPosition = max(0, (int)($_GET['review_p'] ?? 0));
 $reviewItems = [];
+$selectedReviewItem = null;
+$selectedReviewOptions = [];
 $isTerminatedExam = (
   (string)($s['session_type'] ?? '') === 'EXAM' &&
   in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)
@@ -169,6 +172,7 @@ if ($canShowReview) {
   $reviewStmt = $pdo->prepare("
     SELECT
       sq.position,
+      q.id AS question_id,
       q.text,
       (
         SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
@@ -204,6 +208,40 @@ if ($canShowReview) {
   ");
   $reviewStmt->execute([$sid]);
   $reviewItems = $reviewStmt->fetchAll() ?: [];
+
+  if ($reviewPosition > 0) {
+    foreach ($reviewItems as $reviewItem) {
+      if ((int)($reviewItem['position'] ?? 0) === $reviewPosition) {
+        $selectedReviewItem = $reviewItem;
+        break;
+      }
+    }
+  }
+
+  if ($selectedReviewItem) {
+    $selectedQuestionId = (int)($selectedReviewItem['question_id'] ?? 0);
+    if ($selectedQuestionId > 0) {
+      $selectedOptionsStmt = $pdo->prepare("
+        SELECT
+          qo.id,
+          qo.label,
+          qo.option_text,
+          qo.is_correct,
+          EXISTS(
+            SELECT 1
+            FROM answer_options ao
+            WHERE ao.session_id = ?
+              AND ao.question_id = ?
+              AND ao.option_id = qo.id
+          ) AS is_picked
+        FROM question_options qo
+        WHERE qo.question_id = ?
+        ORDER BY qo.label ASC
+      ");
+      $selectedOptionsStmt->execute([$sid, $selectedQuestionId, $selectedQuestionId]);
+      $selectedReviewOptions = $selectedOptionsStmt->fetchAll() ?: [];
+    }
+  }
 }
 ?>
 <!doctype html>
@@ -311,6 +349,46 @@ if ($canShowReview) {
       <?php if ($canShowReview): ?>
         <div class="card" style="margin-top:14px;">
           <h3 style="margin-top:0;"><?= h(t('result.review_title', [], $lang)) ?></h3>
+          <?php if ($selectedReviewItem): ?>
+            <?php
+              $selectedCorrectCount = 0;
+              foreach ($selectedReviewOptions as $selectedOption) {
+                if ((int)($selectedOption['is_correct'] ?? 0) === 1) {
+                  $selectedCorrectCount++;
+                }
+              }
+              $selectedInputType = $selectedCorrectCount > 1 ? 'checkbox' : 'radio';
+            ?>
+            <div id="review-detail" class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border); margin-bottom:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                <p style="margin:0; font-size:16px;"><b>#<?= (int)$selectedReviewItem['position'] ?></b> <?= h(localize_text((string)$selectedReviewItem['text'], $lang)) ?></p>
+                <a class="btn ghost icon-btn" href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>" aria-label="<?= h(t('result.back', [], $lang)) ?>" title="<?= h(t('result.back', [], $lang)) ?>">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M6.7 5.3a1 1 0 0 1 1.4 0L12 9.17l3.9-3.88a1 1 0 1 1 1.4 1.42L13.42 10.6l3.88 3.9a1 1 0 0 1-1.42 1.4L12 12.01l-3.9 3.88a1 1 0 0 1-1.4-1.42l3.87-3.88-3.88-3.9a1 1 0 0 1 0-1.4Z" fill="currentColor"/>
+                  </svg>
+                </a>
+              </div>
+              <div style="margin-top:12px;">
+                <?php foreach ($selectedReviewOptions as $selectedOption): ?>
+                  <?php
+                    $selectedOptionClass = 'exam-option';
+                    $selectedOptionIsCorrect = (int)($selectedOption['is_correct'] ?? 0) === 1;
+                    $selectedOptionIsPicked = (int)($selectedOption['is_picked'] ?? 0) === 1;
+                    if ($selectedOptionIsCorrect) {
+                      $selectedOptionClass .= ' is-correct';
+                    } elseif ($selectedOptionIsPicked) {
+                      $selectedOptionClass .= ' is-wrong';
+                    }
+                  ?>
+                  <label class="<?= h($selectedOptionClass) ?>" style="cursor:default;">
+                    <input type="<?= h($selectedInputType) ?>" <?= $selectedOptionIsPicked ? 'checked' : '' ?> disabled>
+                    <b style="margin-left:8px;"><?= h((string)$selectedOption['label']) ?>.</b>
+                    <span style="margin-left:6px;"><?= h(localize_text((string)$selectedOption['option_text'], $lang)) ?></span>
+                  </label>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          <?php endif; ?>
           <div class="table-wrap">
             <?php if (!$reviewItems): ?>
               <p class="empty-state"><?= h(t('dash.none', [], $lang)) ?></p>
@@ -323,6 +401,7 @@ if ($canShowReview) {
                     <th><?= h(t('result.review_your_answer', [], $lang)) ?></th>
                     <th><?= h(t('result.review_expected', [], $lang)) ?></th>
                     <th><?= h(t('result.review_status', [], $lang)) ?></th>
+                    <th><?= h(t('dash.col.action', [], $lang)) ?></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -347,6 +426,18 @@ if ($canShowReview) {
                       <td><?= h((string)($it['picked_labels'] ?: '-')) ?></td>
                       <td><?= h((string)($it['correct_labels'] ?: '-')) ?></td>
                       <td><span class="<?= h($reviewClass) ?>"><?= h(t($reviewKey, [], $lang)) ?></span></td>
+                      <td>
+                        <a
+                          class="btn ghost icon-btn"
+                          href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>&review_p=<?= (int)$it['position'] ?>#review-detail"
+                          aria-label="<?= h(t('dash.view', [], $lang)) ?>"
+                          title="<?= h(t('dash.view', [], $lang)) ?>"
+                        >
+                          <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12s-3.8 6.5-10.5 6.5S1.5 12 1.5 12Zm10.5 4a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-2.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6Z" fill="currentColor"/>
+                          </svg>
+                        </a>
+                      </td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>

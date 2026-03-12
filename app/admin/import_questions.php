@@ -497,7 +497,7 @@ function validate_and_prepare_rows(array $rows, array $map): array {
       'knowledge_required_csv' => implode(',', $knowledgeTokens),
       'level' => (int)$levelRaw,
       'question_type' => $questionType,
-      'allow_skip' => 1,
+      'allow_skip' => 0,
       'open_to_client' => $openToClient,
       'explanation' => $explanation !== '' ? $explanation : null,
       'meta_json' => json_encode($meta, JSON_UNESCAPED_UNICODE),

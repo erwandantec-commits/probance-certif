@@ -36,7 +36,7 @@ $question = [
   'need' => 'PONE',
   'level' => 1,
   'question_type' => 'MULTI',
-  'allow_skip' => 1,
+  'allow_skip' => 0,
 ];
 
 $optionsByLabel = [];
@@ -56,7 +56,7 @@ $question = [
   'need' => (string)($q['need'] ?? 'PONE'),
   'level' => (int)($q['level'] ?? 1),
   'question_type' => (string)($q['question_type'] ?? 'MULTI'),
-  'allow_skip' => (int)($q['allow_skip'] ?? 1),
+  'allow_skip' => 0,
 ];
 
 $os = $pdo->prepare("
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $question['need'] = strtoupper(trim((string)($_POST['need'] ?? ($question['need'] ?? 'PONE'))));
   $question['level'] = (int)($_POST['level'] ?? ($question['level'] ?? 1));
   $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
-  $question['allow_skip'] = isset($_POST['allow_skip']) ? 1 : 0;
+  $question['allow_skip'] = 0;
 
   if ($question['text'] === '') {
     $errors[] = "Enonce obligatoire.";
@@ -279,13 +279,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </select>
               </div>
 
-              <div class="question-field">
-                <label class="label">&nbsp;</label>
-                <label class="question-toggle question-setting-toggle">
-                  <input type="checkbox" name="allow_skip" <?= ((int)$question['allow_skip'] === 1) ? 'checked' : '' ?>>
-                  Autoriser "ne pas repondre"
-                </label>
-              </div>
             </div>
           </article>
 

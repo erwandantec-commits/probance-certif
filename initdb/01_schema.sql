@@ -92,7 +92,7 @@ CREATE TABLE questions (
   question_type ENUM('SINGLE','MULTI','TRUE_FALSE') NOT NULL DEFAULT 'SINGLE',
 
   -- L'utilisateur peut soumettre sans sélectionner (score 0)
-  allow_skip TINYINT(1) NOT NULL DEFAULT 1,
+  allow_skip TINYINT(1) NOT NULL DEFAULT 0,
   open_to_client TINYINT(1) NOT NULL DEFAULT 0,
   explanation TEXT NULL,
   meta_json LONGTEXT NULL,

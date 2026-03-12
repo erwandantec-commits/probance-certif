@@ -193,6 +193,28 @@ body{
   background: #fef2f2;
 }
 
+:root[data-theme="dark"] .exam-option{
+  border-color: #334155;
+  background: #0f172a;
+  color: #e5eefb;
+}
+
+:root[data-theme="dark"] .exam-option.is-correct{
+  border-color: #166534;
+  background: #10261d;
+  color: #dcfce7;
+}
+
+:root[data-theme="dark"] .exam-option.is-wrong{
+  border-color: #b91c1c;
+  background: #32131a;
+  color: #ffe4e6;
+}
+
+:root[data-theme="dark"] .exam-option input{
+  accent-color: #94a3b8;
+}
+
 .exam-feedback{
   margin: 10px 0 0;
   font-weight: 700;
@@ -204,6 +226,22 @@ body{
 
 .exam-feedback-bad{
   color: #b91c1c;
+}
+
+.exam-feedback-partial{
+  color: #b45309;
+}
+
+:root[data-theme="dark"] .exam-feedback-ok{
+  color: #86efac;
+}
+
+:root[data-theme="dark"] .exam-feedback-partial{
+  color: #fbbf24;
+}
+
+:root[data-theme="dark"] .exam-feedback-bad{
+  color: #fca5a5;
 }
 
 .exam-explanation{

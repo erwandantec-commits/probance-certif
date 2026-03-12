@@ -20,8 +20,19 @@ $qid = (int)($_GET['qid'] ?? 0);
 $returnTo = admin_perf_safe_return((string)($_GET['return'] ?? ''));
 $sessionType = strtoupper(trim((string)($_GET['session_type'] ?? 'ALL')));
 $answerStatus = strtoupper(trim((string)($_GET['answer_status'] ?? 'ALL')));
+$dateFrom = trim((string)($_GET['date_from'] ?? ''));
+$dateTo = trim((string)($_GET['date_to'] ?? ''));
 $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 20;
+
+function admin_perf_parse_date(?string $raw): string {
+  $raw = trim((string)$raw);
+  if ($raw === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+    return '';
+  }
+  $dt = DateTimeImmutable::createFromFormat('Y-m-d', $raw);
+  return ($dt && $dt->format('Y-m-d') === $raw) ? $raw : '';
+}
 
 if (!in_array($sessionType, ['ALL', 'EXAM', 'TRAINING'], true)) {
   $sessionType = 'ALL';
@@ -29,6 +40,8 @@ if (!in_array($sessionType, ['ALL', 'EXAM', 'TRAINING'], true)) {
 if (!in_array($answerStatus, ['ALL', 'OK', 'KO'], true)) {
   $answerStatus = 'ALL';
 }
+$dateFrom = admin_perf_parse_date($dateFrom);
+$dateTo = admin_perf_parse_date($dateTo);
 
 if ($qid <= 0) {
   http_response_code(400);
@@ -58,6 +71,14 @@ $params = [$qid];
 if ($sessionType !== 'ALL') {
   $whereParts[] = "s0.session_type = ?";
   $params[] = $sessionType;
+}
+if ($dateFrom !== '') {
+  $whereParts[] = "s0.started_at >= ?";
+  $params[] = $dateFrom . ' 00:00:00';
+}
+if ($dateTo !== '') {
+  $whereParts[] = "s0.started_at < DATE_ADD(?, INTERVAL 1 DAY)";
+  $params[] = $dateTo;
 }
 $whereSql = implode("\n      AND ", $whereParts);
 $resultFilterSql = $answerStatus === 'ALL' ? "perf.answer_status IN ('OK', 'KO')" : "perf.answer_status = ?";
@@ -269,7 +290,7 @@ $rows = $stmt->fetchAll() ?: [];
     <form method="get" class="admin-panel-surface" style="margin-bottom:12px;">
       <input type="hidden" name="qid" value="<?= (int)$qid ?>">
       <input type="hidden" name="return" value="<?= h($returnTo) ?>">
-      <div class="filters-grid" style="grid-template-columns: repeat(2, minmax(0, 220px)); align-items:end;">
+      <div class="filters-grid" style="grid-template-columns: repeat(4, minmax(0, 220px)); align-items:end;">
         <div>
           <label class="label" for="session_type">Type</label>
           <select class="input" id="session_type" name="session_type">
@@ -285,6 +306,14 @@ $rows = $stmt->fetchAll() ?: [];
             <option value="OK" <?= $answerStatus === 'OK' ? 'selected' : '' ?>>Reussites</option>
             <option value="KO" <?= $answerStatus === 'KO' ? 'selected' : '' ?>>Echecs</option>
           </select>
+        </div>
+        <div>
+          <label class="label" for="date_from">Date debut</label>
+          <input class="input" id="date_from" name="date_from" type="date" value="<?= h($dateFrom) ?>">
+        </div>
+        <div>
+          <label class="label" for="date_to">Date fin</label>
+          <input class="input" id="date_to" name="date_to" type="date" value="<?= h($dateTo) ?>">
         </div>
       </div>
       <div class="filters-actions" style="margin-top:12px;">

@@ -108,7 +108,7 @@ $qType = (string)($q['question_type'] ?? 'MULTI');
 if (!in_array($qType, ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
   $qType = 'MULTI';
 }
-$allowSkip = (int)($q['allow_skip'] ?? 1) === 1;
+$allowSkip = (int)($q['allow_skip'] ?? 0) === 1;
 $isTraining = (($sess['session_type'] ?? 'EXAM') === 'TRAINING');
 $showFeedback = $isTraining && $checked;
 
@@ -148,6 +148,18 @@ $questionTypeHintKey = match ($effectiveQType) {
 sort($selectedIds);
 sort($correctIds);
 $isQuestionCorrect = ($selectedIds === $correctIds);
+$hasAnyCorrectSelection = false;
+if ($effectiveQType === 'MULTI' && $selectedIds !== []) {
+  foreach ($selectedIds as $selectedId) {
+    if (in_array($selectedId, $correctIds, true)) {
+      $hasAnyCorrectSelection = true;
+      break;
+    }
+  }
+}
+$isIncompleteTrainingAnswer = $showFeedback && $isTraining && $effectiveQType === 'MULTI' && !$isQuestionCorrect && $hasAnyCorrectSelection;
+$feedbackClass = $isQuestionCorrect ? 'exam-feedback exam-feedback-ok' : ($isIncompleteTrainingAnswer ? 'exam-feedback exam-feedback-partial' : 'exam-feedback exam-feedback-bad');
+$feedbackKey = $isQuestionCorrect ? 'exam.feedback.correct' : ($isIncompleteTrainingAnswer ? 'exam.feedback.partial' : 'exam.feedback.incorrect');
 
 $expiresTs = strtotime((string)$sess['started_at']) + (max(1, (int)$sess['duration_limit_minutes']) * 60);
 $remainingSeconds = max(0, $expiresTs - time());
@@ -337,8 +349,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	        <?php endforeach; ?>
 
           <?php if ($showFeedback): ?>
-            <p class="<?= $isQuestionCorrect ? 'exam-feedback exam-feedback-ok' : 'exam-feedback exam-feedback-bad' ?>">
-              <?= h($isQuestionCorrect ? t('exam.feedback.correct', [], $lang) : t('exam.feedback.incorrect', [], $lang)) ?>
+            <p class="<?= h($feedbackClass) ?>">
+              <?= h(t($feedbackKey, [], $lang)) ?>
             </p>
             <?php if ($questionExplanation !== ''): ?>
               <div class="exam-explanation">
@@ -359,6 +371,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php elseif ((int)$p < (int)$total): ?>
               <button type="submit" class="btn" name="next" value="1">
                 <?= h(t('exam.next', [], $lang)) ?> &rarr;
+              </button>
+            <?php else: ?>
+              <button type="submit" class="btn" id="exam-primary-submit" name="finish" value="1">
+                <?= h(t('exam.validate', [], $lang)) ?>
               </button>
             <?php endif; ?>
           <?php else: ?>
