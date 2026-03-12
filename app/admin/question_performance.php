@@ -7,7 +7,7 @@ require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 $pdo = db();
 
-$category = trim((string)($_GET['category'] ?? ''));
+$knowledgeRequired = trim((string)($_GET['knowledge_required'] ?? ''));
 $questionSearch = trim((string)($_GET['q'] ?? ''));
 $questionIdRaw = trim((string)($_GET['question_id'] ?? ''));
 $sessionType = strtoupper(trim((string)($_GET['session_type'] ?? 'ALL')));
@@ -29,7 +29,7 @@ $responseValue2Raw = trim((string)($_GET['response_value2'] ?? ''));
 if (!in_array($sessionType, ['ALL', 'EXAM', 'TRAINING'], true)) {
   $sessionType = 'ALL';
 }
-if (!in_array($sort, ['question_text', 'category', 'response_count', 'ok_rate', 'fail_rate'], true)) {
+if (!in_array($sort, ['question_text', 'knowledge_required', 'response_count', 'ok_rate', 'fail_rate'], true)) {
   $sort = 'fail_rate';
 }
 if (!in_array($dir, ['ASC', 'DESC'], true)) {
@@ -121,11 +121,11 @@ if ($packageId > 0 && !in_array($packageId, $packageIds, true)) {
   $packageId = 0;
 }
 
-$categoryRows = $pdo->query("
-  SELECT DISTINCT TRIM(category) AS category_name
+$knowledgeRequiredRows = $pdo->query("
+  SELECT DISTINCT TRIM(knowledge_required_csv) AS knowledge_required_name
   FROM questions
-  WHERE category IS NOT NULL AND TRIM(category) <> ''
-  ORDER BY category_name ASC
+  WHERE knowledge_required_csv IS NOT NULL AND TRIM(knowledge_required_csv) <> ''
+  ORDER BY knowledge_required_name ASC
 ")->fetchAll() ?: [];
 
 $where = ["s.status IN ('TERMINATED', 'EXPIRED')"];
@@ -138,9 +138,9 @@ if ($packageId > 0) {
   $where[] = "s.package_id = ?";
   $params[] = $packageId;
 }
-if ($category !== '') {
-  $where[] = "q0.category = ?";
-  $params[] = $category;
+if ($knowledgeRequired !== '') {
+  $where[] = "q0.knowledge_required_csv = ?";
+  $params[] = $knowledgeRequired;
 }
 if ($questionSearch !== '') {
   $where[] = "q0.text LIKE ?";
@@ -229,14 +229,14 @@ $sql = "
     q.id,
     q.external_id,
     q.text AS question_text,
-    COALESCE(NULLIF(TRIM(q.category), ''), '-') AS category,
+    COALESCE(NULLIF(TRIM(q.knowledge_required_csv), ''), '-') AS knowledge_required,
     COUNT(*) AS response_count,
     SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END) AS ok_count,
     SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END) AS fail_count,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
   $answeredPerfFromSql
-  GROUP BY q.id, q.external_id, q.text, q.category
+  GROUP BY q.id, q.external_id, q.text, q.knowledge_required_csv
   $havingSql
   ORDER BY $sort $dir, response_count DESC, q.id DESC
   LIMIT ? OFFSET ?
@@ -256,12 +256,12 @@ $rankingSql = "
     q.id,
     q.external_id,
     q.text AS question_text,
-    COALESCE(NULLIF(TRIM(q.category), ''), '-') AS category,
+    COALESCE(NULLIF(TRIM(q.knowledge_required_csv), ''), '-') AS knowledge_required,
     COUNT(*) AS response_count,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
   $answeredPerfFromSql
-  GROUP BY q.id, q.external_id, q.text, q.category
+  GROUP BY q.id, q.external_id, q.text, q.knowledge_required_csv
   $havingSql
   ORDER BY ok_rate DESC, response_count DESC, q.id ASC
 ";
@@ -333,7 +333,7 @@ $globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100
     <div class="section-head admin-section-head">
       <div>
         <h3 class="h1">Filtres d'analyse</h3>
-        <p class="sub">Croisez les performances par question, cat&eacute;gorie, type de session et nombre de r&eacute;ponses.</p>
+        <p class="sub">Croisez les performances par question, connaissances requises, type de session et nombre de r&eacute;ponses.</p>
       </div>
     </div>
 
@@ -365,12 +365,12 @@ $globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100
           </select>
         </div>
         <div>
-          <label class="label" for="category">Categorie</label>
-          <select class="input" id="category" name="category">
-            <option value="" <?= $category === '' ? 'selected' : '' ?>>Toutes</option>
-            <?php foreach ($categoryRows as $cat): ?>
-              <?php $catName = (string)($cat['category_name'] ?? ''); ?>
-              <option value="<?= h($catName) ?>" <?= $category === $catName ? 'selected' : '' ?>><?= h($catName) ?></option>
+          <label class="label" for="knowledge_required">Connaissances requises</label>
+          <select class="input" id="knowledge_required" name="knowledge_required">
+            <option value="" <?= $knowledgeRequired === '' ? 'selected' : '' ?>>Toutes</option>
+            <?php foreach ($knowledgeRequiredRows as $knowledgeRow): ?>
+              <?php $knowledgeName = (string)($knowledgeRow['knowledge_required_name'] ?? ''); ?>
+              <option value="<?= h($knowledgeName) ?>" <?= $knowledgeRequired === $knowledgeName ? 'selected' : '' ?>><?= h($knowledgeName) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -473,8 +473,8 @@ $globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100
                 <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Question</a>
               </th>
               <th>
-                <?php $urlQs = $qs; $urlQs['sort'] = 'category'; $urlQs['dir'] = ($sort === 'category' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Categorie</a>
+                <?php $urlQs = $qs; $urlQs['sort'] = 'knowledge_required'; $urlQs['dir'] = ($sort === 'knowledge_required' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Connaissances requises</a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'response_count'; $urlQs['dir'] = ($sort === 'response_count' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
@@ -498,7 +498,7 @@ $globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100
                 <td><?= (int)($rankByQuestionId[(int)$row['id']] ?? 0) ?></td>
                 <td><?= ($row['external_id'] === null || $row['external_id'] === '') ? '-' : (int)$row['external_id'] ?></td>
                 <td><?= h(mb_strimwidth((string)$row['question_text'], 0, 110, '...', 'UTF-8')) ?></td>
-                <td><?= h((string)$row['category']) ?></td>
+                <td><?= h((string)$row['knowledge_required']) ?></td>
                 <td><?= (int)$row['response_count'] ?></td>
                 <td><span class="badge ok"><?= h(number_format((float)$row['ok_rate'], 1, '.', '')) ?>%</span></td>
                 <td><span class="badge bad"><?= h(number_format((float)$row['fail_rate'], 1, '.', '')) ?>%</span></td>
@@ -508,7 +508,7 @@ $globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100
                       <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                     </svg>
                   </a>
-                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Voir les echecs" title="Voir les echecs">
+                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?>&session_type=<?= h(urlencode($sessionType)) ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Voir les echecs" title="Voir les echecs">
                     <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                     </svg>
