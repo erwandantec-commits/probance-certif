@@ -134,6 +134,34 @@ Bonnes pratiques avant/pendant deploiement:
 - limiter l'acces reseau a MariaDB
 - verifier que le conteneur `db` termine les migrations au demarrage (logs `[migrate]`)
 
+Workflow de release recommande:
+
+1. creer la migration necessaire:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\new-migration.ps1 -Name add_new_column
+```
+
+2. implementer et tester le SQL dans `db_schema/NN_description.sql`
+3. lancer la release:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 2026.03.12
+```
+
+Ce script:
+
+- sauvegarde la base dans `backups/` (desactivable avec `-SkipBackup`)
+- demarre `db` pour appliquer les migrations
+- redeploie `web`
+- verifie que `schema_version` correspond a la derniere migration versionnee
+
+Mode simulation:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 2026.03.12 -DryRun
+```
+
 ## Regles strictes de migration BDD
 
 Pour tout futur changement de schema:
