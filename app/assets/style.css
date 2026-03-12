@@ -135,6 +135,19 @@ body{
 }
 .btn.ghost:hover{ background:var(--surface); }
 
+.btn.ghost.back-nav-btn{
+  background: #ffffff;
+  border-color: #d7dee8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  padding: 8px 12px;
+  min-height: 44px;
+}
+
+.btn.ghost.back-nav-btn:hover{
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
 .btn.ghost.admin-logout-btn{
   background:#f9fafb;
   color:#111827;
@@ -1128,6 +1141,24 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   fill: currentColor;
 }
 
+.icon-power {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.zoom-edit-btn {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
 .icon-btn.danger {
   color: #b91c1c;
   border-color: #fecaca;
@@ -1138,6 +1169,30 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   color: #991b1b;
   border-color: #fca5a5;
   background: #ffe8e8;
+}
+
+.icon-btn.warning-soft {
+  color: #b45309;
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.icon-btn.warning-soft:hover {
+  color: #92400e;
+  border-color: #fbbf24;
+  background: #fef3c7;
+}
+
+.icon-btn.success-soft {
+  color: #166534;
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.icon-btn.success-soft:hover {
+  color: #14532d;
+  border-color: #4ade80;
+  background: #dcfce7;
 }
 
 .btn.ghost.cert-action-revoke{
@@ -1361,6 +1416,77 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   width: 112px;
   min-width: 112px;
   text-align: center;
+}
+
+.performance-history-table td,
+.performance-history-table th {
+  vertical-align: middle;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.performance-history-table th:nth-child(1),
+.performance-history-table td:nth-child(1) {
+  width: 14%;
+  white-space: nowrap;
+}
+
+.performance-history-table th:nth-child(2),
+.performance-history-table td:nth-child(2) {
+  width: 22%;
+}
+
+.performance-history-table th:nth-child(3),
+.performance-history-table td:nth-child(3) {
+  width: 10%;
+  white-space: nowrap;
+}
+
+.performance-history-table th:nth-child(4),
+.performance-history-table td:nth-child(4) {
+  width: 9%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.performance-history-table th:nth-child(5),
+.performance-history-table td:nth-child(5) {
+  width: 9%;
+  white-space: nowrap;
+}
+
+.performance-history-table th:nth-child(6),
+.performance-history-table td:nth-child(6),
+.performance-history-table th:nth-child(7),
+.performance-history-table td:nth-child(7) {
+  width: 11%;
+}
+
+.performance-history-table th:nth-child(8),
+.performance-history-table td:nth-child(8) {
+  width: 8%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.performance-history-table td:last-child,
+.performance-history-table th:last-child {
+  width: 112px;
+  min-width: 112px;
+  text-align: center;
+}
+
+.performance-history-table .actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.performance-history-table .actions-cell .btn {
+  margin-right: 0;
+  flex: 0 0 auto;
 }
 
 :root[data-theme="dark"] .performance-table .actions-cell .icon-btn {
@@ -1969,6 +2095,17 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   color: var(--text);
 }
 
+:root[data-theme="dark"] .btn.ghost.back-nav-btn{
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .btn.ghost.back-nav-btn:hover{
+  background: #334155;
+  border-color: #64748b;
+}
+
 :root[data-theme="dark"] .btn.ghost:hover{
   background: #334155;
 }
@@ -2107,6 +2244,30 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   color: #ffe4e6;
   border-color: #b91c1c;
   background: #4c1d27;
+}
+
+:root[data-theme="dark"] .icon-btn.warning-soft {
+  color: #fde68a;
+  border-color: #a16207;
+  background: #3f2a0d;
+}
+
+:root[data-theme="dark"] .icon-btn.warning-soft:hover {
+  color: #fef3c7;
+  border-color: #ca8a04;
+  background: #4a330f;
+}
+
+:root[data-theme="dark"] .icon-btn.success-soft {
+  color: #bbf7d0;
+  border-color: #166534;
+  background: #0f2c23;
+}
+
+:root[data-theme="dark"] .icon-btn.success-soft:hover {
+  color: #dcfce7;
+  border-color: #22c55e;
+  background: #12362a;
 }
 
 :root[data-theme="dark"] .badge.muted-dark {

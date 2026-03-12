@@ -440,7 +440,7 @@ $hist = $histStmt->fetchAll();
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs(); ?>
-          <a class="btn ghost" href="/admin/users.php">Retour</a>
+          <a class="btn ghost back-nav-btn" href="/admin/users.php">Retour</a>
         </div>
       </div>
 

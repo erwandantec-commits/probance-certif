@@ -171,6 +171,9 @@ $summaryStmt->execute($params);
 $summary = $summaryStmt->fetch() ?: ['ok_count' => 0, 'ko_count' => 0, 'user_count' => 0];
 $okCount = (int)($summary['ok_count'] ?? 0);
 $koCount = (int)($summary['ko_count'] ?? 0);
+$answeredCount = $okCount + $koCount;
+$okRate = $answeredCount > 0 ? round(($okCount * 100) / $answeredCount, 1) : 0.0;
+$koRate = $answeredCount > 0 ? round(($koCount * 100) / $answeredCount, 1) : 0.0;
 
 $stmt = $pdo->prepare("
   SELECT
@@ -226,7 +229,12 @@ $rows = $stmt->fetchAll() ?: [];
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('performance'); ?>
-        <a class="btn ghost" href="<?= h($returnTo) ?>">Retour</a>
+        <a class="btn ghost back-nav-btn icon-btn zoom-edit-btn" href="/admin/question_edit.php?id=<?= (int)$qid ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="Modifier la question" title="Modifier la question">
+          <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
+          </svg>
+        </a>
+        <a class="btn ghost back-nav-btn" href="<?= h($returnTo) ?>">Retour</a>
       </div>
     </div>
 
@@ -236,12 +244,12 @@ $rows = $stmt->fetchAll() ?: [];
         <strong class="admin-stat-value"><?= ($question['external_id'] === null || $question['external_id'] === '') ? '-' : (int)$question['external_id'] ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Reussites</span>
-        <strong class="admin-stat-value"><?= $okCount ?></strong>
+        <span class="admin-stat-label">Taux reussite</span>
+        <strong class="admin-stat-value"><?= h(number_format($okRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Echecs</span>
-        <strong class="admin-stat-value"><?= $koCount ?></strong>
+        <span class="admin-stat-label">Taux echec</span>
+        <strong class="admin-stat-value"><?= h(number_format($koRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
         <span class="admin-stat-label">Users distincts</span>
@@ -289,7 +297,7 @@ $rows = $stmt->fetchAll() ?: [];
       <?php if (!$rows): ?>
         <p class="empty-state">Aucun resultat enregistre sur cette question pour ces filtres.</p>
       <?php else: ?>
-        <table class="table questions-table">
+        <table class="table questions-table performance-history-table">
           <thead>
             <tr>
               <th>Date</th>

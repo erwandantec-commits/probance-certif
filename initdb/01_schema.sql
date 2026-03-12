@@ -42,7 +42,7 @@ CREATE TABLE packages (
   failed_cooldown_days INT NOT NULL DEFAULT 365,
   duration_limit_minutes INT NOT NULL DEFAULT 120,
   selection_count INT NOT NULL DEFAULT 10,
-  anti_repeat_sessions INT NOT NULL DEFAULT 4,
+  anti_repeat_sessions INT NOT NULL DEFAULT 1,
   selection_mode ENUM('COUNT','PERCENT') NOT NULL DEFAULT 'COUNT',
   selection_percent INT NULL,
   CHECK (

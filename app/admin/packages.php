@@ -11,6 +11,8 @@ $deleted = ((string)($_GET['deleted'] ?? '') === '1');
 $deleteError = trim((string)($_GET['delete_error'] ?? ''));
 $reordered = ((string)($_GET['reordered'] ?? '') === '1');
 $reorderError = trim((string)($_GET['reorder_error'] ?? ''));
+$toggled = ((string)($_GET['toggled'] ?? '') === '1');
+$toggleError = trim((string)($_GET['toggle_error'] ?? ''));
 
 $hasProfileColumn = (bool)$pdo->query("
   SELECT COUNT(*)
@@ -71,6 +73,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ((string)($_POST['action'] ?? '') =
       $pdo->rollBack();
     }
     header('Location: /admin/packages.php?reorder_error=' . urlencode("Impossible de changer l'ordre des packs."));
+    exit;
+  }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ((string)($_POST['action'] ?? '') === 'toggle_active')) {
+  $toggleId = (int)($_POST['id'] ?? 0);
+  if ($toggleId <= 0) {
+    header('Location: /admin/packages.php?toggle_error=' . urlencode("Pack invalide."));
+    exit;
+  }
+
+  $toggleStmt = $pdo->prepare("
+    UPDATE packages
+    SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END
+    WHERE id = ?
+  ");
+
+  try {
+    $toggleStmt->execute([$toggleId]);
+    header('Location: /admin/packages.php?toggled=1');
+    exit;
+  } catch (Throwable $e) {
+    header('Location: /admin/packages.php?toggle_error=' . urlencode("Impossible de changer le statut du pack."));
     exit;
   }
 }
@@ -205,6 +230,12 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <?php if ($reorderError !== ''): ?>
         <p class="error" style="margin:0 0 12px;"><?= h($reorderError) ?></p>
       <?php endif; ?>
+      <?php if ($toggled): ?>
+        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;">Statut du pack mis a jour.</p>
+      <?php endif; ?>
+      <?php if ($toggleError !== ''): ?>
+        <p class="error" style="margin:0 0 12px;"><?= h($toggleError) ?></p>
+      <?php endif; ?>
 
       <div class="admin-page-layout">
       <section class="admin-section-panel admin-section-panel-accent">
@@ -294,6 +325,15 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                       <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                     </svg>
                   </a>
+                  <form method="post" class="inline-action-form">
+                    <input type="hidden" name="action" value="toggle_active">
+                    <input type="hidden" name="id" value="<?= (int)$pk['id'] ?>">
+                    <button class="btn ghost icon-btn <?= $isActive ? 'warning-soft' : 'success-soft' ?>" type="submit" aria-label="<?= $isActive ? 'Rendre le pack inactif' : 'Rendre le pack actif' ?>" title="<?= $isActive ? 'Rendre le pack inactif' : 'Rendre le pack actif' ?>">
+                      <svg class="icon-power" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M11 3h2v9h-2zM7.05 5.64 8.46 7.05A7 7 0 1 0 15.54 7.05l1.41-1.41A9 9 0 1 1 7.05 5.64z"/>
+                      </svg>
+                    </button>
+                  </form>
                   <a class="btn ghost icon-btn danger"
                      href="/admin/package_delete.php?id=<?= (int)$pk['id'] ?>"
                      aria-label="Supprimer ce pack"

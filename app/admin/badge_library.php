@@ -160,7 +160,7 @@ $options = badge_library_options();
         </div>
         <div class="users-create-actions">
           <button class="btn" type="submit" name="upload_badge" value="1">Televerser et utiliser</button>
-          <a class="btn ghost" href="<?= htmlspecialchars((string)$returnPath, ENT_QUOTES, 'UTF-8') ?>">Retour</a>
+          <a class="btn ghost back-nav-btn" href="<?= htmlspecialchars((string)$returnPath, ENT_QUOTES, 'UTF-8') ?>">Retour</a>
         </div>
       </form>
     </div>

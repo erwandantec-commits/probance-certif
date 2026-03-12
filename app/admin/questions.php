@@ -315,7 +315,7 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
           <thead>
             <tr>
               <th>ID</th>
-              <th>Rechercher ID question</th>
+              <th>ID question</th>
               <th>Connaissances requises</th>
               <th>Niveau</th>
               <th>Type</th>

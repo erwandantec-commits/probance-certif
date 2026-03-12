@@ -194,12 +194,7 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
 
   $hasNeed = table_column_exists($pdo, 'questions', 'need');
   $hasLevel = table_column_exists($pdo, 'questions', 'level');
-  $antiRepeatSessions = (int)($pkg['anti_repeat_sessions'] ?? 4);
-  if ($antiRepeatSessions < 0) {
-    $antiRepeatSessions = 0;
-  } elseif ($antiRepeatSessions > 20) {
-    $antiRepeatSessions = 20;
-  }
+  $antiRepeatSessions = 1;
   $recentExcludedQids = $antiRepeatSessions > 0
     ? recent_question_ids_for_user_package($pdo, $userId, $packageId, $antiRepeatSessions)
     : [];

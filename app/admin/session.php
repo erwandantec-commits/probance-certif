@@ -126,7 +126,7 @@ $statusClass = match ((string)$s['status']) {
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('sessions'); ?>
-          <a class="btn ghost" href="<?= h($returnTo) ?>">Retour</a>
+          <a class="btn ghost back-nav-btn" href="<?= h($returnTo) ?>">Retour</a>
         </div>
       </div>
 

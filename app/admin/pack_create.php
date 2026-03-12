@@ -196,7 +196,7 @@ $certValidityDays = 365;
 $failedCooldownDays = 365;
 $duration = 120;
 $count = 10;
-$antiRepeatSessions = 4;
+$antiRepeatSessions = 1;
 $profile = '';
 $displayOrder = 100;
 $badgeImageFilename = 'user-badge-blue.png';
@@ -294,9 +294,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
   }
-  if (isset($_GET['draft_anti_repeat']) && $_GET['draft_anti_repeat'] !== '') {
-    $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
-  }
   $threshold = max(0, min(100, $threshold));
   $certValidityDays = max(1, min(3650, $certValidityDays));
   $failedCooldownDays = max(0, min(3650, $failedCooldownDays));
@@ -367,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $failedCooldownDays = (int)($_POST['failed_cooldown_days'] ?? 365);
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 10);
-  $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? 4);
+  $antiRepeatSessions = 1;
   $profile = trim((string)($_POST['profile'] ?? ''));
   $displayOrder = (int)($_POST['display_order'] ?? $displayOrder);
   $badgeImageFilename = trim((string)($_POST['badge_image_filename'] ?? $badgeImageFilename));
@@ -398,8 +395,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Duree invalide (1 a 600 minutes).';
   } elseif ($count < 1 || $count > 200) {
     $error = 'Nombre de questions invalide (1 a 200).';
-  } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
-    $error = 'Anti-repetition invalide (0 a 20 sessions).';
   } elseif ($hasDisplayOrderColumn && ($displayOrder < 0 || $displayOrder > 9999)) {
     $error = "Ordre d'affichage invalide (0 a 9999).";
   } elseif ($hasProfileColumn && (function_exists('mb_strlen') ? mb_strlen($profile) : strlen($profile)) > 255) {
@@ -445,7 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($hasAntiRepeatSessionsColumn) {
           $columns[] = 'anti_repeat_sessions';
-          $values[] = $antiRepeatSessions;
+          $values[] = 1;
         }
         if ($hasNameColorColumn) {
           $columns[] = 'name_color_hex';
@@ -564,20 +559,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <label class="label" for="create-pack-count">Nombre de questions tir&eacute;es</label>
                   <input class="input" id="create-pack-count" name="selection_count" type="number" min="1" max="200" required value="<?= (int)$count ?>">
                 </div>
-                <?php if ($hasAntiRepeatSessionsColumn): ?>
-                  <div>
-                    <label class="label" for="create-pack-anti-repeat">
-                      <span class="order-help-wrap">
-                        <span>Nombre de sessions</span>
-                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur les sessions anti-repetition">
-                          i
-                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur (toutes sessions confondues).</span>
-                        </span>
-                      </span>
-                    </label>
-                    <input class="input" id="create-pack-anti-repeat" name="anti_repeat_sessions" type="number" min="0" max="20" required value="<?= (int)$antiRepeatSessions ?>">
-                  </div>
-                <?php endif; ?>
               </div>
             </article>
 
@@ -779,7 +760,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           returnUrl.searchParams.set('draft_failed_cooldown_days', fieldValue('failed_cooldown_days') || '365');
           returnUrl.searchParams.set('draft_duration', fieldValue('duration_limit_minutes') || '120');
           returnUrl.searchParams.set('draft_count', fieldValue('selection_count') || '10');
-          returnUrl.searchParams.set('draft_anti_repeat', fieldValue('anti_repeat_sessions') || '4');
           returnUrl.searchParams.set('draft_color', fieldValue('name_color_hex') || '#334155');
           returnUrl.searchParams.set('draft_template', fieldValue('rule_template'));
           var draftRules = buildDraftRules();

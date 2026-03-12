@@ -412,7 +412,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_profile'])) {
     $profile = trim((string)$_GET['draft_profile']);
   }
-  $isActive = ((int)($_GET['draft_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
+  $isActive = (int)($pk['is_active'] ?? 1) === 1 ? 1 : 0;
 
   if (isset($_GET['draft_threshold']) && $_GET['draft_threshold'] !== '') {
     $threshold = (int)$_GET['draft_threshold'];
@@ -428,9 +428,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   }
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
-  }
-  if (isset($_GET['draft_anti_repeat']) && $_GET['draft_anti_repeat'] !== '') {
-    $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
   }
   if (isset($threshold)) $threshold = max(0, min(100, (int)$threshold));
   if (isset($certValidityDays)) $certValidityDays = max(1, min(3650, (int)$certValidityDays));
@@ -659,8 +656,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $failedCooldownDays = (int)($_POST['failed_cooldown_days'] ?? (int)($pk['failed_cooldown_days'] ?? 0));
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 5);
-  $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? (int)($pk['anti_repeat_sessions'] ?? 4));
-  $isActive = ((int)($_POST['is_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
+  $antiRepeatSessions = 1;
+  $isActive = ((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0;
   $profile = trim((string)($_POST['profile'] ?? ''));
   $displayOrder = (int)($_POST['display_order'] ?? (int)($pk['display_order'] ?? 100));
   $badgeImageFilename = trim((string)($_POST['badge_image_filename'] ?? $badgeImageFilename));
@@ -689,8 +686,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = "Duree invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
-  } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
-    $error = "Anti-repetition invalide (0 a 20 sessions)";
   } elseif ($hasDisplayOrderColumn && ($displayOrder < 0 || $displayOrder > 9999)) {
     $error = "Ordre d'affichage invalide";
   } elseif ($hasProfileColumn && (function_exists('mb_strlen') ? mb_strlen($profile) : strlen($profile)) > 255) {
@@ -737,7 +732,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       if ($hasAntiRepeatSessionsColumn) {
         $sets[] = 'anti_repeat_sessions=?';
-        $values[] = $antiRepeatSessions;
+        $values[] = 1;
       }
       if ($hasNameColorColumn) {
         $sets[] = 'name_color_hex=?';
@@ -780,7 +775,6 @@ $formCertValidityDays = isset($certValidityDays) ? $certValidityDays : (int)($pk
 $formFailedCooldownDays = isset($failedCooldownDays) ? $failedCooldownDays : (int)($pk['failed_cooldown_days'] ?? 0);
 $formDuration = isset($duration) ? $duration : (int)$pk['duration_limit_minutes'];
 $formCount = isset($count) ? $count : (int)$pk['selection_count'];
-$formAntiRepeatSessions = isset($antiRepeatSessions) ? $antiRepeatSessions : (int)($pk['anti_repeat_sessions'] ?? 4);
 $formIsActive = isset($isActive) ? $isActive : (((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0);
 $formName = isset($name) && $name !== '' ? $name : (string)($pk['name'] ?? '');
 $formProfile = isset($profile) ? $profile : (string)($pk['profile'] ?? '');
@@ -845,13 +839,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     >
                   </div>
                 <?php endif; ?>
-                <div>
-                  <label class="label">Statut</label>
-                  <select class="input" name="is_active">
-                    <option value="1" <?= $formIsActive === 1 ? 'selected' : '' ?>>Actif</option>
-                    <option value="0" <?= $formIsActive === 0 ? 'selected' : '' ?>>Inactif</option>
-                  </select>
-                </div>
                 <?php if ($hasCertValidityDaysColumn): ?>
                   <div>
                     <label class="label">P&eacute;riode de validit&eacute; (jours)</label>
@@ -922,28 +909,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     required
                   >
                 </div>
-                <?php if ($hasAntiRepeatSessionsColumn): ?>
-                  <div>
-                    <label class="label">
-                      <span class="order-help-wrap">
-                        <span>Nombre de sessions</span>
-                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur les sessions anti-repetition">
-                          i
-                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur (toutes sessions confondues).</span>
-                        </span>
-                      </span>
-                    </label>
-                    <input
-                      class="input"
-                      type="number"
-                      name="anti_repeat_sessions"
-                      min="0"
-                      max="20"
-                      value="<?= (int)$formAntiRepeatSessions ?>"
-                      required
-                    >
-                  </div>
-                <?php endif; ?>
               </div>
             </article>
 
@@ -1339,13 +1304,11 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           var returnUrl = new URL(baseReturn, window.location.origin);
           returnUrl.searchParams.set('draft_name', editFieldValue('name'));
           returnUrl.searchParams.set('draft_profile', editFieldValue('profile'));
-          returnUrl.searchParams.set('draft_active', editFieldValue('is_active') || '1');
           returnUrl.searchParams.set('draft_threshold', editFieldValue('pass_threshold_percent') || String(<?= (int)$formThreshold ?>));
           returnUrl.searchParams.set('draft_cert_validity_days', editFieldValue('cert_validity_days') || String(<?= (int)$formCertValidityDays ?>));
           returnUrl.searchParams.set('draft_failed_cooldown_days', editFieldValue('failed_cooldown_days') || String(<?= (int)$formFailedCooldownDays ?>));
           returnUrl.searchParams.set('draft_duration', editFieldValue('duration_limit_minutes') || String(<?= (int)$formDuration ?>));
           returnUrl.searchParams.set('draft_count', editFieldValue('selection_count') || String(<?= (int)$formCount ?>));
-          returnUrl.searchParams.set('draft_anti_repeat', editFieldValue('anti_repeat_sessions') || String(<?= (int)$formAntiRepeatSessions ?>));
           returnUrl.searchParams.set('draft_color', editFieldValue('name_color_hex') || '<?= h($packNameColor) ?>');
           returnUrl.searchParams.set('draft_template', editFieldValue('rule_template'));
           var draftRules = buildEditDraftRules();
