@@ -143,10 +143,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\new-migration.ps1 -Name add_n
 ```
 
 2. implementer et tester le SQL dans `db_schema/NN_description.sql`
-3. lancer la release:
+3. mettre a jour `app/version.txt` avec la version de release (ex: `1`, `2` ou `1.18.1`)
+4. lancer la release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 2026.03.12
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 1
 ```
 
 Ce script:
@@ -159,7 +160,46 @@ Ce script:
 Mode simulation:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 2026.03.12 -DryRun
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 1 -DryRun
+```
+
+Version applicative:
+
+- `app/version.txt` est la source de verite de la version visible dans l'app
+- le footer affiche automatiquement `Probance Certif Tool - V <version> - Probance <annee>`
+- `/version.php` expose un JSON minimal avec `app_version`, `schema_version` et `db_status`
+- `scripts/release.ps1` refuse une release si `-ReleaseVersion` ne correspond pas a `app/version.txt`
+
+## Import BDD existante puis futures migrations
+
+Si vous importez une base existante pour la prochaine release, faites-le une derniere fois puis baselinez explicitement les metadonnees de migration avant les releases suivantes.
+
+Important:
+
+- utiliser ce workflow uniquement si la base importee correspond deja au schema applicatif cible
+- ce script ne transforme pas le schema: il marque seulement quelles migrations doivent etre considerees comme deja presentes
+
+Procedure:
+
+1. importer la base dans MariaDB
+2. demarrer le service DB:
+
+```powershell
+docker compose up -d db
+```
+
+3. marquer la base importee avec la version cible:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\baseline-imported-db.ps1 -TargetVersion 23
+```
+
+Par defaut, le script prend la derniere version disponible dans `db_schema/`.
+
+Ensuite, les releases futures reviennent au workflow normal:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 1
 ```
 
 ## Regles strictes de migration BDD

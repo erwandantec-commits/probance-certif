@@ -11,6 +11,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $migrationDir = Join-Path $repoRoot "db_schema"
 $backupDir = Join-Path $repoRoot "backups"
+$appVersionFile = Join-Path $repoRoot "app\version.txt"
 
 function Invoke-Step {
     param(
@@ -59,6 +60,19 @@ function Get-LatestMigrationVersion {
     return $versions[-1]
 }
 
+function Get-AppVersion {
+    if (-not (Test-Path -LiteralPath $appVersionFile)) {
+        throw "Application version file not found: $appVersionFile"
+    }
+
+    $version = (Get-Content -LiteralPath $appVersionFile -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "Application version file is empty: $appVersionFile"
+    }
+
+    return $version
+}
+
 function Get-DbSchemaVersion {
     $query = "SELECT version FROM schema_version WHERE id = 1;"
     $args = @(
@@ -102,9 +116,14 @@ function Backup-Database {
 Push-Location $repoRoot
 try {
     $expectedVersion = Get-LatestMigrationVersion
+    $appVersion = Get-AppVersion
 
     Invoke-Step -Label "Release $ReleaseVersion" -Action {
         Write-Host "Expected schema version: v$expectedVersion"
+        Write-Host "Application version: $appVersion"
+        if ($appVersion -ne $ReleaseVersion) {
+            throw "ReleaseVersion ($ReleaseVersion) does not match app/version.txt ($appVersion)."
+        }
     }
 
     if (-not $SkipBackup) {

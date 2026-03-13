@@ -45,6 +45,7 @@ body{
   background: var(--bg);
   color: var(--text);
   transition: background-color .2s ease, color .2s ease;
+  padding-bottom: 52px;
 }
 
 .container{
@@ -2181,6 +2182,33 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 
 :root:not([data-theme="dark"]) .theme-toggle .icon-sun{
   display: none;
+}
+
+.app-version-footer {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 999;
+  max-width: min(calc(100vw - 120px), 760px);
+  padding: 8px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .app-version-footer {
+  background: rgba(15, 23, 42, 0.84);
+  border-color: rgba(71, 85, 105, 0.9);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.34);
+  color: #cbd5e1;
 }
 
 :root[data-theme="dark"] .btn.ghost,

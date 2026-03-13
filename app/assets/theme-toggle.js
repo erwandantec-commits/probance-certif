@@ -1,6 +1,7 @@
 (() => {
   const STORAGE_KEY = "certif-theme";
   const root = document.documentElement;
+  const currentYear = new Date().getFullYear();
 
   const applyTheme = (theme) => {
     if (theme === "dark") {
@@ -42,9 +43,42 @@
     document.body.appendChild(button);
   };
 
+  const mountFooter = async () => {
+    if (document.querySelector(".app-version-footer")) {
+      return;
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "app-version-footer";
+    footer.textContent = `Probance Certif Tool - Probance ${currentYear}`;
+    document.body.appendChild(footer);
+
+    try {
+      const response = await fetch("/version.php", {
+        headers: {
+          Accept: "application/json"
+        }
+      });
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      if (data && typeof data.app_version === "string" && data.app_version.trim() !== "") {
+        footer.textContent = `Probance Certif Tool - V ${data.app_version.trim()} - Probance ${currentYear}`;
+      }
+    } catch (error) {
+      // Keep the fallback footer text if the endpoint is unavailable.
+    }
+  };
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mountButton);
+    document.addEventListener("DOMContentLoaded", () => {
+      mountButton();
+      mountFooter();
+    });
   } else {
     mountButton();
+    mountFooter();
   }
 })();
