@@ -136,39 +136,41 @@ Bonnes pratiques avant/pendant deploiement:
 
 Workflow de release recommande:
 
-1. creer la migration necessaire:
+Principe:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\new-migration.ps1 -Name add_new_column
+- les scripts operationnels s'executent uniquement depuis l'interieur des conteneurs
+- ne pas executer de script de release/migration depuis le poste du developpeur
+- entrer dans le conteneur cible, puis lancer le script Bash adapte
+
+1. depuis le conteneur `web`, creer la migration necessaire:
+
+```bash
+/opt/certif/scripts/new-migration.sh add_new_column
 ```
+
+Ce script cree `db_schema/NN_description.sql` directement dans le volume partage.
 
 2. implementer et tester le SQL dans `db_schema/NN_description.sql`
 3. mettre a jour `app/version.txt` avec la version de release (ex: `1`, `2` ou `1.18.1`)
-4. lancer la release:
+4. redemarrer les conteneurs selon votre procedure de deploiement
+5. depuis le conteneur `db`, verifier la release:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 1
+```bash
+/opt/certif/scripts/verify-release.sh 1
 ```
 
 Ce script:
 
-- sauvegarde la base dans `backups/` (desactivable avec `-SkipBackup`)
-- demarre `db` pour appliquer les migrations
-- redeploie `web`
+- lit `app/version.txt`
 - verifie que `schema_version` correspond a la derniere migration versionnee
-
-Mode simulation:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 1 -DryRun
-```
+- echoue si la version applicative attendue ne correspond pas
 
 Version applicative:
 
 - `app/version.txt` est la source de verite de la version visible dans l'app
 - le footer affiche automatiquement `Probance Certif Tool - V <version> - Probance <annee>`
 - `/version.php` expose un JSON minimal avec `app_version`, `schema_version` et `db_status`
-- `scripts/release.ps1` refuse une release si `-ReleaseVersion` ne correspond pas a `app/version.txt`
+- `/opt/certif/scripts/verify-release.sh` verifie la coherence version app / version schema
 
 ## Import BDD existante puis futures migrations
 
@@ -182,24 +184,19 @@ Important:
 Procedure:
 
 1. importer la base dans MariaDB
-2. demarrer le service DB:
-
-```powershell
-docker compose up -d db
-```
-
+2. ouvrir un shell dans le conteneur `db`
 3. marquer la base importee avec la version cible:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\baseline-imported-db.ps1 -TargetVersion 23
+```bash
+/opt/certif/scripts/baseline-imported-db.sh 23
 ```
 
 Par defaut, le script prend la derniere version disponible dans `db_schema/`.
 
 Ensuite, les releases futures reviennent au workflow normal:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -ReleaseVersion 1
+```bash
+/opt/certif/scripts/verify-release.sh 1
 ```
 
 ## Regles strictes de migration BDD
@@ -220,6 +217,7 @@ Important:
 - `01_schema.sql` et `02_seed.sql` servent a l'initialisation d'une base vide.
 - `db_schema/` contient exclusivement les migrations incrementales de production.
 - Les evolutions de schema en production passent desormais uniquement par migrations versionnees.
+- les scripts `*.sh` sont prevus pour etre lances depuis les conteneurs (`web` ou `db`), pas depuis le poste hote
 
 ## Points de vigilance securite (etat actuel)
 
