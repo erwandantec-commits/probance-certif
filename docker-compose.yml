@@ -25,6 +25,12 @@ services:
       - ./db_schema:/opt/certif/db_schema
     environment:
       ADMIN_PASSWORD: "Probance123!"
+      APP_BASE_URL: "http://localhost:8080"
+      SMTP_HOST: "smtp-gw.company.lan"
+      SMTP_PORT: "25"
+      SMTP_FROM_EMAIL: "certif@company.tld"
+      SMTP_FROM_NAME: "Probance Certif Tool"
+      SMTP_USE_TLS: "0"
     depends_on:
       - db
 

@@ -219,6 +219,14 @@ Recommande en production:
 - configurer un vrai provider SMTP/transactionnel
 - durcir les policies d'acces admin et auditer les logs
 
+Configuration SMTP actuelle:
+
+- serveur: `smtp-gw.company.lan`
+- port: `25`
+- expediteur: `certif@company.tld`
+- authentification SMTP: desactivee
+- TLS: desactive
+
 ## Commandes utiles
 
 Arreter:

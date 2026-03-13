@@ -45,6 +45,127 @@ function package_label_style(string $packageName, ?string $customColor = null): 
   return 'color:' . package_color_hex($packageName, $customColor) . ';font-weight:700;';
 }
 
+function app_build_url(string $path): string {
+  return APP_BASE_URL . '/' . ltrim($path, '/');
+}
+
+function mail_header_encode(string $value): string {
+  if ($value === '' || preg_match('/^[\x20-\x7E]+$/', $value)) {
+    return $value;
+  }
+  return '=?UTF-8?B?' . base64_encode($value) . '?=';
+}
+
+function smtp_normalize_email(string $email): string {
+  $email = trim($email);
+  if ($email === '' || preg_match('/[\r\n]/', $email)) {
+    return '';
+  }
+  return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '';
+}
+
+function smtp_read_response($socket): array {
+  $message = '';
+  $code = 0;
+
+  while (($line = fgets($socket, 515)) !== false) {
+    $message .= $line;
+    if (preg_match('/^(\d{3})([ -])/', $line, $matches)) {
+      $code = (int)$matches[1];
+      if ($matches[2] === ' ') {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  return [$code, trim($message)];
+}
+
+function smtp_expect($socket, array $expectedCodes, string $context): void {
+  [$code, $message] = smtp_read_response($socket);
+  if (!in_array($code, $expectedCodes, true)) {
+    throw new RuntimeException($context . ' failed: ' . ($message !== '' ? $message : 'no SMTP response'));
+  }
+}
+
+function smtp_write_line($socket, string $line): void {
+  fwrite($socket, $line . "\r\n");
+}
+
+function smtp_send_mail(string $toEmail, string $subject, string $htmlBody, ?string $textBody = null): bool {
+  $fromEmail = smtp_normalize_email(SMTP_FROM_EMAIL);
+  $toEmail = smtp_normalize_email($toEmail);
+
+  if ($fromEmail === '' || $toEmail === '' || SMTP_HOST === '' || SMTP_PORT <= 0) {
+    return false;
+  }
+
+  if (SMTP_USE_TLS) {
+    error_log('[smtp] TLS is requested but not supported by this mailer.');
+    return false;
+  }
+
+  if (SMTP_USERNAME !== '' || SMTP_PASSWORD !== '') {
+    error_log('[smtp] SMTP authentication is configured but not supported by this mailer.');
+    return false;
+  }
+
+  $socket = @fsockopen(SMTP_HOST, SMTP_PORT, $errno, $errstr, 10.0);
+  if (!is_resource($socket)) {
+    error_log(sprintf('[smtp] Connection to %s:%d failed: %s (%d)', SMTP_HOST, SMTP_PORT, $errstr, $errno));
+    return false;
+  }
+
+  stream_set_timeout($socket, 10);
+
+  try {
+    smtp_expect($socket, [220], 'SMTP greeting');
+    smtp_write_line($socket, 'HELO certif.local');
+    smtp_expect($socket, [250], 'HELO');
+    smtp_write_line($socket, 'MAIL FROM:<' . $fromEmail . '>');
+    smtp_expect($socket, [250], 'MAIL FROM');
+    smtp_write_line($socket, 'RCPT TO:<' . $toEmail . '>');
+    smtp_expect($socket, [250, 251], 'RCPT TO');
+    smtp_write_line($socket, 'DATA');
+    smtp_expect($socket, [354], 'DATA');
+
+    $fromHeader = SMTP_FROM_NAME !== ''
+      ? mail_header_encode(SMTP_FROM_NAME) . ' <' . $fromEmail . '>'
+      : $fromEmail;
+    $headers = [
+      'Date: ' . gmdate('D, d M Y H:i:s O'),
+      'From: ' . $fromHeader,
+      'To: <' . $toEmail . '>',
+      'Subject: ' . mail_header_encode($subject),
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+    ];
+
+    $body = str_replace(["\r\n", "\r"], "\n", $htmlBody);
+    $bodyLines = explode("\n", $body);
+    foreach ($bodyLines as &$line) {
+      if (str_starts_with($line, '.')) {
+        $line = '.' . $line;
+      }
+    }
+    unset($line);
+
+    fwrite($socket, implode("\r\n", $headers) . "\r\n\r\n" . implode("\r\n", $bodyLines) . "\r\n.\r\n");
+    smtp_expect($socket, [250], 'Message body');
+    smtp_write_line($socket, 'QUIT');
+    smtp_expect($socket, [221], 'QUIT');
+    fclose($socket);
+    return true;
+  } catch (Throwable $e) {
+    error_log('[smtp] ' . $e->getMessage());
+    fclose($socket);
+    return false;
+  }
+}
+
 
 // ==========================
 // QCM ENGINE

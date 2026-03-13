@@ -13,26 +13,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $user = $stmt->fetch();
 
   if ($user) {
-    $user_id = (int)$user['id'];
-
+    $userId = (int)$user['id'];
     $token = bin2hex(random_bytes(32));
-    $token_hash = password_hash($token, PASSWORD_DEFAULT);
-
+    $tokenHash = password_hash($token, PASSWORD_DEFAULT);
     $expires = (new DateTime('+1 hour'))->format('Y-m-d H:i:s');
 
     $ins = $pdo->prepare("
       INSERT INTO password_resets(user_id, token_hash, expires_at)
       VALUES(?,?,?)
     ");
-    $ins->execute([$user_id, $token_hash, $expires]);
+    $ins->execute([$userId, $tokenHash, $expires]);
 
-    // En prod: envoyer email
-    $reset_link = "http://localhost:8080/reset-password.php?token=$token";
+    $resetLink = app_build_url('/reset-password.php?token=' . urlencode($token));
+    $subject = 'Reinitialisation de votre mot de passe';
+    $body = <<<HTML
+<p>Bonjour,</p>
+<p>Une demande de reinitialisation de mot de passe a ete enregistree pour votre compte.</p>
+<p><a href="{$resetLink}">Reinitialiser mon mot de passe</a></p>
+<p>Si vous n'etes pas a l'origine de cette demande, vous pouvez ignorer cet email.</p>
+HTML;
 
-    $message = "Lien de réinitialisation : <br><a href='$reset_link'>$reset_link</a>";
-  } else {
-    $message = "Si cet email existe, un lien a été envoyé.";
+    if (!smtp_send_mail($email, $subject, $body)) {
+      error_log('[forgot-password] Unable to send reset email to ' . $email);
+    }
   }
+
+  $message = "Si cet email existe, un lien a ete envoye.";
 }
 ?>
 
@@ -46,10 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 <div class="container">
   <div class="card">
-    <h2>Mot de passe oublié</h2>
+    <h2>Mot de passe oublie</h2>
 
     <?php if ($message): ?>
-      <p><?= $message ?></p>
+      <p><?= h($message) ?></p>
     <?php else: ?>
       <form method="post">
         <label class="label">Email</label>
