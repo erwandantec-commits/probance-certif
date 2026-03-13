@@ -357,8 +357,13 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                       <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
                          onclick="return confirm('Retirer la r&eacute;vocation de cette certification ?');">R&eacute;tablir</a>
                     <?php else: ?>
-                      <a class="btn ghost cert-action-revoke" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
-                         onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>
+                      <a class="btn ghost icon-btn danger" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
+                         aria-label="Revoquer" title="Revoquer"
+                         onclick="return confirm('Revoquer cette certification ?');">
+                        <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M6.7 5.3 12 10.6l5.3-5.3 1.4 1.4L13.4 12l5.3 5.3-1.4 1.4L12 13.4l-5.3 5.3-1.4-1.4L10.6 12 5.3 6.7z"/>
+                        </svg>
+                      </a>
                     <?php endif; ?>
                   </td>
                 </tr>

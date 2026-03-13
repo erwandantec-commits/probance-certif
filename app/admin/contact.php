@@ -529,7 +529,7 @@ $hist = $histStmt->fetchAll();
           </div>
         </div>
         <div class="table-wrap candidate-table-wrap">
-          <table class="table questions-table">
+          <table class="table questions-table overrides-table">
             <thead>
               <tr>
                 <th>Certification</th>
@@ -539,7 +539,6 @@ $hist = $histStmt->fetchAll();
                 <th>Utilisé le</th>
                 <th>Motif</th>
                 <th>Cree par</th>
-                <th>Resultat</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -571,7 +570,6 @@ $hist = $histStmt->fetchAll();
                   <td><?= h((string)($ov['used_at'] ?? '-')) ?></td>
                   <td><?= h((string)($ov['reason'] ?? '-')) ?></td>
                   <td><?= h((string)($ov['created_by_email'] ?? '-')) ?></td>
-                  <td>-</td>
                   <td class="actions-cell">
                     <?php if ($canReblock): ?>
                       <form method="post" class="inline-action-form">
@@ -579,10 +577,16 @@ $hist = $histStmt->fetchAll();
                         <input type="hidden" name="action" value="reblock_exam">
                         <input type="hidden" name="reblock_package_id" value="<?= (int)($ov['package_id'] ?? 0) ?>">
                         <button
-                          class="btn ghost"
+                          class="btn ghost icon-btn danger"
                           type="submit"
+                          aria-label="Rebloquer"
+                          title="Rebloquer"
                           onclick="return confirm('Rebloquer cette certification pour ce candidat ?');"
-                        >Rebloquer</button>
+                        >
+                          <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M6.7 5.3 12 10.6l5.3-5.3 1.4 1.4L13.4 12l5.3 5.3-1.4 1.4L12 13.4l-5.3 5.3-1.4-1.4L10.6 12 5.3 6.7z"/>
+                          </svg>
+                        </button>
                       </form>
                     <?php else: ?>
                       -
@@ -738,8 +742,13 @@ $hist = $histStmt->fetchAll();
                         <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
                            onclick="return confirm('Retablir cette certification ?');">Retablir</a>
                       <?php else: ?>
-                        <a class="btn ghost cert-action-revoke" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
-                           onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>
+                        <a class="btn ghost icon-btn danger" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
+                           aria-label="Revoquer" title="Revoquer"
+                           onclick="return confirm('Revoquer cette certification ?');">
+                          <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M6.7 5.3 12 10.6l5.3-5.3 1.4 1.4L13.4 12l5.3 5.3-1.4 1.4L12 13.4l-5.3 5.3-1.4-1.4L10.6 12 5.3 6.7z"/>
+                          </svg>
+                        </a>
                       <?php endif; ?>
                     <?php endif; ?>
                   </td>

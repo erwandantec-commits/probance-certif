@@ -946,6 +946,54 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
   vertical-align: top;
 }
 
+.overrides-table {
+  min-width: 860px;
+}
+
+.overrides-table th,
+.overrides-table td {
+  vertical-align: middle;
+}
+
+.overrides-table th:nth-child(1),
+.overrides-table td:nth-child(1) {
+  width: 14%;
+}
+
+.overrides-table th:nth-child(2),
+.overrides-table td:nth-child(2) {
+  width: 10%;
+  white-space: nowrap;
+}
+
+.overrides-table th:nth-child(3),
+.overrides-table td:nth-child(3),
+.overrides-table th:nth-child(4),
+.overrides-table td:nth-child(4),
+.overrides-table th:nth-child(5),
+.overrides-table td:nth-child(5) {
+  width: 12%;
+  white-space: nowrap;
+}
+
+.overrides-table th:nth-child(6),
+.overrides-table td:nth-child(6) {
+  width: 10%;
+}
+
+.overrides-table th:nth-child(7),
+.overrides-table td:nth-child(7) {
+  width: 32%;
+  word-break: break-word;
+}
+
+.overrides-table th:nth-child(8),
+.overrides-table td:nth-child(8) {
+  width: 64px;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .rule-builder {
   margin-top: 0;
   margin-bottom: 14px;
@@ -1168,6 +1216,12 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 }
 
 .icon-edit {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.icon-close {
   width: 18px;
   height: 18px;
   fill: currentColor;
@@ -2046,6 +2100,10 @@ body.admin-with-sidebar .btn.ghost.admin-logout-btn {
 .users-table th:last-child,
 .users-table td:last-child {
   min-width: 180px;
+}
+
+.users-table th:last-child {
+  text-align: center;
 }
 
 .inline-action-form {
