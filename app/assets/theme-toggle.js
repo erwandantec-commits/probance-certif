@@ -65,7 +65,7 @@
 
       const data = await response.json();
       if (data && typeof data.app_version === "string" && data.app_version.trim() !== "") {
-        footer.textContent = `Probance Certif Tool - V ${data.app_version.trim()} - Probance ${currentYear}`;
+        footer.textContent = `Probance Certif Tool - V.${data.app_version.trim()} - Probance ${currentYear}`;
       }
     } catch (error) {
       // Keep the fallback footer text if the endpoint is unavailable.
