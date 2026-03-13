@@ -31,6 +31,7 @@ $auditMinResponsesRaw = trim((string)($_GET['audit_min_responses'] ?? '20'));
 $auditTooHardRateRaw = trim((string)($_GET['audit_too_hard_rate'] ?? '70'));
 $auditTooEasyRateRaw = trim((string)($_GET['audit_too_easy_rate'] ?? '15'));
 $auditView = trim((string)($_GET['audit_view'] ?? ''));
+$auditOpen = trim((string)($_GET['audit_open'] ?? '')) === '1';
 $chartResponseCountRaw = trim((string)($_GET['chart_response_count'] ?? ''));
 $chartFailRateRaw = trim((string)($_GET['chart_fail_rate'] ?? ''));
 
@@ -557,10 +558,12 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
     <?php
       $auditBaseQuery = $_GET;
       unset($auditBaseQuery['audit_view']);
+      $auditBaseQuery['audit_open'] = '1';
     ?>
     <form method="get" class="admin-panel-surface audit-config-panel">
       <input type="hidden" name="sort" value="<?= h($sort) ?>">
       <input type="hidden" name="dir" value="<?= h($dir) ?>">
+      <input type="hidden" name="audit_open" value="1">
       <div class="audit-panel-block">
         <div class="audit-panel-head">
           <span class="audit-config-eyebrow">Perimetre d'analyse</span>
@@ -689,7 +692,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
           </div>
         </div>
       </div>
-      <details class="audit-thresholds-disclosure">
+      <details class="audit-thresholds-disclosure"<?= $auditOpen ? ' open' : '' ?>>
         <summary class="audit-thresholds-summary">
           <div>
             <span class="audit-config-eyebrow">Audit</span>

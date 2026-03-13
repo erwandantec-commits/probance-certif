@@ -153,51 +153,39 @@ Ce script cree `db_schema/NN_description.sql` directement dans le volume partage
 2. implementer et tester le SQL dans `db_schema/NN_description.sql`
 3. mettre a jour `app/version.txt` avec la version de release (ex: `1`, `2` ou `1.18.1`)
 4. redemarrer les conteneurs selon votre procedure de deploiement
-5. depuis le conteneur `db`, verifier la release:
 
-```bash
-/opt/certif/scripts/verify-release.sh 1
-```
+Au demarrage du conteneur `db`, l'entrypoint:
 
-Ce script:
-
-- lit `app/version.txt`
+- attend que MariaDB soit joignable
+- applique automatiquement les migrations manquantes
 - verifie que `schema_version` correspond a la derniere migration versionnee
-- echoue si la version applicative attendue ne correspond pas
+- verifie que `app/version.txt` est present et non vide
+- echoue le demarrage du conteneur si un controle ou une migration echoue
 
 Version applicative:
 
 - `app/version.txt` est la source de verite de la version visible dans l'app
 - le footer affiche automatiquement `Probance Certif Tool - V <version> - Probance <annee>`
 - `/version.php` expose un JSON minimal avec `app_version`, `schema_version` et `db_status`
-- `/opt/certif/scripts/verify-release.sh` verifie la coherence version app / version schema
+- `/opt/certif/scripts/verify-release.sh` reste disponible pour un controle manuel ponctuel si besoin
 
 ## Import BDD existante puis futures migrations
 
-Si vous importez une base existante pour la prochaine release, faites-le une derniere fois puis baselinez explicitement les metadonnees de migration avant les releases suivantes.
+Si vous importez une base existante pour la prochaine release, il suffit maintenant de redemarrer le conteneur `db` apres import.
 
 Important:
 
 - utiliser ce workflow uniquement si la base importee correspond deja au schema applicatif cible
-- ce script ne transforme pas le schema: il marque seulement quelles migrations doivent etre considerees comme deja presentes
+- les migrations de `db_schema/` doivent rester idempotentes
+- aucune action manuelle supplementaire n'est necessaire dans le conteneur `db`
 
 Procedure:
 
 1. importer la base dans MariaDB
-2. ouvrir un shell dans le conteneur `db`
-3. marquer la base importee avec la version cible:
+2. redemarrer le conteneur `db`
+3. laisser l'entrypoint executer les controles et migrations automatiquement
 
-```bash
-/opt/certif/scripts/baseline-imported-db.sh 23
-```
-
-Par defaut, le script prend la derniere version disponible dans `db_schema/`.
-
-Ensuite, les releases futures reviennent au workflow normal:
-
-```bash
-/opt/certif/scripts/verify-release.sh 1
-```
+Le script `/opt/certif/scripts/baseline-imported-db.sh` reste disponible uniquement pour un restamp manuel exceptionnel.
 
 ## Regles strictes de migration BDD
 
