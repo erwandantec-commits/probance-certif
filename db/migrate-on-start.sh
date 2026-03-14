@@ -20,11 +20,6 @@ if [[ ! -d "$MIGRATIONS_DIR" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$APP_VERSION_FILE" ]]; then
-  echo "[migrate] App version file '$APP_VERSION_FILE' not found" >&2
-  exit 1
-fi
-
 mysql_exec() {
   mariadb --protocol=TCP -h 127.0.0.1 -u root "-p${ROOT_PASSWORD}" "$@"
 }
@@ -172,11 +167,14 @@ if [[ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]]; then
   exit 1
 fi
 
-APP_VERSION="$(tr -d '\r' < "$APP_VERSION_FILE" | sed -n '1p' | xargs)"
-if [[ -z "$APP_VERSION" ]]; then
-  echo "[migrate] App version file '$APP_VERSION_FILE' is empty." >&2
-  exit 1
+if [[ -f "$APP_VERSION_FILE" ]]; then
+  APP_VERSION="$(tr -d '\r' < "$APP_VERSION_FILE" | sed -n '1p' | xargs)"
+  if [[ -n "$APP_VERSION" ]]; then
+    echo "[migrate] App version: ${APP_VERSION}"
+  else
+    echo "[migrate] Warning: app version file '$APP_VERSION_FILE' is empty." >&2
+  fi
+else
+  echo "[migrate] Warning: app version file '$APP_VERSION_FILE' not found; skipping app version check." >&2
 fi
-
-echo "[migrate] App version: ${APP_VERSION}"
 echo "[migrate] Schema is up to date at v${ACTUAL_VERSION}."
