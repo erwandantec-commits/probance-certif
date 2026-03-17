@@ -27,11 +27,6 @@ $failRateValue2Raw = trim((string)($_GET['fail_rate_value2'] ?? ''));
 $responseOp = trim((string)($_GET['response_op'] ?? ''));
 $responseValueRaw = trim((string)($_GET['response_value'] ?? ''));
 $responseValue2Raw = trim((string)($_GET['response_value2'] ?? ''));
-$auditMinResponsesRaw = trim((string)($_GET['audit_min_responses'] ?? '20'));
-$auditTooHardRateRaw = trim((string)($_GET['audit_too_hard_rate'] ?? '70'));
-$auditTooEasyRateRaw = trim((string)($_GET['audit_too_easy_rate'] ?? '15'));
-$auditView = trim((string)($_GET['audit_view'] ?? ''));
-$auditOpen = trim((string)($_GET['audit_open'] ?? '')) === '1';
 $chartResponseCountRaw = trim((string)($_GET['chart_response_count'] ?? ''));
 $chartFailRateRaw = trim((string)($_GET['chart_fail_rate'] ?? ''));
 
@@ -53,10 +48,6 @@ if (!in_array($failRateOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
 if (!in_array($responseOp, ['', 'eq', 'gte', 'lte', 'between'], true)) {
   $responseOp = '';
 }
-if (!in_array($auditView, ['', 'too_hard', 'too_easy', 'normal', 'low_volume'], true)) {
-  $auditView = '';
-}
-
 function performance_parse_percent(?string $raw): ?float {
   $raw = trim((string)$raw);
   if ($raw === '' || !is_numeric($raw)) {
@@ -134,15 +125,6 @@ $failRateValue = performance_parse_percent($failRateValueRaw);
 $failRateValue2 = performance_parse_percent($failRateValue2Raw);
 $responseValue = performance_parse_int($responseValueRaw);
 $responseValue2 = performance_parse_int($responseValue2Raw);
-$auditMinResponses = performance_parse_int($auditMinResponsesRaw);
-$auditMinResponses = $auditMinResponses !== null ? max(1, $auditMinResponses) : 20;
-$auditTooHardRate = performance_parse_percent($auditTooHardRateRaw);
-$auditTooHardRate = $auditTooHardRate !== null ? $auditTooHardRate : 70.0;
-$auditTooEasyRate = performance_parse_percent($auditTooEasyRateRaw);
-$auditTooEasyRate = $auditTooEasyRate !== null ? $auditTooEasyRate : 15.0;
-if ($auditTooEasyRate > $auditTooHardRate) {
-  [$auditTooEasyRate, $auditTooHardRate] = [$auditTooHardRate, $auditTooEasyRate];
-}
 $questionId = ($questionIdRaw !== '' && preg_match('/^\d+$/', $questionIdRaw)) ? (int)$questionIdRaw : null;
 $dateFrom = performance_parse_date($dateFrom);
 $dateTo = performance_parse_date($dateTo);
@@ -328,95 +310,10 @@ $totalResponses = (int)($summary['response_count'] ?? 0);
 $globalOkRate = $totalResponses > 0 ? round(((int)$summary['ok_count'] * 100) / $totalResponses, 1) : 0.0;
 $globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100) / $totalResponses, 1) : 0.0;
 
-function performance_question_zone(array $row, int $minResponses, float $tooHardRate, float $tooEasyRate): string {
-  $responseCount = (int)($row['response_count'] ?? 0);
-  $failRate = (float)($row['fail_rate'] ?? 0.0);
-  if ($responseCount < $minResponses) {
-    return 'low_volume';
-  }
-  if ($failRate > $tooHardRate) {
-    return 'too_hard';
-  }
-  if ($failRate < $tooEasyRate) {
-    return 'too_easy';
-  }
-  return 'normal';
-}
-
-$auditTooHard = [];
-$auditTooEasy = [];
-$auditNormalRows = [];
-$auditLowVolumeRows = [];
-$auditNormal = 0;
-$auditLowVolume = 0;
-foreach ($rankingRows as $rankingRow) {
-  $zone = performance_question_zone($rankingRow, $auditMinResponses, $auditTooHardRate, $auditTooEasyRate);
-  if ($zone === 'too_hard') {
-    $auditTooHard[] = $rankingRow;
-  } elseif ($zone === 'too_easy') {
-    $auditTooEasy[] = $rankingRow;
-  } elseif ($zone === 'normal') {
-    $auditNormalRows[] = $rankingRow;
-    $auditNormal++;
-  } else {
-    $auditLowVolumeRows[] = $rankingRow;
-    $auditLowVolume++;
-  }
-}
-
-$auditViewTitle = '';
-$auditViewRows = [];
-if ($auditView === 'too_hard') {
-  $auditViewTitle = 'Questions trop difficiles';
-  $auditViewRows = $auditTooHard;
-} elseif ($auditView === 'too_easy') {
-  $auditViewTitle = 'Questions trop faciles';
-  $auditViewRows = $auditTooEasy;
-} elseif ($auditView === 'normal') {
-  $auditViewTitle = 'Questions en zone normale';
-  $auditViewRows = $auditNormalRows;
-} elseif ($auditView === 'low_volume') {
-  $auditViewTitle = 'Questions a volume insuffisant';
-  $auditViewRows = $auditLowVolumeRows;
-}
-
-if ($auditViewRows) {
-  usort($auditViewRows, static function (array $left, array $right) use ($sort, $dir): int {
-    $direction = $dir === 'ASC' ? 1 : -1;
-    $compare = 0;
-    switch ($sort) {
-      case 'question_text':
-        $compare = strcasecmp((string)($left['question_text'] ?? ''), (string)($right['question_text'] ?? ''));
-        break;
-      case 'knowledge_required':
-        $compare = strcasecmp((string)($left['knowledge_required'] ?? ''), (string)($right['knowledge_required'] ?? ''));
-        break;
-      case 'response_count':
-        $compare = ((int)($left['response_count'] ?? 0)) <=> ((int)($right['response_count'] ?? 0));
-        break;
-      case 'ok_rate':
-        $compare = ((float)($left['ok_rate'] ?? 0.0)) <=> ((float)($right['ok_rate'] ?? 0.0));
-        break;
-      case 'fail_rate':
-      default:
-        $compare = ((float)($left['fail_rate'] ?? 0.0)) <=> ((float)($right['fail_rate'] ?? 0.0));
-        break;
-    }
-    if ($compare !== 0) {
-      return $compare * $direction;
-    }
-    $responseCompare = ((int)($right['response_count'] ?? 0)) <=> ((int)($left['response_count'] ?? 0));
-    if ($responseCompare !== 0) {
-      return $responseCompare;
-    }
-    return ((int)($right['id'] ?? 0)) <=> ((int)($left['id'] ?? 0));
-  });
-}
-
-$tableTitle = $auditView !== '' ? $auditViewTitle : 'Tableau de performance';
-$tableRows = $auditView !== '' ? $auditViewRows : $rows;
-$tableCount = $auditView !== '' ? count($auditViewRows) : $totalRows;
-$showPagination = $auditView === '';
+$tableTitle = 'Tableau de performance';
+$tableRows = $rows;
+$tableCount = $totalRows;
+$showPagination = true;
 
 $chartRows = $rankingRows;
 usort($chartRows, static function (array $left, array $right): int {
@@ -551,19 +448,11 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
     <div class="section-head admin-section-head">
       <div>
         <h3 class="h1">Filtres d'analyse</h3>
-        <p class="sub">Definis le perimetre d'analyse, puis utilise l'audit pour isoler les questions trop difficiles, trop faciles ou stables.</p>
       </div>
     </div>
-
-    <?php
-      $auditBaseQuery = $_GET;
-      unset($auditBaseQuery['audit_view']);
-      $auditBaseQuery['audit_open'] = '1';
-    ?>
     <form method="get" class="admin-panel-surface audit-config-panel">
       <input type="hidden" name="sort" value="<?= h($sort) ?>">
       <input type="hidden" name="dir" value="<?= h($dir) ?>">
-      <input type="hidden" name="audit_open" value="1">
       <div class="audit-panel-block">
         <div class="audit-panel-head">
           <span class="audit-config-eyebrow">Perimetre d'analyse</span>
@@ -692,55 +581,6 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
           </div>
         </div>
       </div>
-      <details class="audit-thresholds-disclosure"<?= $auditOpen ? ' open' : '' ?>>
-        <summary class="audit-thresholds-summary">
-          <div>
-            <span class="audit-config-eyebrow">Audit</span>
-          </div>
-          <span class="audit-thresholds-toggle" aria-hidden="true"></span>
-        </summary>
-        <div class="audit-thresholds-panel">
-          <div class="audit-config-grid audit-config-grid-thresholds">
-            <label class="audit-setting-card" for="audit_min_responses">
-              <span class="audit-setting-title">Reponses minimum</span>
-              <span class="audit-setting-help">Volume mini avant interpretation</span>
-              <input class="input audit-setting-input" id="audit_min_responses" name="audit_min_responses" type="number" min="1" step="1" value="<?= h((string)$auditMinResponses) ?>" placeholder="20">
-            </label>
-            <label class="audit-setting-card" for="audit_too_hard_rate">
-              <span class="audit-setting-title">Seuil trop difficile</span>
-              <span class="audit-setting-help">Taux d'echec a partir duquel alerter</span>
-              <input class="input audit-setting-input" id="audit_too_hard_rate" name="audit_too_hard_rate" type="number" min="0" max="100" step="0.1" value="<?= h(number_format($auditTooHardRate, 1, '.', '')) ?>" placeholder="70">
-            </label>
-            <label class="audit-setting-card" for="audit_too_easy_rate">
-              <span class="audit-setting-title">Seuil trop facile</span>
-              <span class="audit-setting-help">Taux d'echec en dessous duquel surveiller</span>
-              <input class="input audit-setting-input" id="audit_too_easy_rate" name="audit_too_easy_rate" type="number" min="0" max="100" step="0.1" value="<?= h(number_format($auditTooEasyRate, 1, '.', '')) ?>" placeholder="15">
-            </label>
-          </div>
-          <div class="performance-audit-grid performance-audit-grid-inline">
-            <a class="performance-audit-card danger<?= $auditView === 'too_hard' ? ' is-active' : '' ?>" href="<?= h('/admin/question_performance.php?' . http_build_query(array_merge($auditBaseQuery, ['audit_view' => 'too_hard']))) ?>#performance-results">
-              <span class="performance-audit-label">Trop difficiles</span>
-              <strong class="performance-audit-value"><?= count($auditTooHard) ?></strong>
-              <p class="performance-audit-help">Priorite haute: questions severes avec volume suffisant.</p>
-            </a>
-            <a class="performance-audit-card success<?= $auditView === 'too_easy' ? ' is-active' : '' ?>" href="<?= h('/admin/question_performance.php?' . http_build_query(array_merge($auditBaseQuery, ['audit_view' => 'too_easy']))) ?>#performance-results">
-              <span class="performance-audit-label">Trop faciles</span>
-              <strong class="performance-audit-value"><?= count($auditTooEasy) ?></strong>
-              <p class="performance-audit-help">A verifier si elles discriminent encore vraiment.</p>
-            </a>
-            <a class="performance-audit-card neutral<?= $auditView === 'normal' ? ' is-active' : '' ?>" href="<?= h('/admin/question_performance.php?' . http_build_query(array_merge($auditBaseQuery, ['audit_view' => 'normal']))) ?>#performance-results">
-              <span class="performance-audit-label">Zone normale</span>
-              <strong class="performance-audit-value"><?= (int)$auditNormal ?></strong>
-              <p class="performance-audit-help">Questions dans une zone d'equilibre acceptable.</p>
-            </a>
-            <a class="performance-audit-card muted<?= $auditView === 'low_volume' ? ' is-active' : '' ?>" href="<?= h('/admin/question_performance.php?' . http_build_query(array_merge($auditBaseQuery, ['audit_view' => 'low_volume']))) ?>#performance-results">
-              <span class="performance-audit-label">Volume insuffisant</span>
-              <strong class="performance-audit-value"><?= (int)$auditLowVolume ?></strong>
-              <p class="performance-audit-help">A ne pas sur-interpreter avant plus de passages.</p>
-            </a>
-          </div>
-        </div>
-      </details>
       <div class="filters-actions audit-config-actions">
         <button class="btn" type="submit">Appliquer</button>
         <a class="btn ghost" href="/admin/question_performance.php">Reset</a>
@@ -753,11 +593,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
     <div class="section-head admin-section-head">
       <div>
         <h3 class="h1"><?= h($tableTitle) ?></h3>
-        <?php if ($auditView !== ''): ?>
-          <p class="sub sessions-meta"><?= (int)$tableCount ?> question(s) dans cette vue. <a class="sort-link" href="<?= h('/admin/question_performance.php?' . http_build_query($auditBaseQuery)) ?>">Afficher toute l'analyse</a></p>
-        <?php else: ?>
-          <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$tableCount ?> question(s))</p>
-        <?php endif; ?>
+        <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$tableCount ?> question(s))</p>
       </div>
     </div>
 
@@ -816,8 +652,8 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
                     </svg>
                   </a>
                   <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?>&session_type=<?= h(urlencode($sessionType)) ?>&date_from=<?= h(urlencode($dateFrom)) ?>&date_to=<?= h(urlencode($dateTo)) ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Zoom performance" title="Zoom performance">
-                    <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                      <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+                    <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
                     </svg>
                   </a>
                 </td>

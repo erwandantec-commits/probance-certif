@@ -37,6 +37,9 @@ Comptes:
 - `app/`: code applicatif PHP (auth, dashboard, exam, admin, assets)
 - `app/admin/`: pages d'administration (sessions, certifications, packages, questions)
 - `app/services/`: logique metier (sessions)
+- `docs/GUIDE_ADMIN.md`: guide non technique pour l'espace d'administration
+- `docs/GUIDE_UTILISATEUR.md`: guide non technique pour les utilisateurs finaux
+- `docs/COMPRENDRE_OUTIL.md`: documentation fonctionnelle et technique pour comprendre rapidement l'outil
 - `initdb/01_schema.sql`: schema SQL
 - `initdb/02_seed.sql`: seed (minimal)
 - `db_schema/`: migrations SQL versionnees (`NNN_description.sql`)

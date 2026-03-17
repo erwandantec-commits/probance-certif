@@ -22,6 +22,7 @@ services:
       - "8080:80"
     volumes:
       - ./app:/var/www/html
+      - ./docs:/opt/certif/docs:ro
       - ./db_schema:/opt/certif/db_schema
     environment:
       ADMIN_PASSWORD: "Probance123!"

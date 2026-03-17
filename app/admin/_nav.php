@@ -10,6 +10,7 @@ if (!function_exists('admin_tab_icon_svg')) {
       'packages' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7.5 12 3l9 4.5-9 4.5-9-4.5Zm0 4.5 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/></svg>',
       'questions' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 18h.01M9.1 9a2.9 2.9 0 1 1 4.8 2.2c-.9.7-1.4 1.3-1.4 2.3v.5M4 4h16v16H4z"/></svg>',
       'performance' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19h14M7 17V9m5 8V5m5 12v-6"/></svg>',
+      'help' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v11.5a.5.5 0 0 1-.8.4 3.8 3.8 0 0 0-2.2-.7H6A2 2 0 0 0 4 20V6.5a2 2 0 0 1 2-2Z"/><path d="M8 8h6M8 11h6M8 14h4"/></svg>',
       'logout' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 16l4-4-4-4M19 12H9"/></svg>',
       default => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h16v16H4z"/></svg>',
     };
@@ -19,6 +20,7 @@ if (!function_exists('admin_tab_icon_svg')) {
 function render_admin_tabs(string $active = ''): void
 {
   $candidateTab = ['key' => 'candidate', 'href' => '/dashboard.php', 'label' => 'Espace candidat'];
+  $helpTab = ['key' => 'help', 'href' => '/admin/help.php', 'label' => 'Documentation'];
   $logoutTab = ['key' => 'logout', 'href' => '/logout.php', 'label' => 'D&eacute;connexion', 'extra_class' => 'admin-logout-btn'];
   $tabs = [
     ['key' => 'sessions', 'href' => '/admin/index.php', 'label' => 'Sessions'],
@@ -49,10 +51,20 @@ function render_admin_tabs(string $active = ''): void
     echo '</a>';
   }
   echo '</div>';
+  echo '<div class="admin-tabs-bottom">';
+  $helpClasses = 'btn ghost admin-tab';
+  if ($active === $helpTab['key']) {
+    $helpClasses .= ' is-active';
+  }
+  echo '<a class="' . $helpClasses . '" href="' . $helpTab['href'] . '">';
+  echo '<span class="admin-tab-icon">' . admin_tab_icon_svg($helpTab['key']) . '</span>';
+  echo '<span class="admin-tab-label">' . $helpTab['label'] . '</span>';
+  echo '</a>';
   echo '<a class="btn ghost admin-tab ' . $logoutTab['extra_class'] . '" href="' . $logoutTab['href'] . '">';
   echo '<span class="admin-tab-icon">' . admin_tab_icon_svg($logoutTab['key']) . '</span>';
   echo '<span class="admin-tab-label">' . $logoutTab['label'] . '</span>';
   echo '</a>';
+  echo '</div>';
   echo '</nav>';
   echo "<script>document.body.classList.add('admin-with-sidebar');</script>";
 }

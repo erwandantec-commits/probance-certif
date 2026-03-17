@@ -244,3 +244,97 @@ function isPerfectAnswer(array $question, array $selectedOptionIds): bool {
 
   return $selectedOptionIds === $correctIds;
 }
+
+function app_markdown_inline(string $text): string {
+  $escaped = h($text);
+  $escaped = preg_replace('/`([^`]+)`/', '<code>$1</code>', $escaped);
+  $escaped = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $escaped);
+  return (string)$escaped;
+}
+
+function app_markdown_to_html(string $markdown): string {
+  $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+  $lines = explode("\n", $markdown);
+  $html = [];
+  $paragraph = [];
+  $listItems = [];
+  $listType = '';
+
+  $flushParagraph = static function () use (&$paragraph, &$html): void {
+    if ($paragraph === []) {
+      return;
+    }
+    $text = trim(implode(' ', $paragraph));
+    if ($text !== '') {
+      $html[] = '<p>' . app_markdown_inline($text) . '</p>';
+    }
+    $paragraph = [];
+  };
+
+  $flushList = static function () use (&$listItems, &$listType, &$html): void {
+    if ($listItems === [] || $listType === '') {
+      $listItems = [];
+      $listType = '';
+      return;
+    }
+    $html[] = '<' . $listType . '>';
+    foreach ($listItems as $item) {
+      $html[] = '<li>' . app_markdown_inline($item) . '</li>';
+    }
+    $html[] = '</' . $listType . '>';
+    $listItems = [];
+    $listType = '';
+  };
+
+  foreach ($lines as $line) {
+    $trimmed = trim($line);
+
+    if ($trimmed === '') {
+      $flushParagraph();
+      $flushList();
+      continue;
+    }
+
+    if (preg_match('/^(#{1,3})\s+(.*)$/', $trimmed, $matches)) {
+      $flushParagraph();
+      $flushList();
+      $level = strlen($matches[1]) + 1;
+      $level = min(4, max(2, $level));
+      $title = trim($matches[2]);
+      $slug = strtolower($title);
+      $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+      $slug = trim((string)$slug, '-');
+      $idAttr = $slug !== '' ? ' id="' . h($slug) . '"' : '';
+      $html[] = '<h' . $level . $idAttr . '>' . app_markdown_inline($title) . '</h' . $level . '>';
+      continue;
+    }
+
+    if (preg_match('/^-\s+(.*)$/', $trimmed, $matches)) {
+      $flushParagraph();
+      if ($listType !== '' && $listType !== 'ul') {
+        $flushList();
+      }
+      $listType = 'ul';
+      $listItems[] = trim($matches[1]);
+      continue;
+    }
+
+    if (preg_match('/^\d+\.\s+(.*)$/', $trimmed, $matches)) {
+      $flushParagraph();
+      if ($listType !== '' && $listType !== 'ol') {
+        $flushList();
+      }
+      $listType = 'ol';
+      $listItems[] = trim($matches[1]);
+      continue;
+    }
+
+    $flushList();
+    $paragraph[] = $trimmed;
+  }
+
+  $flushParagraph();
+  $flushList();
+
+  return implode("\n", $html);
+}

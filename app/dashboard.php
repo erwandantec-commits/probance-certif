@@ -519,6 +519,13 @@ function dash_remaining_label(int $seconds): string {
             <?= h(t('dash.admin', [], $lang)) ?>
           </a>
         <?php endif; ?>
+        <a class="btn ghost dashboard-help-btn" href="/help.php?lang=<?= h(urlencode($lang)) ?>" aria-label="Aide" title="Aide">
+          <svg class="help-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="8.5"/>
+            <path d="M9.75 9.25a2.75 2.75 0 1 1 4.48 2.14c-.84.64-1.23 1.11-1.23 2.11"/>
+            <circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none"/>
+          </svg>
+        </a>
         <a class="btn ghost dashboard-logout-btn" href="/logout.php">
           <svg class="logout-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 16l4-4-4-4M19 12H9"/>
