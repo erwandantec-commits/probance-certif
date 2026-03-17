@@ -194,9 +194,14 @@ $statusClass = match ((string)$s['status']) {
                   <td><?= h($it['correct_labels'] ?: '-') ?></td>
                   <td><span class="<?= h($it['answer_status_class']) ?>" title="<?= h((string)($it['answer_status_label'] ?? '')) ?>" aria-label="<?= h((string)($it['answer_status_label'] ?? '')) ?>"><?= h($it['answer_status']) ?></span></td>
                   <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$it['question_id'] ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Voir la question" title="Voir la question">
-                      <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$it['question_id'] ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Modifier la question" title="Modifier la question">
+                      <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
+                      </svg>
+                    </a>
+                    <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$it['question_id'] ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+                      <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
                       </svg>
                     </a>
                   </td>

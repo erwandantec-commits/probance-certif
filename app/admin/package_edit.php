@@ -1193,6 +1193,11 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                         <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                       </svg>
                     </a>
+                    <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+                      <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
+                      </svg>
+                    </a>
                     <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?>"
                        aria-label="Supprimer cette question"
                        title="Supprimer"
