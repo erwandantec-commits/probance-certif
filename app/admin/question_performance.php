@@ -405,7 +405,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Admin &middot; Performance questions</title>
+  <title>Admin &middot; Analyse questions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -416,7 +416,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
     <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
         <p class="admin-page-eyebrow">Administration</p>
-        <h2 class="h1">Admin &middot; Performance questions</h2>
+        <h2 class="h1">Admin &middot; Analyse questions</h2>
         <p class="sub">Vue agr&eacute;g&eacute;e par question sur les r&eacute;ponses des sessions termin&eacute;es et expir&eacute;es.</p>
       </div>
       <div class="admin-head-actions">

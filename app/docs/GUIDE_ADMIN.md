@@ -23,7 +23,7 @@ Le menu lateral donne acces aux zones suivantes:
 - `Utilisateurs`
 - `Packs`
 - `Questions`
-- `Performance`
+- `Analyse`
 - `Documentation`
 
 ## Sessions
@@ -117,9 +117,9 @@ Elle permet de:
 
 La page d'import sert a injecter ou mettre a jour des questions en masse.
 
-## Performance
+## Analyse
 
-La page `Performance` donne une vue agregee par question.
+La page `Analyse` donne une vue agregee par question.
 
 Elle aide a reperer:
 
@@ -135,7 +135,7 @@ Le bouton de zoom ouvre ensuite le detail des sessions liees a une question donn
 - verifier le contexte avant de modifier une question ou un pack
 - privilegier les filtres pour reduire le bruit visuel
 - consulter le detail d'une session avant de conclure a une anomalie
-- utiliser les vues `Performance` pour identifier les questions a retravailler
+- utiliser les vues `Analyse` pour identifier les questions a retravailler
 
 ## Resume rapide
 

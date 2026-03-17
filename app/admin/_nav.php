@@ -28,7 +28,7 @@ function render_admin_tabs(string $active = ''): void
     ['key' => 'users', 'href' => '/admin/users.php', 'label' => 'Utilisateurs'],
     ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => 'Packs'],
     ['key' => 'questions', 'href' => '/admin/questions.php', 'label' => 'Questions'],
-    ['key' => 'performance', 'href' => '/admin/question_performance.php', 'label' => 'Performance'],
+    ['key' => 'performance', 'href' => '/admin/question_performance.php', 'label' => 'Analyse'],
   ];
 
   echo '<nav class="admin-tabs" aria-label="Navigation administration">';
