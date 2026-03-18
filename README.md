@@ -250,3 +250,31 @@ Redemarrer uniquement le web:
 ```bash
 docker compose up -d --build web
 ```
+
+## Sauvegarde locale
+
+Pour une sauvegarde locale simple "au cas ou", utiliser:
+
+```powershell
+.\scripts\backup.ps1
+```
+
+Ce script cree dans `backups/`:
+
+- un dump SQL de la base `certif`
+- une archive ZIP du projet utile (`app/`, `docs/`, `db_schema/`, `initdb/`, `scripts/`, fichiers racine)
+
+Options utiles:
+
+```powershell
+.\scripts\backup.ps1 -IncludeDataSnapshot
+.\scripts\backup.ps1 -IncludeDataSnapshot -StopDbForDataSnapshot
+.\scripts\backup.ps1 -KeepDays 30
+.\scripts\backup.ps1 -DryRun
+```
+
+Notes:
+
+- `-IncludeDataSnapshot` ajoute une archive du dossier `data/`
+- `-StopDbForDataSnapshot` arrete temporairement `db` pour une copie a froid plus fiable
+- les sauvegardes restent locales et ne doivent pas etre committees
