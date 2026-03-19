@@ -54,7 +54,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'register.login' => 'Se connecter',
 
       'dash.title' => 'Mon espace',
-      'dash.hello' => 'HI {{name}}',
+      'dash.hello' => 'Bonjour {{name}}',
       'dash.subtitle' => 'Ton espace certifications',
       'dash.logout' => 'Déconnexion',
       'dash.admin' => 'Espace Admin',
