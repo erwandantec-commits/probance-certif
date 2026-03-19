@@ -28,5 +28,12 @@ ssh "${REMOTE_USER}@${REMOTE_HOST}" << EOF
 set -e
 cd "${REMOTE_PATH}"
 echo "Working dir: \$(pwd)"
+
+# Directories: 755
+find . -type d -exec chmod 755 {} +
+
+# Files: 644
+find . -type f -exec chmod 644 {} +
+
 docker compose up -d --force-recreate
 EOF
