@@ -15,6 +15,8 @@ $guideSuffix = match ($lang) {
 $guidePaths = [
   __DIR__ . '/docs/GUIDE_UTILISATEUR' . $guideSuffix . '.md',
   __DIR__ . '/docs/GUIDE_UTILISATEUR.md',
+  dirname(__DIR__) . '/docs/GUIDE_UTILISATEUR' . $guideSuffix . '.md',
+  dirname(__DIR__) . '/docs/GUIDE_UTILISATEUR.md',
   '/opt/certif/docs/GUIDE_UTILISATEUR' . $guideSuffix . '.md',
   '/opt/certif/docs/GUIDE_UTILISATEUR.md',
 ];
