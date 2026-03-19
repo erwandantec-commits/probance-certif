@@ -1,7 +1,12 @@
 stages:
   - build
 
-build:
+build-compose:
   stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
   script:
-    - echo "Test Pipeline"
+    - docker compose build
