@@ -3,6 +3,52 @@ require_once __DIR__ . '/_auth.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/_nav.php';
 
+function admin_help_fallback_markdown(): string {
+  return <<<'MD'
+# Guide administrateur
+
+## Role de l'espace admin
+
+L'espace admin permet de :
+
+- suivre les sessions des candidats
+- consulter les certifications
+- gerer les packs
+- gerer les questions
+- administrer les utilisateurs
+
+## Sessions
+
+La page `Sessions` permet de consulter :
+
+- le candidat
+- le pack
+- le type de session
+- le score
+- le statut
+
+## Certifications
+
+La page `Certifications` donne une vue de suivi par candidat et par pack.
+
+## Utilisateurs
+
+La page `Utilisateurs` permet de consulter les comptes et d'ajuster les roles si besoin.
+
+## Packs
+
+La page `Packs` sert a configurer les certifications disponibles, leurs regles et leurs parametres.
+
+## Questions
+
+La page `Questions` permet de rechercher, modifier, supprimer et analyser les questions.
+
+## Analyse
+
+La page `Analyse` aide a identifier les questions faciles, difficiles ou peu utilisees.
+MD;
+}
+
 $guidePaths = [
   dirname(__DIR__) . '/docs/GUIDE_ADMIN.md',
   '/opt/certif/docs/GUIDE_ADMIN.md',
@@ -14,23 +60,22 @@ foreach ($guidePaths as $guidePath) {
     break;
   }
 }
+if ($guideMarkdown === '') {
+  $guideMarkdown = admin_help_fallback_markdown();
+}
 $docSections = [];
-if ($guideMarkdown !== '') {
-  if (preg_match_all('/^##\s+(.+)$/m', $guideMarkdown, $matches)) {
-    foreach ($matches[1] as $heading) {
-      $label = trim((string)$heading);
-      $slug = strtolower($label);
-      $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
-      $slug = trim((string)$slug, '-');
-      if ($slug !== '') {
-        $docSections[] = ['label' => $label, 'slug' => $slug];
-      }
+if (preg_match_all('/^##\s+(.+)$/m', $guideMarkdown, $matches)) {
+  foreach ($matches[1] as $heading) {
+    $label = trim((string)$heading);
+    $slug = strtolower($label);
+    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+    $slug = trim((string)$slug, '-');
+    if ($slug !== '') {
+      $docSections[] = ['label' => $label, 'slug' => $slug];
     }
   }
 }
-$guideHtml = $guideMarkdown !== ''
-  ? app_markdown_to_html($guideMarkdown)
-  : '<p class="empty-state">Le guide administrateur est indisponible pour le moment.</p>';
+$guideHtml = app_markdown_to_html($guideMarkdown);
 ?>
 <!doctype html>
 <html lang="fr">
