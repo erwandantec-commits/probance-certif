@@ -274,6 +274,17 @@ function auto_map_headers(array $headers): array {
         break;
       }
     }
+    if ($map[$key] !== null) {
+      continue;
+    }
+    foreach ($normToIdx as $normalizedHeader => $idx) {
+      foreach ($def['aliases'] as $alias) {
+        if ($alias !== '' && strpos($normalizedHeader, $alias) !== false) {
+          $map[$key] = (int)$idx;
+          break 2;
+        }
+      }
+    }
   }
   return $map;
 }
@@ -493,7 +504,7 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
       INSERT INTO questions(
         external_id, package_id, text, need, level, question_type, allow_skip,
         knowledge_required_csv, theme, open_to_client, explanation, meta_json, created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
     ");
     $updateQ = $pdo->prepare("
       UPDATE questions SET
@@ -529,7 +540,7 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
       INSERT INTO questions(
         external_id, package_id, text, need, level, question_type, allow_skip,
         knowledge_required_csv, theme, explanation, meta_json, created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,NOW(),NOW())
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
     ");
     $updateQ = $pdo->prepare("
       UPDATE questions SET
@@ -808,7 +819,7 @@ $mapping = $state['mapping'] ?? $mapping;
     <div class="admin-head">
       <div class="admin-head-copy">
         <h2 class="h1">Admin &middot; Importer des questions</h2>
-        <p class="sub">Workflow: fichier -> mapping -> verification -> import</p>
+        <p class="sub">Workflow: fichier -> mapping -> vérification -> import</p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('questions'); ?>
@@ -836,9 +847,9 @@ $mapping = $state['mapping'] ?? $mapping;
         <div class="import-report-title">Rapport</div>
         <div class="import-report-stats">
           <span class="pill">Lignes lues: <?= (int)$report['read_lines'] ?></span>
-          <span class="pill success">Creees: <?= (int)$report['created'] ?></span>
-          <span class="pill info">Mises a jour: <?= (int)$report['updated'] ?></span>
-          <span class="pill danger">Rejetees: <?= (int)$report['rejected'] ?></span>
+          <span class="pill success">Créées: <?= (int)$report['created'] ?></span>
+          <span class="pill info">Mises à jour: <?= (int)$report['updated'] ?></span>
+          <span class="pill danger">Rejetées: <?= (int)$report['rejected'] ?></span>
         </div>
         <?php
           $readLines = (int)($report['read_lines'] ?? 0);
@@ -848,7 +859,7 @@ $mapping = $state['mapping'] ?? $mapping;
         ?>
         <?php if ($lastAction === 'verify' && empty($report['errors'])): ?>
           <div class="admin-notice is-ok" style="margin-top:10px;">
-            Verification OK: <?= (int)$validPercent ?>% lignes valides (<?= (int)$validLines ?>/<?= (int)$readLines ?>).
+            Vérification OK: <?= (int)$validPercent ?>% lignes valides (<?= (int)$validLines ?>/<?= (int)$readLines ?>).
             Vous pouvez cliquer sur <b>Importer les lignes valides</b>.
           </div>
         <?php endif; ?>
@@ -891,9 +902,9 @@ $mapping = $state['mapping'] ?? $mapping;
       <div class="import-help">
         <div class="import-help-head">
           <span class="import-help-tag">Mapping</span>
-          <strong>Associe chaque champ a une colonne du fichier</strong>
+          <strong>Associe chaque champ à une colonne du fichier</strong>
         </div>
-        <p class="small">Fichier charge: <b><?= h((string)($state['file_name'] ?? '')) ?></b></p>
+        <p class="small">Fichier chargé: <b><?= h((string)($state['file_name'] ?? '')) ?></b></p>
       </div>
 
       <form method="post" class="import-form">
@@ -906,7 +917,7 @@ $mapping = $state['mapping'] ?? $mapping;
                 <?= h($def['label']) ?><?= $def['required'] ? ' *' : '' ?>
               </label>
               <select name="mapping[<?= h($key) ?>]">
-                <option value="">-- non mappe --</option>
+                <option value="">-- non mappé --</option>
                 <?php foreach ($headers as $idx => $header): ?>
                   <option value="<?= (int)$idx ?>" <?= ((string)$selected === (string)$idx) ? 'selected' : '' ?>>
                     <?= h('#' . ((int)$idx + 1) . ' - ' . (string)$header) ?>
@@ -917,7 +928,7 @@ $mapping = $state['mapping'] ?? $mapping;
           <?php endforeach; ?>
         </div>
         <div class="import-actions">
-          <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>>Verifier les donnees</button>
+          <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>>Vérifier les données</button>
           <a class="btn ghost" href="/admin/import_questions.php?cancel_import=1">Annuler l'import</a>
         </div>
       </form>

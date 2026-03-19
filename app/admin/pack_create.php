@@ -686,7 +686,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ?>
                     <tr class="rule-row">
                       <td>
-                        <input class="input rule-need" name="rule_need[]" list="rule-need-options" maxlength="128" value="<?= h((string)($row['need'] ?? '')) ?>" placeholder="Ex: PHM">
+                        <select class="input rule-need" name="rule_need[]">
+                          <?php foreach ($knownNeeds as $needOpt): ?>
+                            <option value="<?= h($needOpt) ?>" <?= ((string)($row['need'] ?? '') === $needOpt) ? 'selected' : '' ?>><?= h($needOpt) ?></option>
+                          <?php endforeach; ?>
+                        </select>
                       </td>
                       <td class="rule-levels-cell">
                         <input type="hidden" class="rule-level-1-input" value="<?= !empty($levelsMap[1]) ? '1' : '0' ?>">
@@ -718,11 +722,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tfoot>
               </table>
             </div>
-            <datalist id="rule-need-options">
-              <?php foreach ($knownNeeds as $needOpt): ?>
-                <option value="<?= h($needOpt) ?>"></option>
-              <?php endforeach; ?>
-            </datalist>
           </section>
         <?php endif; ?>
 
@@ -801,6 +800,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php if ($hasRulesColumn): ?>
     var ruleTemplates = <?= json_encode($ruleTemplates, JSON_UNESCAPED_UNICODE) ?>;
+    var knownNeeds = <?= json_encode(array_values($knownNeeds), JSON_UNESCAPED_UNICODE) ?>;
     var tbody = document.getElementById('rule-rows-body');
     var addRowBtn = document.getElementById('add-rule-row');
     var applyTemplateBtn = document.getElementById('apply-rule-template');
@@ -850,12 +850,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       var hasL1 = levels.indexOf(1) !== -1;
       var hasL2 = levels.indexOf(2) !== -1;
       var hasL3 = levels.indexOf(3) !== -1;
-      var escapedNeed = need.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      var needOptions = knownNeeds.map(function (needOpt) {
+        var escapedValue = String(needOpt).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var selected = needOpt === need ? ' selected' : '';
+        return '<option value="' + escapedValue + '"' + selected + '>' + escapedValue + '</option>';
+      }).join('');
 
       return '' +
         '<tr class="rule-row">' +
           '<td>' +
-            '<input class="input rule-need" type="text" list="rule-need-options" maxlength="128" value="' + escapedNeed + '" placeholder="Ex: PHM">' +
+            '<select class="input rule-need">' + needOptions + '</select>' +
           '</td>' +
           '<td class="rule-levels-cell">' +
             '<input type="hidden" class="rule-level-1-input" value="' + (hasL1 ? '1' : '0') + '">' +

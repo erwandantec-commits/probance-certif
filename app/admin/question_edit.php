@@ -21,6 +21,23 @@ function admin_question_edit_safe_return(?string $candidate): string {
   return $candidate;
 }
 
+function admin_question_edit_known_needs(PDO $pdo): array {
+  $needs = [];
+  $st = $pdo->query("
+    SELECT DISTINCT TRIM(need) AS need_name
+    FROM questions
+    WHERE need IS NOT NULL AND TRIM(need) <> ''
+    ORDER BY need_name ASC
+  ");
+  foreach (($st ? $st->fetchAll() : []) as $row) {
+    $need = normalize_question_need((string)($row['need_name'] ?? ''));
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+  return array_keys($needs);
+}
+
 $id = (int)($_GET['id'] ?? 0);
 $returnTo = admin_question_edit_safe_return((string)($_GET['return'] ?? ''));
 
@@ -37,11 +54,12 @@ $question = [
   'level' => 1,
   'question_type' => 'MULTI',
   'allow_skip' => 0,
+  'explanation' => '',
 ];
 
 $optionsByLabel = [];
 
-$st = $pdo->prepare("SELECT id, text, need, level, question_type, allow_skip FROM questions WHERE id=?");
+$st = $pdo->prepare("SELECT id, text, need, level, question_type, allow_skip, explanation FROM questions WHERE id=?");
 $st->execute([$id]);
 $q = $st->fetch();
 if (!$q) {
@@ -57,6 +75,7 @@ $question = [
   'level' => (int)($q['level'] ?? 1),
   'question_type' => (string)($q['question_type'] ?? 'MULTI'),
   'allow_skip' => 0,
+  'explanation' => (string)($q['explanation'] ?? ''),
 ];
 
 $os = $pdo->prepare("
@@ -70,6 +89,13 @@ foreach ($os->fetchAll() as $o) {
   $optionsByLabel[(string)$o['label']] = $o;
 }
 
+$knownNeeds = admin_question_edit_known_needs($pdo);
+if (!in_array($question['need'], $knownNeeds, true) && $question['need'] !== '') {
+  $knownNeeds[] = $question['need'];
+  natcasesort($knownNeeds);
+  $knownNeeds = array_values($knownNeeds);
+}
+
 $labels = ['A', 'B', 'C', 'D', 'E', 'F'];
 $errors = [];
 
@@ -80,6 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $question['level'] = (int)($_POST['level'] ?? ($question['level'] ?? 1));
   $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
   $question['allow_skip'] = 0;
+  $question['explanation'] = trim((string)($_POST['explanation'] ?? ''));
 
   if ($question['text'] === '') {
     $errors[] = "Enonce obligatoire.";
@@ -89,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
   if ($question['need'] === '') {
     $errors[] = "Categorie obligatoire.";
+  } elseif (!in_array($question['need'], $knownNeeds, true)) {
+    $errors[] = "Categorie invalide.";
   }
   if ($question['level'] < 1 || $question['level'] > 3) {
     $errors[] = "Niveau question invalide (1..3).";
@@ -166,13 +195,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     try {
       if ($question['id'] > 0) {
-        $up = $pdo->prepare("UPDATE questions SET text=?, need=?, level=?, question_type=?, allow_skip=? WHERE id=?");
+        $up = $pdo->prepare("UPDATE questions SET text=?, need=?, level=?, question_type=?, allow_skip=?, explanation=? WHERE id=?");
         $up->execute([
           $question['text'],
           $question['need'],
           $question['level'],
           $question['question_type'],
           $question['allow_skip'],
+          $question['explanation'] !== '' ? $question['explanation'] : null,
           $question['id'],
         ]);
         $qid = $question['id'];
@@ -243,7 +273,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="pack-config-fields">
               <div class="question-field">
                 <label class="label">Categorie</label>
-                <input class="input" type="text" name="need" maxlength="128" value="<?= h((string)($question['need'] ?? '')) ?>" required>
+                <select class="input" name="need" required>
+                  <?php foreach ($knownNeeds as $needOpt): ?>
+                    <option value="<?= h($needOpt) ?>" <?= ((string)($question['need'] ?? '') === $needOpt) ? 'selected' : '' ?>>
+                      <?= h($needOpt) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
               </div>
 
               <div class="question-field">
@@ -282,6 +318,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <div class="question-field-full">
                 <label class="label">Texte de la question</label>
                 <textarea name="text" rows="4" class="question-textarea" required><?= h($question['text']) ?></textarea>
+              </div>
+              <div class="question-field-full">
+                <label class="label">Explication</label>
+                <textarea name="explanation" rows="5" class="question-textarea" placeholder="Explication affichee apres la question, par exemple le raisonnement ou le rappel de la bonne reponse."><?= h((string)($question['explanation'] ?? '')) ?></textarea>
               </div>
             </div>
           </article>

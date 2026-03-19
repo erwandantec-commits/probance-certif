@@ -3111,6 +3111,19 @@ body.admin-with-sidebar .admin-tabs-bottom {
   border-color: #3b82f6;
 }
 
+:root[data-theme="dark"] .dashboard-help-btn{
+  background: linear-gradient(180deg, #1c2433 0%, #18202e 100%);
+  color: #e5e7eb;
+  border-color: #475569;
+  box-shadow: 0 2px 8px rgba(2,6,23,.35);
+}
+
+:root[data-theme="dark"] .dashboard-help-btn:hover{
+  background: linear-gradient(180deg, #222b3b 0%, #1d2635 100%);
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
 :root[data-theme="dark"] .btn.ghost.cert-action-revoke{
   background: #3f1d24;
   color: #fecdd3;
