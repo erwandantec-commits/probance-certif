@@ -14,6 +14,7 @@ RSYNC_PARAM=(
   --exclude='README.md'
   --exclude='docs'
   --exclude='data'
+  --exclude='resources'
 )
 
 
