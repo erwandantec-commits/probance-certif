@@ -76,7 +76,7 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $returnTo = admin_question_edit_safe_return((string)($_POST['return'] ?? $returnTo));
   $question['text'] = trim((string)($_POST['text'] ?? ''));
-  $question['need'] = strtoupper(trim((string)($_POST['need'] ?? ($question['need'] ?? 'PONE'))));
+  $question['need'] = normalize_question_need((string)($_POST['need'] ?? ($question['need'] ?? 'PONE')));
   $question['level'] = (int)($_POST['level'] ?? ($question['level'] ?? 1));
   $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
   $question['allow_skip'] = 0;
@@ -87,8 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (!in_array($question['question_type'], ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
     $errors[] = "Type invalide.";
   }
-  if (!in_array($question['need'], ['PONE', 'PHM', 'PPM'], true)) {
-    $errors[] = "Connaissances requises invalides.";
+  if ($question['need'] === '') {
+    $errors[] = "Categorie obligatoire.";
   }
   if ($question['level'] < 1 || $question['level'] > 3) {
     $errors[] = "Niveau question invalide (1..3).";
@@ -242,14 +242,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <h4 class="pack-config-card-title">Param&egrave;tres</h4>
             <div class="pack-config-fields">
               <div class="question-field">
-                <label class="label">Connaissances requises</label>
-                <select name="need" required>
-                  <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
-                    <option value="<?= h($n) ?>" <?= (($question['need'] ?? 'PONE') === $n) ? 'selected' : '' ?>>
-                      <?= h($n) ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
+                <label class="label">Categorie</label>
+                <input class="input" type="text" name="need" maxlength="128" value="<?= h((string)($question['need'] ?? '')) ?>" required>
               </div>
 
               <div class="question-field">

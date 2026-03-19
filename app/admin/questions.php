@@ -14,8 +14,8 @@ if (!is_array($rawNeeds)) {
 }
 $activeNeeds = [];
 foreach ($rawNeeds as $n) {
-  $n = strtoupper(trim((string)$n));
-  if (in_array($n, ['PONE', 'PHM', 'PPM'], true)) {
+  $n = normalize_question_need((string)$n);
+  if ($n !== '') {
     $activeNeeds[] = $n;
   }
 }
@@ -41,26 +41,25 @@ if (!is_array($rawNeedLevels)) {
 }
 $activeNeedLevels = [];
 foreach ($rawNeedLevels as $pairRaw) {
-  $pair = strtoupper(trim((string)$pairRaw));
-  if (preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
-    $activeNeedLevels[] = $pair;
+  $pair = trim((string)$pairRaw);
+  if (preg_match('/^(.+):([1-3])$/', $pair, $matches)) {
+    $need = normalize_question_need($matches[1]);
+    if ($need !== '') {
+      $activeNeedLevels[] = $need . ':' . (int)$matches[2];
+    }
   }
 }
 $activeNeedLevels = array_values(array_unique($activeNeedLevels));
 
 // Backward compatibility with old single-value filters.
-$legacyNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
-if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true) && empty($activeNeeds)) {
+$legacyNeed = normalize_question_need((string)($_GET['need'] ?? ''));
+if ($legacyNeed !== '' && empty($activeNeeds)) {
   $activeNeeds[] = $legacyNeed;
 }
 $legacyLevel = (int)($_GET['level'] ?? 0);
 if ($legacyLevel >= 1 && $legacyLevel <= 3 && empty($activeNeedLevels)) {
-  if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true)) {
+  if ($legacyNeed !== '') {
     $activeNeedLevels[] = $legacyNeed . ':' . $legacyLevel;
-  } else {
-    foreach (['PONE', 'PHM', 'PPM'] as $legacyAnyNeed) {
-      $activeNeedLevels[] = $legacyAnyNeed . ':' . $legacyLevel;
-    }
   }
 }
 if (empty($activeNeedLevels) && !empty($activeNeeds) && !empty($legacyActiveLevels)) {
@@ -143,8 +142,19 @@ $distStmt = $pdo->query("
   GROUP BY need, level
 ");
 foreach ($distStmt->fetchAll() as $row) {
-  $distribution[$row['need']][(int)$row['level']] = (int)$row['c'];
+  $need = normalize_question_need((string)($row['need'] ?? ''));
+  if ($need === '') {
+    continue;
+  }
+  $distribution[$need][(int)$row['level']] = (int)$row['c'];
 }
+$allNeeds = array_keys($distribution);
+foreach ($activeNeeds as $activeNeed) {
+  if (!in_array($activeNeed, $allNeeds, true)) {
+    $allNeeds[] = $activeNeed;
+  }
+}
+sort($allNeeds);
 
 function package_label_style_local(string $packageName): string {
   $name = strtoupper(trim($packageName));
@@ -167,8 +177,8 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
   $params = [];
   $cleanNeeds = [];
   foreach ($needs as $need) {
-    $need = strtoupper(trim((string)$need));
-    if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
+    $need = normalize_question_need((string)$need);
+    if ($need !== '') {
       $cleanNeeds[] = $need;
     }
   }
@@ -179,9 +189,12 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
 
   $cleanNeedLevels = [];
   foreach ($needLevels as $pair) {
-    $pair = strtoupper(trim((string)$pair));
-    if (preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
-      $cleanNeedLevels[] = $pair;
+    $pair = trim((string)$pair);
+    if (preg_match('/^(.+):([1-3])$/', $pair, $matches)) {
+      $need = normalize_question_need($matches[1]);
+      if ($need !== '') {
+        $cleanNeedLevels[] = $need . ':' . (int)$matches[2];
+      }
     }
   }
   $cleanNeedLevels = array_values(array_unique($cleanNeedLevels));
@@ -247,7 +260,7 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
     <div class="distribution-wrap">
       <p class="distribution-title">R&eacute;partition actuelle</p>
       <div class="distribution-grid">
-        <?php foreach (['PONE', 'PHM', 'PPM'] as $n): ?>
+        <?php foreach ($allNeeds as $n): ?>
           <?php
             $needActive = in_array($n, $activeNeeds, true);
             $nextNeeds = $activeNeeds;
@@ -316,7 +329,7 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
             <tr>
               <th>ID</th>
               <th>ID question</th>
-              <th>Connaissances requises</th>
+              <th>Categorie</th>
               <th>Niveau</th>
               <th>Type</th>
               <th>Options</th>

@@ -214,12 +214,12 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
           break;
         }
 
-        $need = strtoupper(trim((string)($bucket['need'] ?? '')));
+        $need = normalize_question_need((string)($bucket['need'] ?? ''));
         $levels = $bucket['levels'] ?? [];
         $take = (int)($bucket['take'] ?? 0);
         $targetTotal = (int)($bucket['target_total'] ?? 0);
 
-        if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels) || $take <= 0) {
+        if ($need === '' || !is_array($levels) || $take <= 0) {
           continue;
         }
 

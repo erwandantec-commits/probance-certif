@@ -216,10 +216,8 @@ function mapping_fields(): array {
   return [
     'id' => ['label' => 'ID', 'required' => true, 'aliases' => ['id']],
     'question' => ['label' => 'Questions', 'required' => true, 'aliases' => ['questions', 'question']],
-    'theme' => ['label' => 'Theme question', 'required' => true, 'aliases' => ['themequestion', 'theme']],
-    'category' => ['label' => 'Categorie question', 'required' => true, 'aliases' => ['categoriequestion', 'categoryquestion', 'category', 'categorie']],
-    'profile' => ['label' => 'Profil', 'required' => true, 'aliases' => ['profil', 'profile']],
-    'knowledge_required' => ['label' => 'Connaissances requises', 'required' => true, 'aliases' => ['knowledgerequired', 'knowledge', 'need', 'needs']],
+    'knowledge_required' => ['label' => 'Categorie', 'required' => true, 'aliases' => ['categorie', 'toolconcerned', 'connaissancesrequises', 'knowledgerequired', 'knowledge', 'need', 'needs']],
+    'theme' => ['label' => 'Theme', 'required' => false, 'aliases' => ['themequestion', 'theme']],
     'level' => ['label' => 'Niveau question', 'required' => true, 'aliases' => ['niveauquestion', 'level', 'niveau']],
     'answer1' => ['label' => 'Reponse 1', 'required' => true, 'aliases' => ['reponse1', 'response1', 'answer1']],
     'answer2' => ['label' => 'Reponse 2', 'required' => true, 'aliases' => ['reponse2', 'response2', 'answer2']],
@@ -228,6 +226,8 @@ function mapping_fields(): array {
     'answer5' => ['label' => 'Reponse 5', 'required' => false, 'aliases' => ['reponse5', 'response5', 'answer5']],
     'answer6' => ['label' => 'Reponse 6', 'required' => false, 'aliases' => ['reponse6', 'response6', 'answer6']],
     'correct' => ['label' => 'Bonnes reponses', 'required' => true, 'aliases' => ['bonnesreponses', 'bonnereponse', 'correctanswers', 'goodanswers', 'correct']],
+    'user_probance' => ['label' => 'Utilisateur Probance', 'required' => false, 'aliases' => ['utilisateurprobance', 'userprobance', 'probanceuser']],
+    'user_brainpad' => ['label' => 'Utilisateur Brainpad', 'required' => false, 'aliases' => ['utilisateurbrainpad', 'userbrainpad', 'brainpaduser']],
     'open_to_client' => ['label' => 'Ouvert au client', 'required' => false, 'aliases' => ['ouvertauclient', 'open_to_client', 'opentoclient', 'clientopen', 'openedtoclient']],
     'explanation' => ['label' => 'Explication', 'required' => false, 'aliases' => ['explicationdetailleedelabonneresponse', 'explicationdetaillee', 'explanation']],
   ];
@@ -253,30 +253,11 @@ function parse_open_to_client_value(string $raw): ?int {
 }
 
 function parse_knowledge_required(string $raw): array {
-  $parts = preg_split('/[;,\|\/]+|\s+/', strtoupper(trim($raw)));
-  $valid = ['PONE' => true, 'PHM' => true, 'PPM' => true];
-  $tokens = [];
-  foreach ($parts as $part) {
-    $part = trim((string)$part);
-    if ($part === '') {
-      continue;
-    }
-    if (!isset($valid[$part])) {
-      continue;
-    }
-    $tokens[$part] = true;
-  }
-  return array_keys($tokens);
+  return parse_question_need_tokens($raw);
 }
 
 function primary_need_from_tokens(array $tokens): string {
-  if (in_array('PPM', $tokens, true)) {
-    return 'PPM';
-  }
-  if (in_array('PHM', $tokens, true)) {
-    return 'PHM';
-  }
-  return 'PONE';
+  return (string)($tokens[0] ?? '');
 }
 
 function auto_map_headers(array $headers): array {
@@ -347,11 +328,11 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     $externalIdRaw = cell_value($cells, $map['id'] ?? null);
     $questionText = cell_value($cells, $map['question'] ?? null);
     $theme = cell_value($cells, $map['theme'] ?? null);
-    $category = cell_value($cells, $map['category'] ?? null);
-    $profile = cell_value($cells, $map['profile'] ?? null);
     $knowledgeRequiredRaw = cell_value($cells, $map['knowledge_required'] ?? null);
     $levelRaw = cell_value($cells, $map['level'] ?? null);
     $correctRaw = cell_value($cells, $map['correct'] ?? null);
+    $userProbanceRaw = cell_value($cells, $map['user_probance'] ?? null);
+    $userBrainpadRaw = cell_value($cells, $map['user_brainpad'] ?? null);
     $openToClientRaw = cell_value($cells, $map['open_to_client'] ?? null);
     $explanation = cell_value($cells, $map['explanation'] ?? null);
     $openToClient = parse_open_to_client_value($openToClientRaw);
@@ -363,18 +344,9 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     if ($questionText === '') {
       $rowErrors[] = "Questions vide.";
     }
-    if ($theme === '') {
-      $rowErrors[] = "Theme question vide.";
-    }
-    if ($category === '') {
-      $rowErrors[] = "Categorie question vide.";
-    }
-    if ($profile === '') {
-      $rowErrors[] = "Profil vide.";
-    }
     $knowledgeTokens = parse_knowledge_required($knowledgeRequiredRaw);
     if (!$knowledgeTokens) {
-      $rowErrors[] = "Connaissances requises invalides (attendu: PONE/PHM/PPM, multi possible).";
+      $rowErrors[] = "Categorie vide ou invalide.";
     }
     if ($levelRaw === '' || !preg_match('/^-?\d+$/', $levelRaw)) {
       $rowErrors[] = "Niveau question non numerique.";
@@ -476,6 +448,12 @@ function validate_and_prepare_rows(array $rows, array $map): array {
       }
     }
     $meta = ['allow_multi' => $allowMulti];
+    if ($userProbanceRaw !== '') {
+      $meta['User Probance'] = $userProbanceRaw;
+    }
+    if ($userBrainpadRaw !== '') {
+      $meta['User Brainpad'] = $userBrainpadRaw;
+    }
     foreach ($headerCells as $idx => $headerName) {
       if (in_array($idx, $knownIdx, true)) {
         continue;
@@ -490,9 +468,7 @@ function validate_and_prepare_rows(array $rows, array $map): array {
       'line_no' => $lineNo,
       'external_id' => (int)$externalIdRaw,
       'text' => $questionText,
-      'theme' => $theme,
-      'category' => $category,
-      'profile' => $profile,
+      'theme' => $theme !== '' ? $theme : null,
       'need' => primary_need_from_tokens($knowledgeTokens),
       'knowledge_required_csv' => implode(',', $knowledgeTokens),
       'level' => (int)$levelRaw,
@@ -516,8 +492,8 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
     $insertQ = $pdo->prepare("
       INSERT INTO questions(
         external_id, package_id, text, need, level, question_type, allow_skip,
-        knowledge_required_csv, theme, category, profile, open_to_client, explanation, meta_json, created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+        knowledge_required_csv, theme, open_to_client, explanation, meta_json, created_at, updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
     ");
     $updateQ = $pdo->prepare("
       UPDATE questions SET
@@ -528,8 +504,6 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
         allow_skip=?,
         knowledge_required_csv=?,
         theme=?,
-        category=?,
-        profile=?,
         explanation=?,
         meta_json=?,
         updated_at=NOW()
@@ -544,8 +518,6 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
         allow_skip=?,
         knowledge_required_csv=?,
         theme=?,
-        category=?,
-        profile=?,
         open_to_client=?,
         explanation=?,
         meta_json=?,
@@ -556,8 +528,8 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
     $insertQ = $pdo->prepare("
       INSERT INTO questions(
         external_id, package_id, text, need, level, question_type, allow_skip,
-        knowledge_required_csv, theme, category, profile, explanation, meta_json, created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+        knowledge_required_csv, theme, explanation, meta_json, created_at, updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,NOW(),NOW())
     ");
     $updateQ = $pdo->prepare("
       UPDATE questions SET
@@ -568,8 +540,6 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
         allow_skip=?,
         knowledge_required_csv=?,
         theme=?,
-        category=?,
-        profile=?,
         explanation=?,
         meta_json=?,
         updated_at=NOW()
@@ -606,8 +576,6 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
             $row['allow_skip'],
             $row['knowledge_required_csv'],
             $row['theme'],
-            $row['category'],
-            $row['profile'],
             $row['open_to_client'] ?? 0,
             $row['explanation'],
             $row['meta_json'],
@@ -623,8 +591,6 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
             $row['allow_skip'],
             $row['knowledge_required_csv'],
             $row['theme'],
-            $row['category'],
-            $row['profile'],
             $row['explanation'],
             $row['meta_json'],
           ]);
@@ -642,8 +608,6 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
             $row['allow_skip'],
             $row['knowledge_required_csv'],
             $row['theme'],
-            $row['category'],
-            $row['profile'],
             $row['open_to_client'],
             $row['explanation'],
             $row['meta_json'],
@@ -658,8 +622,6 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
             $row['allow_skip'],
             $row['knowledge_required_csv'],
             $row['theme'],
-            $row['category'],
-            $row['profile'],
             $row['explanation'],
             $row['meta_json'],
             $externalId,
@@ -702,7 +664,7 @@ foreach (['external_id', 'package_id', 'text', 'need', 'knowledge_required_csv',
   }
 }
 if (db_column_exists($pdo, 'questions', 'package_id') && !db_column_nullable($pdo, 'questions', 'package_id')) {
-  $schemaErrors[] = "questions.package_id est NOT NULL. Lance la migration import v1.1.";
+  $schemaErrors[] = "questions.package_id est NOT NULL. Lance les migrations SQL du projet.";
 }
 
 $mappingDefs = mapping_fields();
@@ -864,7 +826,7 @@ $mapping = $state['mapping'] ?? $mapping;
               <li><?= h($e) ?></li>
             <?php endforeach; ?>
           </ul>
-          <p class="small">Applique la migration SQL import v1.1 avant de continuer.</p>
+          <p class="small">Applique les migrations SQL du projet avant de continuer.</p>
         </div>
       </div>
     <?php endif; ?>

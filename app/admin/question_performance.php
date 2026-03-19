@@ -484,7 +484,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
             </select>
           </div>
           <div>
-            <label class="label" for="audit_knowledge_required">Connaissances requises</label>
+            <label class="label" for="audit_knowledge_required">Categorie</label>
             <select class="input" id="audit_knowledge_required" name="knowledge_required">
               <option value="" <?= $knowledgeRequired === '' ? 'selected' : '' ?>>Toutes</option>
               <?php foreach ($knowledgeRequiredRows as $knowledgeRow): ?>
@@ -617,7 +617,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'knowledge_required'; $urlQs['dir'] = ($sort === 'knowledge_required' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Connaissances requises</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Categorie</a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'response_count'; $urlQs['dir'] = ($sort === 'response_count' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>

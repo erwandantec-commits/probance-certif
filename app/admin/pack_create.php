@@ -99,7 +99,7 @@ function pack_create_rule_rows_from_post(): array {
   $rows = [];
   $total = count($needs);
   for ($i = 0; $i < $total; $i++) {
-    $need = strtoupper(trim((string)($needs[$i] ?? '')));
+    $need = normalize_question_need((string)($needs[$i] ?? ''));
     $take = (int)($takes[$i] ?? 0);
     $targetTotal = (int)($targets[$i] ?? 0);
     $levels = [];
@@ -113,7 +113,7 @@ function pack_create_rule_rows_from_post(): array {
       $levels[] = 3;
     }
 
-    if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+    if ($need === '' || $take <= 0 || !$levels) {
       continue;
     }
 
@@ -189,6 +189,28 @@ function pack_create_badge_file_options(): array {
   return array_values(array_unique($out));
 }
 
+function pack_create_known_needs(PDO $pdo): array {
+  $needs = [];
+  foreach (array_keys(pack_create_rule_templates()) as $templateName) {
+    $needs[normalize_question_need($templateName)] = true;
+  }
+
+  $st = $pdo->query("
+    SELECT DISTINCT TRIM(need) AS need_name
+    FROM questions
+    WHERE need IS NOT NULL AND TRIM(need) <> ''
+    ORDER BY need_name ASC
+  ");
+  foreach (($st ? $st->fetchAll() : []) as $row) {
+    $need = normalize_question_need((string)($row['need_name'] ?? ''));
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+
+  return array_keys($needs);
+}
+
 $error = '';
 $name = '';
 $threshold = 80;
@@ -203,6 +225,7 @@ $badgeImageFilename = 'user-badge-blue.png';
 $isActive = 1;
 $nameColorHex = '#334155';
 $ruleTemplates = pack_create_rule_templates();
+$knownNeeds = pack_create_known_needs($pdo);
 $selectedTemplate = '';
 $ruleRows = [];
 
@@ -324,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
           if (!is_array($row)) {
             continue;
           }
-          $need = strtoupper(trim((string)($row['need'] ?? '')));
+          $need = normalize_question_need((string)($row['need'] ?? ''));
           $take = (int)($row['take'] ?? 0);
           $targetTotal = (int)($row['target_total'] ?? 0);
           $levelsRaw = $row['levels'] ?? [];
@@ -341,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
           $levels = array_values(array_unique($levels));
           sort($levels);
 
-          if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+          if ($need === '' || $take <= 0 || !$levels) {
             continue;
           }
           $parsedRows[] = [
@@ -638,7 +661,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <table class="table questions-table rules-table" id="rule-rows-table">
                 <thead>
                   <tr>
-                    <th>Connaissances requises</th>
+                    <th>Categorie</th>
                     <th>Niveaux</th>
                     <th>Nb de questions (max)</th>
                     <th>
@@ -663,11 +686,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ?>
                     <tr class="rule-row">
                       <td>
-                        <select class="input rule-need" name="rule_need[]">
-                          <?php foreach (['PONE', 'PHM', 'PPM'] as $needOpt): ?>
-                            <option value="<?= h($needOpt) ?>" <?= ($row['need'] ?? '') === $needOpt ? 'selected' : '' ?>><?= h($needOpt) ?></option>
-                          <?php endforeach; ?>
-                        </select>
+                        <input class="input rule-need" name="rule_need[]" list="rule-need-options" maxlength="128" value="<?= h((string)($row['need'] ?? '')) ?>" placeholder="Ex: PHM">
                       </td>
                       <td class="rule-levels-cell">
                         <input type="hidden" class="rule-level-1-input" value="<?= !empty($levelsMap[1]) ? '1' : '0' ?>">
@@ -699,6 +718,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tfoot>
               </table>
             </div>
+            <datalist id="rule-need-options">
+              <?php foreach ($knownNeeds as $needOpt): ?>
+                <option value="<?= h($needOpt) ?>"></option>
+              <?php endforeach; ?>
+            </datalist>
           </section>
         <?php endif; ?>
 
@@ -819,22 +843,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     function buildRowHtml(data) {
-      var need = data.need || 'PONE';
+      var need = String(data.need || 'PONE');
       var take = data.take || 1;
       var targetTotal = data.target_total || 0;
       var levels = Array.isArray(data.levels) ? data.levels : [1];
       var hasL1 = levels.indexOf(1) !== -1;
       var hasL2 = levels.indexOf(2) !== -1;
       var hasL3 = levels.indexOf(3) !== -1;
+      var escapedNeed = need.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
       return '' +
         '<tr class="rule-row">' +
           '<td>' +
-            '<select class="input rule-need">' +
-              '<option value="PONE"' + (need === 'PONE' ? ' selected' : '') + '>PONE</option>' +
-              '<option value="PHM"' + (need === 'PHM' ? ' selected' : '') + '>PHM</option>' +
-              '<option value="PPM"' + (need === 'PPM' ? ' selected' : '') + '>PPM</option>' +
-            '</select>' +
+            '<input class="input rule-need" type="text" list="rule-need-options" maxlength="128" value="' + escapedNeed + '" placeholder="Ex: PHM">' +
           '</td>' +
           '<td class="rule-levels-cell">' +
             '<input type="hidden" class="rule-level-1-input" value="' + (hasL1 ? '1' : '0') + '">' +

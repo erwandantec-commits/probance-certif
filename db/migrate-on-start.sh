@@ -9,6 +9,7 @@ STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-120}"
 DB_START_PID="${DB_START_PID:-}"
 BASELINE_VERSION=2
 LOCK_NAME="certif_schema_migrations_lock"
+migration_files=()
 
 if [[ -z "$ROOT_PASSWORD" ]]; then
   echo "[migrate] MARIADB_ROOT_PASSWORD is required" >&2
@@ -26,11 +27,8 @@ mysql_exec() {
 
 latest_migration_version() {
   local latest_version expected_version filename version_num
-
   latest_version="$BASELINE_VERSION"
   expected_version="$BASELINE_VERSION"
-
-  mapfile -t migration_files < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' | sort -V)
 
   for file in "${migration_files[@]}"; do
     filename="$(basename "$file")"
@@ -51,6 +49,10 @@ latest_migration_version() {
   done
 
   printf '%s\n' "$latest_version"
+}
+
+load_migration_files() {
+  mapfile -t migration_files < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' | sort -V)
 }
 
 echo "[migrate] Waiting for MariaDB to accept connections..."
@@ -79,6 +81,7 @@ release_lock() {
 }
 trap release_lock EXIT
 
+load_migration_files
 EXPECTED_VERSION="$(latest_migration_version)"
 
 mysql_exec "$DB_NAME" -e "

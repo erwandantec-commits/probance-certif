@@ -117,7 +117,11 @@ $cntStmt = $pdo->query("
   GROUP BY q.need, q.level
 ");
 foreach ($cntStmt->fetchAll() as $r) {
-  $counts[strtoupper((string)$r['need'])][(int)$r['level']] = (int)$r['c'];
+  $need = normalize_question_need((string)($r['need'] ?? ''));
+  if ($need === '') {
+    continue;
+  }
+  $counts[$need][(int)$r['level']] = (int)$r['c'];
 }
 
 $legacyStmt = $pdo->query("
@@ -147,11 +151,11 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
 
       $sumAvail = 0;
       foreach ($rules['buckets'] as $b) {
-        $need = strtoupper((string)($b['need'] ?? ''));
+        $need = normalize_question_need((string)($b['need'] ?? ''));
         $take = (int)($b['take'] ?? 0);
         $targetTotal = (int)($b['target_total'] ?? 0);
         $levels = $b['levels'] ?? [];
-        if ($take <= 0 || !in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels)) {
+        if ($take <= 0 || $need === '' || !is_array($levels)) {
           continue;
         }
 

@@ -14,18 +14,6 @@ L'espace admin sert a:
 - analyser la performance des questions
 - administrer les utilisateurs
 
-## Navigation admin
-
-Le menu lateral donne acces aux zones suivantes:
-
-- `Sessions`
-- `Certifications`
-- `Utilisateurs`
-- `Packs`
-- `Questions`
-- `Analyse`
-- `Documentation`
-
 ## Sessions
 
 La page `Sessions` permet de surveiller les passages recents.
@@ -129,18 +117,3 @@ Elle aide a reperer:
 - les effets d'un filtre de dates, pack ou type de session
 
 Le bouton de zoom ouvre ensuite le detail des sessions liees a une question donnee.
-
-## Bonnes pratiques admin
-
-- verifier le contexte avant de modifier une question ou un pack
-- privilegier les filtres pour reduire le bruit visuel
-- consulter le detail d'une session avant de conclure a une anomalie
-- utiliser les vues `Analyse` pour identifier les questions a retravailler
-
-## Resume rapide
-
-L'espace admin permet de superviser l'outil a trois niveaux:
-
-- les candidats
-- le contenu de certification
-- la qualite globale des questions

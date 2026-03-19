@@ -55,7 +55,7 @@ CREATE TABLE packages (
 CREATE TABLE package_rules (
   id INT AUTO_INCREMENT PRIMARY KEY,
   package_id INT NOT NULL,
-  need ENUM('PONE','PHM','PPM') NOT NULL,
+  need VARCHAR(128) NOT NULL,
   min_level TINYINT NOT NULL,
   max_level TINYINT NOT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -82,8 +82,8 @@ CREATE TABLE questions (
   theme VARCHAR(255) NULL,
   category VARCHAR(255) NULL,
   profile VARCHAR(255) NULL,
-  need ENUM('PONE','PHM','PPM') NOT NULL DEFAULT 'PONE',
-  knowledge_required_csv VARCHAR(64) NULL,
+  need VARCHAR(128) NOT NULL DEFAULT 'PONE',
+  knowledge_required_csv VARCHAR(255) NULL,
   level TINYINT NOT NULL DEFAULT 1,
 
   -- SINGLE: 1 choix max

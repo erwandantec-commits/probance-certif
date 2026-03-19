@@ -45,6 +45,40 @@ function package_label_style(string $packageName, ?string $customColor = null): 
   return 'color:' . package_color_hex($packageName, $customColor) . ';font-weight:700;';
 }
 
+function normalize_question_need(?string $value): string {
+  if (!is_string($value)) {
+    return '';
+  }
+  $value = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+  if ($value === '') {
+    return '';
+  }
+  return function_exists('mb_strtoupper')
+    ? mb_strtoupper($value, 'UTF-8')
+    : strtoupper($value);
+}
+
+function parse_question_need_tokens(?string $raw): array {
+  if (!is_string($raw)) {
+    return [];
+  }
+  $parts = preg_split('/[;,\|\/]+/', $raw);
+  if (!is_array($parts)) {
+    return [];
+  }
+
+  $tokens = [];
+  foreach ($parts as $part) {
+    $need = normalize_question_need((string)$part);
+    if ($need === '') {
+      continue;
+    }
+    $tokens[$need] = true;
+  }
+
+  return array_keys($tokens);
+}
+
 function app_build_url(string $path): string {
   return APP_BASE_URL . '/' . ltrim($path, '/');
 }

@@ -43,19 +43,22 @@ function package_edit_package_column_exists(PDO $pdo, string $column): bool {
 }
 
 function package_edit_filter_url(int $id, array $needs, array $needLevels): string {
-  $needs = array_values(array_unique(array_map(
-    static fn($v) => strtoupper(trim((string)$v)),
+  $needs = array_values(array_unique(array_filter(array_map(
+    static fn($v) => normalize_question_need((string)$v),
     $needs
-  )));
-  $needs = array_values(array_filter($needs, static fn($v) => in_array($v, ['PONE', 'PHM', 'PPM'], true)));
+  ), static fn($v) => $v !== '')));
 
   $cleanNeedLevels = [];
   foreach ($needLevels as $pair) {
-    $pair = strtoupper(trim((string)$pair));
-    if (!preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
+    $pair = trim((string)$pair);
+    if (!preg_match('/^(.+):([1-3])$/', $pair, $matches)) {
       continue;
     }
-    $cleanNeedLevels[] = $pair;
+    $need = normalize_question_need($matches[1]);
+    if ($need === '') {
+      continue;
+    }
+    $cleanNeedLevels[] = $need . ':' . (int)$matches[2];
   }
   $cleanNeedLevels = array_values(array_unique($cleanNeedLevels));
 
@@ -132,6 +135,41 @@ function package_rule_templates(): array {
   ];
 }
 
+function package_edit_known_needs(PDO $pdo, array $ruleTemplates, array $ruleRows = []): array {
+  $needs = [];
+
+  foreach ($ruleTemplates as $template) {
+    foreach (($template['buckets'] ?? []) as $bucket) {
+      $need = normalize_question_need((string)($bucket['need'] ?? ''));
+      if ($need !== '') {
+        $needs[$need] = true;
+      }
+    }
+  }
+
+  foreach ($ruleRows as $row) {
+    $need = normalize_question_need((string)($row['need'] ?? ''));
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+
+  $st = $pdo->query("
+    SELECT DISTINCT TRIM(need) AS need_name
+    FROM questions
+    WHERE need IS NOT NULL AND TRIM(need) <> ''
+    ORDER BY need_name ASC
+  ");
+  foreach (($st ? $st->fetchAll() : []) as $row) {
+    $need = normalize_question_need((string)($row['need_name'] ?? ''));
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+
+  return array_keys($needs);
+}
+
 function package_rules_to_rows(array $rules): array {
   $rows = [];
   $buckets = $rules['buckets'] ?? [];
@@ -140,11 +178,11 @@ function package_rules_to_rows(array $rules): array {
   }
   $previousTargetTotal = 0;
   foreach ($buckets as $bucket) {
-    $need = strtoupper(trim((string)($bucket['need'] ?? '')));
+    $need = normalize_question_need((string)($bucket['need'] ?? ''));
     $levels = $bucket['levels'] ?? [];
     $take = (int)($bucket['take'] ?? 0);
     $targetTotal = (int)($bucket['target_total'] ?? 0);
-    if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels) || $take <= 0) {
+    if ($need === '' || !is_array($levels) || $take <= 0) {
       continue;
     }
     $selectedLevels = [];
@@ -205,7 +243,7 @@ function package_rule_rows_from_post(): array {
   $rows = [];
   $total = count($needs);
   for ($i = 0; $i < $total; $i++) {
-    $need = strtoupper(trim((string)($needs[$i] ?? '')));
+    $need = normalize_question_need((string)($needs[$i] ?? ''));
     $take = (int)($takes[$i] ?? 0);
     $targetTotal = (int)($targets[$i] ?? 0);
     $levels = [];
@@ -220,7 +258,7 @@ function package_rule_rows_from_post(): array {
       $levels[] = 3;
     }
 
-    if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+    if ($need === '' || $take <= 0 || !$levels) {
       continue;
     }
 
@@ -304,8 +342,8 @@ if (!is_array($rawNeeds)) {
 }
 $filterNeeds = [];
 foreach ($rawNeeds as $needRaw) {
-  $need = strtoupper(trim((string)$needRaw));
-  if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
+  $need = normalize_question_need((string)$needRaw);
+  if ($need !== '') {
     $filterNeeds[] = $need;
   }
 }
@@ -331,26 +369,26 @@ if (!is_array($rawNeedLevels)) {
 }
 $filterNeedLevels = [];
 foreach ($rawNeedLevels as $pairRaw) {
-  $pair = strtoupper(trim((string)$pairRaw));
-  if (preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
-    $filterNeedLevels[] = $pair;
+  $pair = trim((string)$pairRaw);
+  if (preg_match('/^(.+):([1-3])$/', $pair, $matches)) {
+    $need = normalize_question_need($matches[1]);
+    if ($need !== '') {
+      $filterNeedLevels[] = $need . ':' . (int)$matches[2];
+    }
   }
 }
 $filterNeedLevels = array_values(array_unique($filterNeedLevels));
 
 // backward compatibility with old single filter params
 $legacyNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
-if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true) && empty($filterNeeds)) {
+$legacyNeed = normalize_question_need($legacyNeed);
+if ($legacyNeed !== '' && empty($filterNeeds)) {
   $filterNeeds[] = $legacyNeed;
 }
 $legacyLevel = (int)($_GET['level'] ?? 0);
 if ($legacyLevel >= 1 && $legacyLevel <= 3 && empty($filterNeedLevels)) {
-  if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true)) {
+  if ($legacyNeed !== '') {
     $filterNeedLevels[] = $legacyNeed . ':' . $legacyLevel;
-  } else {
-    foreach (['PONE', 'PHM', 'PPM'] as $legacyAnyNeed) {
-      $filterNeedLevels[] = $legacyAnyNeed . ':' . $legacyLevel;
-    }
   }
 }
 if (empty($filterNeedLevels) && !empty($filterNeeds) && !empty($legacyFilterLevels)) {
@@ -459,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
           if (!is_array($row)) {
             continue;
           }
-          $need = strtoupper(trim((string)($row['need'] ?? '')));
+          $need = normalize_question_need((string)($row['need'] ?? ''));
           $take = (int)($row['take'] ?? 0);
           $targetTotal = (int)($row['target_total'] ?? 0);
           $levelsRaw = $row['levels'] ?? [];
@@ -476,7 +514,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
           $levels = array_values(array_unique($levels));
           sort($levels);
 
-          if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+          if ($need === '' || $take <= 0 || !$levels) {
             continue;
           }
           $parsedRows[] = [
@@ -518,16 +556,23 @@ if (empty($allowedByNeed)) {
   ];
 }
 
+$knownNeeds = package_edit_known_needs($pdo, $ruleTemplates, $ruleRows);
+foreach ($knownNeeds as $knownNeed) {
+  if (!isset($allowedByNeed[$knownNeed])) {
+    $allowedByNeed[$knownNeed] = [1 => true, 2 => true, 3 => true];
+  }
+}
+ksort($allowedByNeed);
+
 $filterNeeds = array_values(array_filter(
   $filterNeeds,
   static fn(string $need): bool => isset($allowedByNeed[$need])
 ));
 
-$dist = [
-  'PONE' => [1 => 0, 2 => 0, 3 => 0],
-  'PHM' => [1 => 0, 2 => 0, 3 => 0],
-  'PPM' => [1 => 0, 2 => 0, 3 => 0],
-];
+$dist = [];
+foreach (array_keys($allowedByNeed) as $needName) {
+  $dist[$needName] = [1 => 0, 2 => 0, 3 => 0];
+}
 
 $distStmt = $pdo->prepare("
   SELECT need, knowledge_required_csv, level
@@ -540,7 +585,7 @@ foreach ($distStmt->fetchAll() as $r) {
     continue;
   }
   $tokens = [];
-  $fallbackNeed = strtoupper((string)($r['need'] ?? 'PONE'));
+  $fallbackNeed = normalize_question_need((string)($r['need'] ?? ''));
   if (isset($dist[$fallbackNeed])) {
     $tokens[$fallbackNeed] = true;
   }
@@ -996,7 +1041,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
               <table class="table questions-table rules-table" id="rule-rows-table">
                 <thead>
                   <tr>
-                    <th>Connaissances requises</th>
+                    <th>Categorie</th>
                     <th>Niveaux</th>
                     <th>Nb de questions (max)</th>
                     <th>
@@ -1021,11 +1066,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     ?>
                     <tr class="rule-row">
                       <td>
-                        <select class="input rule-need" name="rule_need[]">
-                          <?php foreach (['PONE', 'PHM', 'PPM'] as $needOpt): ?>
-                            <option value="<?= h($needOpt) ?>" <?= ($row['need'] ?? '') === $needOpt ? 'selected' : '' ?>><?= h($needOpt) ?></option>
-                          <?php endforeach; ?>
-                        </select>
+                        <input class="input rule-need" name="rule_need[]" list="rule-need-options" maxlength="128" value="<?= h((string)($row['need'] ?? '')) ?>" placeholder="Ex: PHM">
                       </td>
                       <td class="rule-levels-cell">
                         <input type="hidden" class="rule-level-1-input" value="<?= !empty($levelsMap[1]) ? '1' : '0' ?>">
@@ -1057,6 +1098,11 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                 </tfoot>
               </table>
             </div>
+            <datalist id="rule-need-options">
+              <?php foreach ($knownNeeds as $needOpt): ?>
+                <option value="<?= h($needOpt) ?>"></option>
+              <?php endforeach; ?>
+            </datalist>
           </section>
         <?php endif; ?>
 
@@ -1073,11 +1119,11 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
       </div>
       <p class="small">
-        R&eacute;partition par connaissances requises et niveau (banque globale, utilis&eacute;e pour le tirage de ce pack).
+        R&eacute;partition par outil concern&eacute; et niveau (banque globale, utilis&eacute;e pour le tirage de ce pack).
         <?php if (!empty($filterNeeds) || !empty($filterNeedLevels)): ?>
           <span class="small" style="margin-left:8px;">
             Filtre:
-            <b><?= h(!empty($filterNeeds) ? implode(', ', $filterNeeds) : 'Tous besoins') ?></b>
+            <b><?= h(!empty($filterNeeds) ? implode(', ', $filterNeeds) : 'Tous outils') ?></b>
             <?php if (!empty($filterNeedLevels)): ?>
               <?php
                 $pairLabels = [];
@@ -1094,8 +1140,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       </p>
 
 	      <div class="distribution-grid" style="margin-top:10px;">
-	        <?php foreach (['PONE', 'PHM', 'PPM'] as $need): ?>
-          <?php if (!isset($allowedByNeed[$need])) continue; ?>
+	        <?php foreach (array_keys($allowedByNeed) as $need): ?>
           <?php
             $needIsActive = in_array($need, $filterNeeds, true);
             $nextNeeds = $filterNeeds;
@@ -1151,12 +1196,12 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         <?php if (!$questions): ?>
           <p class="empty-state">Aucune question dans la banque pour ce filtre.</p>
         <?php else: ?>
-          <table class="table questions-table package-questions-table">
+	          <table class="table questions-table package-questions-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>&Eacute;nonc&eacute;</th>
-	                <th>Connaissances requises</th>
+	                <th>Categorie</th>
 	                <th>Niveau</th>
                 <th>Type</th>
                 <th>Options</th>
@@ -1391,22 +1436,19 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     }
 
     function buildRowHtml(data) {
-      var need = data.need || 'PONE';
+      var need = String(data.need || 'PONE');
       var take = data.take || 1;
       var targetTotal = data.target_total || 0;
       var levels = Array.isArray(data.levels) ? data.levels : [1];
       var hasL1 = levels.indexOf(1) !== -1;
       var hasL2 = levels.indexOf(2) !== -1;
       var hasL3 = levels.indexOf(3) !== -1;
+      var escapedNeed = need.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
       return '' +
         '<tr class="rule-row">' +
           '<td>' +
-            '<select class="input rule-need">' +
-              '<option value="PONE"' + (need === 'PONE' ? ' selected' : '') + '>PONE</option>' +
-              '<option value="PHM"' + (need === 'PHM' ? ' selected' : '') + '>PHM</option>' +
-              '<option value="PPM"' + (need === 'PPM' ? ' selected' : '') + '>PPM</option>' +
-            '</select>' +
+            '<input class="input rule-need" type="text" list="rule-need-options" maxlength="128" value="' + escapedNeed + '" placeholder="Ex: PHM">' +
           '</td>' +
           '<td class="rule-levels-cell">' +
             '<input type="hidden" class="rule-level-1-input" value="' + (hasL1 ? '1' : '0') + '">' +
