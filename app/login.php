@@ -4,6 +4,8 @@ require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
 
+header('Content-Type: text/html; charset=UTF-8');
+
 $pdo = db();
 $lang = get_lang();
 $errorKey = '';
