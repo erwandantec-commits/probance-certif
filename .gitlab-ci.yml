@@ -1,7 +1,8 @@
 stages:
   - build
+  - deploy
 
-build-compose:
+build-image:
   stage: build
   image: docker:latest
   services:
@@ -9,4 +10,22 @@ build-compose:
   variables:
     DOCKER_TLS_CERTDIR: ""
   script:
-    - docker compose build
+    - docker info
+    - docker build -t my-image .
+  only:
+    - main
+
+deploy-rsync:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache rsync openssh-client bash
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
+  script:
+    - chmod +x ./deploy.sh
+    - ./deploy.sh
+  only:
+    - main
