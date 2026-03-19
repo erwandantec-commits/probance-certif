@@ -4,6 +4,191 @@ require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
 
+function help_fallback_markdown(string $lang): string {
+  return match ($lang) {
+    'en' => <<<'MD'
+# User guide
+
+## Purpose
+
+This area lets you:
+
+- sign in to your account
+- launch a certification or training session
+- answer questions within a limited time
+- review your result and history
+
+## Dashboard
+
+From the dashboard you can:
+
+- choose a certification package
+- choose a session mode
+- start a new session
+- resume an active session
+- review your latest sessions
+
+## Session modes
+
+### Certification
+
+Official mode. The result is recorded and may validate your certification.
+
+### Training
+
+Practice mode. It helps you train before taking the official certification.
+
+## Results
+
+At the end of a session you can review:
+
+- the score
+- the status
+- the certification concerned
+- the result obtained
+
+## Need help?
+
+If something looks blocked, contact an administrator.
+MD,
+    'es' => <<<'MD'
+# Guia del usuario
+
+## Objetivo
+
+Este espacio te permite:
+
+- iniciar sesion
+- lanzar una certificacion o un entrenamiento
+- responder preguntas en un tiempo limitado
+- consultar el resultado y el historial
+
+## Panel principal
+
+Desde el panel puedes:
+
+- elegir un paquete de certificacion
+- elegir un modo de sesion
+- iniciar una nueva sesion
+- retomar una sesion activa
+- consultar las ultimas sesiones
+
+## Modos de sesion
+
+### Certificacion
+
+Modo oficial. El resultado se guarda y puede validar tu certificacion.
+
+### Entrenamiento
+
+Modo de practica. Te ayuda a prepararte antes del examen oficial.
+
+## Resultados
+
+Al final de una sesion puedes consultar:
+
+- la puntuacion
+- el estado
+- la certificacion correspondiente
+- el resultado obtenido
+
+## Necesitas ayuda?
+
+Si algo parece bloqueado, contacta con un administrador.
+MD,
+    'jp' => <<<'MD'
+# ユーザーガイド
+
+## この画面でできること
+
+このスペースでは次の操作ができます。
+
+- ログイン
+- 認定またはトレーニングの開始
+- 制限時間内での回答
+- 結果と履歴の確認
+
+## ダッシュボード
+
+ダッシュボードでは次の操作ができます。
+
+- 認定パッケージの選択
+- セッションモードの選択
+- 新しいセッションの開始
+- 進行中セッションの再開
+- 最近のセッションの確認
+
+## セッションモード
+
+### 認定
+
+公式モードです。結果は保存され、認定の判定に使われます。
+
+### トレーニング
+
+練習用モードです。本番前の学習に使えます。
+
+## 結果
+
+セッション終了後、次の情報を確認できます。
+
+- スコア
+- 状態
+- 対象の認定
+- 合否結果
+
+## 困ったとき
+
+画面がブロックされているように見える場合は、管理者に連絡してください。
+MD,
+    default => <<<'MD'
+# Guide utilisateur
+
+## A quoi sert cet espace
+
+Cet espace permet de :
+
+- te connecter
+- lancer une certification ou un entrainement
+- repondre aux questions dans un temps limite
+- consulter ton resultat et ton historique
+
+## Tableau de bord
+
+Depuis le tableau de bord, tu peux :
+
+- choisir une certification
+- choisir un mode de session
+- lancer une nouvelle session
+- reprendre une session en cours
+- consulter tes dernieres sessions
+
+## Modes de session
+
+### Certification
+
+Mode officiel. Le resultat est enregistre et peut valider ta certification.
+
+### Entrainement
+
+Mode de pratique. Il permet de t'exercer avant la certification officielle.
+
+## Resultat
+
+A la fin d'une session, tu peux consulter :
+
+- le score
+- le statut
+- la certification concernee
+- le resultat obtenu
+
+## Besoin d'aide ?
+
+Si quelque chose semble bloque, contacte un administrateur.
+MD,
+  };
+}
+
 $user = require_auth();
 $lang = get_lang();
 $guideSuffix = match ($lang) {
@@ -27,6 +212,9 @@ foreach ($guidePaths as $guidePath) {
     break;
   }
 }
+if ($guideMarkdown === '') {
+  $guideMarkdown = help_fallback_markdown($lang);
+}
 
 $docSections = [];
 if ($guideMarkdown !== '' && preg_match_all('/^##\s+(.+)$/m', $guideMarkdown, $matches)) {
@@ -41,9 +229,7 @@ if ($guideMarkdown !== '' && preg_match_all('/^##\s+(.+)$/m', $guideMarkdown, $m
   }
 }
 
-$guideHtml = $guideMarkdown !== ''
-  ? app_markdown_to_html($guideMarkdown)
-  : '<p class="empty-state">Le guide utilisateur est indisponible pour le moment.</p>';
+$guideHtml = app_markdown_to_html($guideMarkdown);
 
 $helpTitle = match ($lang) {
   'en' => 'User Help',
