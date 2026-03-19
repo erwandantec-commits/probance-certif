@@ -27,5 +27,6 @@ deploy-rsync:
   script:
     - chmod +x ./deploy.sh
     - ./deploy.sh
-  only:
-    - main
+# we allow the pipeline to run on Dev for the meantime
+#  only:
+#    - main
