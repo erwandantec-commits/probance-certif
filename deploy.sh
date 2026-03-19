@@ -6,7 +6,6 @@ RSYNC_PARAM=(
   --itemize-changes
   --dry-run
   --delete
-  --delete-excluded
   --exclude='.*'
   --exclude='*.md'
   --exclude='deploy.sh'
