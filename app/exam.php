@@ -149,15 +149,17 @@ sort($selectedIds);
 sort($correctIds);
 $isQuestionCorrect = ($selectedIds === $correctIds);
 $hasAnyCorrectSelection = false;
+$hasAnyWrongSelection = false;
 if ($effectiveQType === 'MULTI' && $selectedIds !== []) {
   foreach ($selectedIds as $selectedId) {
     if (in_array($selectedId, $correctIds, true)) {
       $hasAnyCorrectSelection = true;
-      break;
+    } else {
+      $hasAnyWrongSelection = true;
     }
   }
 }
-$isIncompleteTrainingAnswer = $showFeedback && $isTraining && $effectiveQType === 'MULTI' && !$isQuestionCorrect && $hasAnyCorrectSelection;
+$isIncompleteTrainingAnswer = $showFeedback && $isTraining && $effectiveQType === 'MULTI' && !$isQuestionCorrect && $hasAnyCorrectSelection && !$hasAnyWrongSelection;
 $feedbackClass = $isQuestionCorrect ? 'exam-feedback exam-feedback-ok' : ($isIncompleteTrainingAnswer ? 'exam-feedback exam-feedback-partial' : 'exam-feedback exam-feedback-bad');
 $feedbackKey = $isQuestionCorrect ? 'exam.feedback.correct' : ($isIncompleteTrainingAnswer ? 'exam.feedback.partial' : 'exam.feedback.incorrect');
 
