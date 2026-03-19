@@ -6,3 +6,4 @@ vendor/
 dbdata/
 data/
 backups/
+.tmp_*
