@@ -1,1 +1,6 @@
-stages: []
+stages:
+  - build
+
+build:
+  script:
+    - echo "Test Pipeline"
