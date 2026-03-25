@@ -57,6 +57,154 @@ function table_column_exists(PDO $pdo, string $table, string $column): bool {
   return $cache[$cacheKey];
 }
 
+function session_question_snapshots_enabled(PDO $pdo): bool {
+  return table_column_exists($pdo, 'session_questions', 'question_text_snapshot')
+    && table_column_exists($pdo, 'session_questions', 'correct_option_labels_snapshot')
+    && table_column_exists($pdo, 'session_questions', 'answer_status_snapshot');
+}
+
+function answer_option_snapshots_enabled(PDO $pdo): bool {
+  return table_column_exists($pdo, 'answer_options', 'session_question_id')
+    && table_column_exists($pdo, 'answer_options', 'option_label_snapshot')
+    && table_column_exists($pdo, 'answer_options', 'option_text_snapshot');
+}
+
+function session_question_picked_labels_expr(PDO $pdo, string $sessionQuestionAlias = 'sq'): string {
+  if (!table_column_exists($pdo, 'answer_options', 'session_question_id')) {
+    return "
+      (
+        SELECT GROUP_CONCAT(qo2.label ORDER BY qo2.label SEPARATOR ',')
+        FROM answer_options ao
+        JOIN question_options qo2 ON qo2.id = ao.option_id
+        WHERE ao.session_id = {$sessionQuestionAlias}.session_id
+          AND ao.question_id = {$sessionQuestionAlias}.question_id
+      )
+    ";
+  }
+  return "
+    (
+      SELECT GROUP_CONCAT(
+        COALESCE(NULLIF(TRIM(ao.option_label_snapshot), ''), qo2.label)
+        ORDER BY COALESCE(NULLIF(TRIM(ao.option_label_snapshot), ''), qo2.label)
+        SEPARATOR ','
+      )
+      FROM answer_options ao
+      LEFT JOIN question_options qo2 ON qo2.id = ao.option_id
+      WHERE ao.session_question_id = {$sessionQuestionAlias}.id
+         OR (
+           ao.session_question_id IS NULL
+           AND ao.session_id = {$sessionQuestionAlias}.session_id
+           AND ao.question_id = {$sessionQuestionAlias}.question_id
+         )
+    )
+  ";
+}
+
+function build_session_question_answer_status(string $pickedLabels, string $correctLabels): string {
+  if ($pickedLabels === '') {
+    return 'UNANSWERED';
+  }
+  return ($pickedLabels === $correctLabels) ? 'OK' : 'KO';
+}
+
+function session_question_snapshot_payload(PDO $pdo, int $questionId): ?array {
+  $st = $pdo->prepare("
+    SELECT
+      q.id,
+      q.external_id,
+      q.text,
+      q.explanation,
+      q.question_type,
+      q.allow_skip,
+      q.updated_at,
+      (
+        SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
+        FROM question_options qo
+        WHERE qo.question_id = q.id
+          AND qo.is_correct = 1
+      ) AS correct_option_labels_snapshot
+    FROM questions q
+    WHERE q.id = ?
+    LIMIT 1
+  ");
+  $st->execute([$questionId]);
+  $row = $st->fetch();
+  return $row ?: null;
+}
+
+function create_session_question(PDO $pdo, string $sessionId, int $questionId, int $position): int {
+  if (!session_question_snapshots_enabled($pdo)) {
+    $ins = $pdo->prepare("INSERT INTO session_questions(session_id, question_id, position) VALUES(?,?,?)");
+    $ins->execute([$sessionId, $questionId, $position]);
+    return (int)$pdo->lastInsertId();
+  }
+
+  $snapshot = session_question_snapshot_payload($pdo, $questionId);
+  if (!$snapshot) {
+    throw new RuntimeException('Question snapshot not found for question #' . $questionId);
+  }
+
+  $ins = $pdo->prepare("
+    INSERT INTO session_questions(
+      session_id,
+      question_id,
+      position,
+      question_external_id_snapshot,
+      question_text_snapshot,
+      question_explanation_snapshot,
+      question_type_snapshot,
+      allow_skip_snapshot,
+      correct_option_labels_snapshot,
+      question_updated_at_snapshot,
+      answer_status_snapshot
+    )
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)
+  ");
+  $ins->execute([
+    $sessionId,
+    $questionId,
+    $position,
+    $snapshot['external_id'] !== null ? (int)$snapshot['external_id'] : null,
+    (string)$snapshot['text'],
+    $snapshot['explanation'] !== null ? (string)$snapshot['explanation'] : null,
+    (string)($snapshot['question_type'] ?? 'MULTI'),
+    (int)($snapshot['allow_skip'] ?? 0),
+    (string)($snapshot['correct_option_labels_snapshot'] ?? ''),
+    $snapshot['updated_at'] !== null ? (string)$snapshot['updated_at'] : null,
+    'UNANSWERED',
+  ]);
+  return (int)$pdo->lastInsertId();
+}
+
+function refresh_session_question_answer_status(PDO $pdo, int $sessionQuestionId): string {
+  if ($sessionQuestionId <= 0 || !session_question_snapshots_enabled($pdo)) {
+    return 'UNANSWERED';
+  }
+
+  $st = $pdo->prepare("
+    SELECT
+      sq.id,
+      COALESCE(sq.correct_option_labels_snapshot, '') AS correct_labels,
+      " . session_question_picked_labels_expr($pdo, 'sq') . " AS picked_labels
+    FROM session_questions sq
+    WHERE sq.id = ?
+    LIMIT 1
+  ");
+  $st->execute([$sessionQuestionId]);
+  $row = $st->fetch();
+  if (!$row) {
+    return 'UNANSWERED';
+  }
+
+  $pickedLabels = trim((string)($row['picked_labels'] ?? ''));
+  $correctLabels = trim((string)($row['correct_labels'] ?? ''));
+  $status = build_session_question_answer_status($pickedLabels, $correctLabels);
+
+  $up = $pdo->prepare("UPDATE session_questions SET answer_status_snapshot=? WHERE id=?");
+  $up->execute([$status, $sessionQuestionId]);
+  return $status;
+}
+
 function compute_package_selection_target(array $pkg, int $eligibleCount): int {
   $mode = strtoupper(trim((string)($pkg['selection_mode'] ?? 'COUNT')));
   if ($mode === 'PERCENT') {
@@ -402,6 +550,25 @@ function compute_session_score_snapshot(PDO $pdo, string $sessionId): array {
   ");
   $maxStmt->execute([$sessionId]);
   $maxPoints = (int)($maxStmt->fetch()['max_points'] ?? 0);
+
+  if (session_question_snapshots_enabled($pdo)) {
+    $rawStmt = $pdo->prepare("
+      SELECT COUNT(*) AS raw_score
+      FROM session_questions
+      WHERE session_id=?
+        AND answer_status_snapshot='OK'
+    ");
+    $rawStmt->execute([$sessionId]);
+    $rawScore = (int)($rawStmt->fetch()['raw_score'] ?? 0);
+
+    $scorePercent = compute_score_percent_from_raw($rawScore, $maxPoints);
+
+    return [
+      'raw_score' => $rawScore,
+      'max_points' => $maxPoints,
+      'score_percent' => $scorePercent,
+    ];
+  }
 
   // Raw score follows exact-match business rules:
   // +1 if all and only correct answers are selected for a question, otherwise 0.

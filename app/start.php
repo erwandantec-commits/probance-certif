@@ -180,9 +180,8 @@ try {
   create_session_record($pdo, $session_id, $contact_id, $uid, $package_id, $session_type, $lang);
 
   $pos = 1;
-  $insq = $pdo->prepare("INSERT INTO session_questions(session_id, question_id, position) VALUES(?,?,?)");
   foreach ($qids as $qid) {
-    $insq->execute([$session_id, (int)$qid, $pos++]);
+    create_session_question($pdo, $session_id, (int)$qid, $pos++);
   }
 
   if ($cooldownOverrideId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {

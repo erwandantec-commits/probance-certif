@@ -5,6 +5,7 @@ require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
+require_once __DIR__ . '/../services/session_service.php';
 $pdo = db();
 
 function admin_perf_safe_return(?string $candidate): string {
@@ -88,20 +89,56 @@ $resultLabel = match ($answerStatus) {
   default => 'resultats',
 };
 
-$perfSql = "
-  FROM (
-    SELECT
-      sq.session_id,
-      sq.question_id,
-      CASE
+$hasAnswerStatusSnapshot = table_column_exists($pdo, 'session_questions', 'answer_status_snapshot');
+$hasCorrectSnapshot = table_column_exists($pdo, 'session_questions', 'correct_option_labels_snapshot');
+$answerStatusExpr = $hasAnswerStatusSnapshot
+  ? "COALESCE(sq.answer_status_snapshot, 'UNANSWERED')"
+  : "CASE
         WHEN COALESCE(ans.selected_correct_count, 0) = qstats.correct_count
          AND COALESCE(ans.selected_total_count, 0) = qstats.correct_count
         THEN 'OK'
         WHEN COALESCE(ans.selected_total_count, 0) = 0 THEN 'UNANSWERED'
         ELSE 'KO'
-      END AS answer_status
+      END";
+$correctLabelsExpr = $hasCorrectSnapshot
+  ? "COALESCE((
+      SELECT sqsnap.correct_option_labels_snapshot
+      FROM session_questions sqsnap
+      WHERE sqsnap.id = perf.session_question_id
+      LIMIT 1
+    ), (
+      SELECT GROUP_CONCAT(qo3.label ORDER BY qo3.label SEPARATOR ',')
+      FROM question_options qo3
+      WHERE qo3.question_id = perf.question_id AND qo3.is_correct = 1
+    ))"
+  : "(
+      SELECT GROUP_CONCAT(qo3.label ORDER BY qo3.label SEPARATOR ',')
+      FROM question_options qo3
+      WHERE qo3.question_id = perf.question_id AND qo3.is_correct = 1
+    )";
+$pickedLabelsExpr = "
+  (
+    SELECT GROUP_CONCAT(
+      COALESCE(NULLIF(TRIM(ao.option_label_snapshot), ''), qo2.label)
+      ORDER BY COALESCE(NULLIF(TRIM(ao.option_label_snapshot), ''), qo2.label)
+      SEPARATOR ','
+    )
+    FROM answer_options ao
+    LEFT JOIN question_options qo2 ON qo2.id = ao.option_id
+    WHERE ao.session_question_id = perf.session_question_id
+       OR (ao.session_question_id IS NULL AND ao.session_id = s.id AND ao.question_id = perf.question_id)
+  )";
+
+$perfSql = "
+  FROM (
+    SELECT
+      sq.session_id,
+      sq.id AS session_question_id,
+      sq.question_id,
+      $answerStatusExpr AS answer_status
     FROM session_questions sq
     JOIN sessions s0 ON s0.id = sq.session_id
+    " . ($hasAnswerStatusSnapshot ? "" : "
     JOIN (
       SELECT
         qo.question_id,
@@ -119,6 +156,7 @@ $perfSql = "
       JOIN question_options qo ON qo.id = ao.option_id
       GROUP BY ao.session_id, ao.question_id
     ) ans ON ans.session_id = sq.session_id AND ans.question_id = sq.question_id
+    ") . "
     WHERE $whereSql
   ) perf
   JOIN sessions s ON s.id = perf.session_id
@@ -206,17 +244,8 @@ $stmt = $pdo->prepare("
     c.email,
     pk.name AS package_name,
     pk.name_color_hex AS package_color_hex,
-    (
-      SELECT GROUP_CONCAT(qo2.label ORDER BY qo2.label SEPARATOR ',')
-      FROM answer_options ao
-      JOIN question_options qo2 ON qo2.id = ao.option_id
-      WHERE ao.session_id = s.id AND ao.question_id = q.id
-    ) AS picked_labels,
-    (
-      SELECT GROUP_CONCAT(qo3.label ORDER BY qo3.label SEPARATOR ',')
-      FROM question_options qo3
-      WHERE qo3.question_id = q.id AND qo3.is_correct = 1
-    ) AS correct_labels
+    $pickedLabelsExpr AS picked_labels,
+    $correctLabelsExpr AS correct_labels
   $perfSql
   ORDER BY s.started_at DESC, s.id DESC
   LIMIT ? OFFSET ?

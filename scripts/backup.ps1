@@ -1,7 +1,7 @@
 param(
     [switch]$IncludeDataSnapshot,
     [switch]$StopDbForDataSnapshot,
-    [int]$KeepDays = 14,
+    [int]$KeepCount = 3,
     [switch]$DryRun
 )
 
@@ -54,18 +54,26 @@ function Invoke-CheckedCommand {
 }
 
 function Remove-OldBackups {
-    if ($KeepDays -lt 0) {
-        throw "KeepDays must be >= 0."
+    if ($KeepCount -lt 0) {
+        throw "KeepCount must be >= 0."
     }
 
-    $cutoff = (Get-Date).AddDays(-$KeepDays)
-    $oldFiles = Get-ChildItem -LiteralPath $backupDir -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.LastWriteTime -lt $cutoff }
+    $patterns = @(
+        "certif-app-*.zip",
+        "certif-db-*.sql",
+        "certif-data-*.zip"
+    )
 
-    foreach ($file in $oldFiles) {
-        Write-Host ("Remove old backup: " + $file.FullName)
-        if (-not $DryRun) {
-            Remove-Item -LiteralPath $file.FullName -Force
+    foreach ($pattern in $patterns) {
+        $oldFiles = Get-ChildItem -LiteralPath $backupDir -Filter $pattern -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -Skip $KeepCount
+
+        foreach ($file in $oldFiles) {
+            Write-Host ("Remove old backup: " + $file.FullName)
+            if (-not $DryRun) {
+                Remove-Item -LiteralPath $file.FullName -Force
+            }
         }
     }
 }

@@ -168,42 +168,48 @@ if ($heroProfile === '') {
   $heroProfile = localize_text((string)($s['package_name'] ?? ''), $lang);
 }
 
+$hasQuestionTextSnapshot = table_column_exists($pdo, 'session_questions', 'question_text_snapshot');
+$hasCorrectLabelsSnapshot = table_column_exists($pdo, 'session_questions', 'correct_option_labels_snapshot');
+$hasAnswerStatusSnapshot = table_column_exists($pdo, 'session_questions', 'answer_status_snapshot');
+$hasQuestionUpdatedSnapshot = table_column_exists($pdo, 'session_questions', 'question_updated_at_snapshot');
+$reviewTextExpr = $hasQuestionTextSnapshot
+  ? "COALESCE(sq.question_text_snapshot, q.text) AS text"
+  : "q.text AS text";
+$reviewCorrectLabelsExpr = $hasCorrectLabelsSnapshot
+  ? "COALESCE(sq.correct_option_labels_snapshot, (
+      SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
+      FROM question_options qo
+      WHERE qo.question_id = q.id AND qo.is_correct = 1
+    )) AS correct_labels"
+  : "(
+      SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
+      FROM question_options qo
+      WHERE qo.question_id = q.id AND qo.is_correct = 1
+    ) AS correct_labels";
+$reviewAnswerStatusExpr = $hasAnswerStatusSnapshot
+  ? "sq.answer_status_snapshot"
+  : "NULL AS answer_status_snapshot";
+$reviewQuestionUpdatedExpr = $hasQuestionUpdatedSnapshot
+  ? "sq.question_updated_at_snapshot"
+  : "NULL AS question_updated_at_snapshot";
+
 if ($canShowReview) {
   $reviewStmt = $pdo->prepare("
     SELECT
+      sq.id AS session_question_id,
       sq.position,
       q.id AS question_id,
-      q.text,
-      (
-        SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
-        FROM question_options qo
-        WHERE qo.question_id = q.id AND qo.is_correct = 1
-      ) AS correct_labels,
-      (
-        SELECT GROUP_CONCAT(qo2.label ORDER BY qo2.label SEPARATOR ',')
-        FROM answer_options ao
-        JOIN question_options qo2 ON qo2.id = ao.option_id
-        WHERE ao.session_id = sq.session_id AND ao.question_id = q.id
-      ) AS picked_labels,
-      (
-        SELECT GROUP_CONCAT(qo.id ORDER BY qo.id SEPARATOR ',')
-        FROM question_options qo
-        WHERE qo.question_id = q.id AND qo.is_correct = 1
-      ) AS correct_ids,
-      (
-        SELECT GROUP_CONCAT(ao.option_id ORDER BY ao.option_id SEPARATOR ',')
-        FROM answer_options ao
-        WHERE ao.session_id = sq.session_id AND ao.question_id = q.id
-      ) AS picked_ids
+      $reviewTextExpr,
+      $reviewCorrectLabelsExpr,
+      " . session_question_picked_labels_expr($pdo, 'sq') . " AS picked_labels,
+      $reviewAnswerStatusExpr,
+      $reviewQuestionUpdatedExpr,
+      q.updated_at AS current_question_updated_at,
+      CASE WHEN q.id IS NULL THEN 1 ELSE 0 END AS is_question_deleted
     FROM session_questions sq
-    JOIN questions q ON q.id = sq.question_id
+    LEFT JOIN questions q ON q.id = sq.question_id
     WHERE sq.session_id=?
-      AND EXISTS (
-        SELECT 1
-        FROM answer_options ao
-        WHERE ao.session_id = sq.session_id
-          AND ao.question_id = q.id
-      )
+      AND " . session_question_picked_labels_expr($pdo, 'sq') . " IS NOT NULL
     ORDER BY sq.position ASC
   ");
   $reviewStmt->execute([$sid]);
@@ -220,7 +226,15 @@ if ($canShowReview) {
 
   if ($selectedReviewItem) {
     $selectedQuestionId = (int)($selectedReviewItem['question_id'] ?? 0);
-    if ($selectedQuestionId > 0) {
+    $snapshotUpdatedAt = trim((string)($selectedReviewItem['question_updated_at_snapshot'] ?? ''));
+    $currentUpdatedAt = trim((string)($selectedReviewItem['current_question_updated_at'] ?? ''));
+    $selectedQuestionModified = (
+      (int)($selectedReviewItem['is_question_deleted'] ?? 0) !== 1
+      && $snapshotUpdatedAt !== ''
+      && $currentUpdatedAt !== ''
+      && strtotime($currentUpdatedAt) > strtotime($snapshotUpdatedAt)
+    );
+    if ($selectedQuestionId > 0 && !$selectedQuestionModified && (int)($selectedReviewItem['is_question_deleted'] ?? 0) !== 1) {
       $selectedOptionsStmt = $pdo->prepare("
         SELECT
           qo.id,
@@ -369,23 +383,27 @@ if ($canShowReview) {
                 </a>
               </div>
               <div style="margin-top:12px;">
-                <?php foreach ($selectedReviewOptions as $selectedOption): ?>
-                  <?php
-                    $selectedOptionClass = 'exam-option';
-                    $selectedOptionIsCorrect = (int)($selectedOption['is_correct'] ?? 0) === 1;
-                    $selectedOptionIsPicked = (int)($selectedOption['is_picked'] ?? 0) === 1;
-                    if ($selectedOptionIsCorrect) {
-                      $selectedOptionClass .= ' is-correct';
-                    } elseif ($selectedOptionIsPicked) {
-                      $selectedOptionClass .= ' is-wrong';
-                    }
-                  ?>
-                  <label class="<?= h($selectedOptionClass) ?>" style="cursor:default;">
-                    <input type="<?= h($selectedInputType) ?>" <?= $selectedOptionIsPicked ? 'checked' : '' ?> disabled>
-                    <b style="margin-left:8px;"><?= h((string)$selectedOption['label']) ?>.</b>
-                    <span style="margin-left:6px;"><?= h(localize_text((string)$selectedOption['option_text'], $lang)) ?></span>
-                  </label>
-                <?php endforeach; ?>
+                <?php if (!$selectedReviewOptions): ?>
+                  <p class="small" style="margin:0;">Le détail des options n'est plus disponible car la question a été modifiée ou supprimée depuis la session.</p>
+                <?php else: ?>
+                  <?php foreach ($selectedReviewOptions as $selectedOption): ?>
+                    <?php
+                      $selectedOptionClass = 'exam-option';
+                      $selectedOptionIsCorrect = (int)($selectedOption['is_correct'] ?? 0) === 1;
+                      $selectedOptionIsPicked = (int)($selectedOption['is_picked'] ?? 0) === 1;
+                      if ($selectedOptionIsCorrect) {
+                        $selectedOptionClass .= ' is-correct';
+                      } elseif ($selectedOptionIsPicked) {
+                        $selectedOptionClass .= ' is-wrong';
+                      }
+                    ?>
+                    <label class="<?= h($selectedOptionClass) ?>" style="cursor:default;">
+                      <input type="<?= h($selectedInputType) ?>" <?= $selectedOptionIsPicked ? 'checked' : '' ?> disabled>
+                      <b style="margin-left:8px;"><?= h((string)$selectedOption['label']) ?>.</b>
+                      <span style="margin-left:6px;"><?= h(localize_text((string)$selectedOption['option_text'], $lang)) ?></span>
+                    </label>
+                  <?php endforeach; ?>
+                <?php endif; ?>
               </div>
             </div>
           <?php endif; ?>
@@ -407,12 +425,24 @@ if ($canShowReview) {
                 <tbody>
                   <?php foreach ($reviewItems as $it): ?>
                     <?php
-                      $pickedIds = (string)($it['picked_ids'] ?? '');
-                      $correctIds = (string)($it['correct_ids'] ?? '');
-                      if ($pickedIds === '') {
+                      $pickedLabels = trim((string)($it['picked_labels'] ?? ''));
+                      $correctLabels = trim((string)($it['correct_labels'] ?? ''));
+                      $status = strtoupper(trim((string)($it['answer_status_snapshot'] ?? '')));
+                      if (!in_array($status, ['OK', 'KO', 'UNANSWERED'], true)) {
+                        $status = build_session_question_answer_status($pickedLabels, $correctLabels);
+                      }
+                      $snapshotUpdatedAt = trim((string)($it['question_updated_at_snapshot'] ?? ''));
+                      $currentUpdatedAt = trim((string)($it['current_question_updated_at'] ?? ''));
+                      $isQuestionModified = (
+                        (int)($it['is_question_deleted'] ?? 0) !== 1
+                        && $snapshotUpdatedAt !== ''
+                        && $currentUpdatedAt !== ''
+                        && strtotime($currentUpdatedAt) > strtotime($snapshotUpdatedAt)
+                      );
+                      if ($status === 'UNANSWERED') {
                         $reviewKey = 'result.review_unanswered';
                         $reviewClass = 'pill warning';
-                      } elseif ($pickedIds === $correctIds) {
+                      } elseif ($status === 'OK') {
                         $reviewKey = 'result.review_correct';
                         $reviewClass = 'pill success';
                       } else {
@@ -422,10 +452,24 @@ if ($canShowReview) {
                     ?>
                     <tr>
                       <td><?= (int)$it['position'] ?></td>
-                      <td><?= h(localize_text((string)$it['text'], $lang)) ?></td>
+                      <td>
+                        <?= h(localize_text((string)$it['text'], $lang)) ?>
+                        <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
+                          <span class="badge" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
+                        <?php elseif ($isQuestionModified): ?>
+                          <span class="badge" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
+                        <?php endif; ?>
+                      </td>
                       <td><?= h((string)($it['picked_labels'] ?: '-')) ?></td>
                       <td><?= h((string)($it['correct_labels'] ?: '-')) ?></td>
-                      <td><span class="<?= h($reviewClass) ?>"><?= h(t($reviewKey, [], $lang)) ?></span></td>
+                      <td>
+                        <span class="<?= h($reviewClass) ?>"><?= h(t($reviewKey, [], $lang)) ?></span>
+                        <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
+                          <span class="badge" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
+                        <?php elseif ($isQuestionModified): ?>
+                          <span class="badge" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
+                        <?php endif; ?>
+                      </td>
                       <td>
                         <a
                           class="btn ghost icon-btn"

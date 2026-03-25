@@ -89,7 +89,7 @@ if ($p > $total) {
 }
 
 $qstmt = $pdo->prepare("
-  SELECT q.id, q.text, q.explanation, q.question_type, q.allow_skip
+  SELECT sq.id AS session_question_id, q.id, q.text, q.explanation, q.question_type, q.allow_skip
   FROM session_questions sq
   JOIN questions q ON q.id = sq.question_id
   WHERE sq.session_id=? AND sq.position=?
@@ -103,6 +103,7 @@ if (!$q) {
 }
 
 $qid = (int)$q['id'];
+$sessionQuestionId = (int)($q['session_question_id'] ?? 0);
 $questionExplanation = trim(localize_text((string)($q['explanation'] ?? ''), $lang));
 $qType = (string)($q['question_type'] ?? 'MULTI');
 if (!in_array($qType, ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
@@ -213,13 +214,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $valid[(int)$o['id']] = true;
         }
 
-        $insert = $pdo->prepare("INSERT INTO answer_options(session_id, question_id, option_id) VALUES(?,?,?)");
+        $insert = answer_option_snapshots_enabled($pdo)
+          ? $pdo->prepare("
+              INSERT INTO answer_options(
+                session_id,
+                session_question_id,
+                question_id,
+                option_id,
+                option_label_snapshot,
+                option_text_snapshot
+              )
+              VALUES(?,?,?,?,?,?)
+            ")
+          : $pdo->prepare("INSERT INTO answer_options(session_id, question_id, option_id) VALUES(?,?,?)");
         foreach ($picked as $oid) {
           $oid = (int)$oid;
           if (!isset($valid[$oid])) {
             continue;
           }
-          $insert->execute([$sid, $qid, $oid]);
+          if (answer_option_snapshots_enabled($pdo)) {
+            $matchedOption = null;
+            foreach ($options as $optionRow) {
+              if ((int)($optionRow['id'] ?? 0) === $oid) {
+                $matchedOption = $optionRow;
+                break;
+              }
+            }
+            if ($matchedOption === null) {
+              continue;
+            }
+            $insert->execute([
+              $sid,
+              $sessionQuestionId > 0 ? $sessionQuestionId : null,
+              $qid,
+              $oid,
+              (string)($matchedOption['label'] ?? ''),
+              (string)($matchedOption['option_text'] ?? ''),
+            ]);
+          } else {
+            $insert->execute([$sid, $qid, $oid]);
+          }
         }
       }
 
@@ -230,6 +264,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Keep a live score snapshot during the session.
+    if ($sessionQuestionId > 0) {
+      refresh_session_question_answer_status($pdo, $sessionQuestionId);
+    }
     refresh_active_session_score($pdo, $sid);
   }
 

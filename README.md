@@ -172,6 +172,14 @@ Version applicative:
 - `/version.php` expose un JSON minimal avec `app_version`, `schema_version` et `db_status`
 - `/opt/certif/scripts/verify-release.sh` reste disponible pour un controle manuel ponctuel si besoin
 
+## Regles Git
+
+- les commits doivent etre pousses sur le remote GitLab d'entreprise `gitlab`
+- chaque commit doit avoir un message explicite qui decrit clairement les modifications faites
+- si le push est refuse parce que la branche distante a avance, il faut faire `fetch` + `rebase` + `push`
+- ce rebase peut etre fait automatiquement tant qu'il n'y a pas de conflit bloquant
+- ne pas pousser de fichiers temporaires, de sauvegardes locales ou d'artefacts de debug
+
 ## Import BDD existante puis futures migrations
 
 Si vous importez une base existante pour la prochaine release, il suffit maintenant de redemarrer le conteneur `db` apres import.
@@ -269,7 +277,7 @@ Options utiles:
 ```powershell
 .\scripts\backup.ps1 -IncludeDataSnapshot
 .\scripts\backup.ps1 -IncludeDataSnapshot -StopDbForDataSnapshot
-.\scripts\backup.ps1 -KeepDays 30
+.\scripts\backup.ps1 -KeepCount 5
 .\scripts\backup.ps1 -DryRun
 ```
 
@@ -277,4 +285,5 @@ Notes:
 
 - `-IncludeDataSnapshot` ajoute une archive du dossier `data/`
 - `-StopDbForDataSnapshot` arrete temporairement `db` pour une copie a froid plus fiable
+- par defaut, le script conserve les 3 dernieres sauvegardes de chaque type
 - les sauvegardes restent locales et ne doivent pas etre committees

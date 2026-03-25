@@ -162,8 +162,16 @@ CREATE TABLE sessions (
 CREATE TABLE session_questions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   session_id CHAR(36) NOT NULL,
-  question_id INT NOT NULL,
+  question_id INT NULL,
   position INT NOT NULL,
+  question_external_id_snapshot BIGINT NULL,
+  question_text_snapshot TEXT NULL,
+  question_explanation_snapshot TEXT NULL,
+  question_type_snapshot ENUM('SINGLE','MULTI','TRUE_FALSE') NULL,
+  allow_skip_snapshot TINYINT(1) NULL,
+  correct_option_labels_snapshot VARCHAR(255) NULL,
+  question_updated_at_snapshot DATETIME NULL,
+  answer_status_snapshot ENUM('OK','KO','UNANSWERED') NULL,
 
   UNIQUE KEY uq_sq_session_position (session_id, position),
   UNIQUE KEY uq_sq_session_question (session_id, question_id),
@@ -174,30 +182,38 @@ CREATE TABLE session_questions (
 
   CONSTRAINT fk_sq_question
     FOREIGN KEY (question_id) REFERENCES questions(id)
-    ON DELETE CASCADE
+    ON DELETE SET NULL
 );
 
 -- Réponses sélectionnées (multi choix)
 CREATE TABLE answer_options (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
   session_id CHAR(36) NOT NULL,
-  question_id INT NOT NULL,
-  option_id INT NOT NULL,
+  session_question_id INT NULL,
+  question_id INT NULL,
+  option_id INT NULL,
+  option_label_snapshot CHAR(8) NULL,
+  option_text_snapshot VARCHAR(500) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  PRIMARY KEY (session_id, question_id, option_id),
   INDEX idx_ao_session_question (session_id, question_id),
+  INDEX idx_ao_session_question_row (session_question_id),
 
   CONSTRAINT fk_ao_session
     FOREIGN KEY (session_id) REFERENCES sessions(id)
     ON DELETE CASCADE,
 
+  CONSTRAINT fk_ao_session_question
+    FOREIGN KEY (session_question_id) REFERENCES session_questions(id)
+    ON DELETE CASCADE,
+
   CONSTRAINT fk_ao_question
     FOREIGN KEY (question_id) REFERENCES questions(id)
-    ON DELETE CASCADE,
+    ON DELETE SET NULL,
 
   CONSTRAINT fk_ao_option
     FOREIGN KEY (option_id) REFERENCES question_options(id)
-    ON DELETE CASCADE
+    ON DELETE SET NULL
 );
 
 -- (Optionnel) Legacy: ancien modèle 1 réponse A/B/C/D

@@ -5,6 +5,7 @@ require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
+require_once __DIR__ . '/../services/session_service.php';
 $pdo = db();
 
 $knowledgeRequired = trim((string)($_GET['knowledge_required'] ?? ''));
@@ -175,6 +176,16 @@ if ($questionId !== null) {
   $params[] = $questionId;
 }
 $whereSql = implode("\n      AND ", $where);
+$hasAnswerStatusSnapshot = table_column_exists($pdo, 'session_questions', 'answer_status_snapshot');
+$answerStatusExpr = $hasAnswerStatusSnapshot
+  ? "COALESCE(sq.answer_status_snapshot, 'UNANSWERED')"
+  : "CASE
+        WHEN COALESCE(ans.selected_correct_count, 0) = qstats.correct_count
+         AND COALESCE(ans.selected_total_count, 0) = qstats.correct_count
+        THEN 'OK'
+        WHEN COALESCE(ans.selected_total_count, 0) = 0 THEN 'UNANSWERED'
+        ELSE 'KO'
+      END";
 $havingParams = [];
 $havingParts = [];
 $okHaving = performance_having_clause('ROUND((100.0 * SUM(CASE WHEN perf.answer_status = \'OK\' THEN 1 ELSE 0 END)) / COUNT(*), 1)', $okRateOp, $okRateValue, $okRateValue2, $havingParams);
@@ -196,16 +207,11 @@ $perfFromSql = "
     SELECT
       sq.session_id,
       sq.question_id,
-      CASE
-        WHEN COALESCE(ans.selected_correct_count, 0) = qstats.correct_count
-         AND COALESCE(ans.selected_total_count, 0) = qstats.correct_count
-        THEN 'OK'
-        WHEN COALESCE(ans.selected_total_count, 0) = 0 THEN 'UNANSWERED'
-        ELSE 'KO'
-      END AS answer_status
+      $answerStatusExpr AS answer_status
     FROM session_questions sq
     JOIN sessions s ON s.id = sq.session_id
     JOIN questions q0 ON q0.id = sq.question_id
+    " . ($hasAnswerStatusSnapshot ? "" : "
     JOIN (
       SELECT
         qo.question_id,
@@ -223,6 +229,7 @@ $perfFromSql = "
       JOIN question_options qo ON qo.id = ao.option_id
       GROUP BY ao.session_id, ao.question_id
     ) ans ON ans.session_id = sq.session_id AND ans.question_id = sq.question_id
+    ") . "
     WHERE $whereSql
   ) perf
   JOIN questions q ON q.id = perf.question_id
