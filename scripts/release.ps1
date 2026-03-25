@@ -2,7 +2,6 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ReleaseVersion,
 
-    [switch]$SkipBackup,
     [switch]$DryRun
 )
 
@@ -10,7 +9,6 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $migrationDir = Join-Path $repoRoot "db_schema"
-$backupDir = Join-Path $repoRoot "backups"
 $appVersionFile = Join-Path $repoRoot "app\version.txt"
 
 function Invoke-Step {
@@ -98,21 +96,6 @@ function Get-DbSchemaVersion {
     return ($output | Out-String).Trim()
 }
 
-function Backup-Database {
-    New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
-    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $backupFile = Join-Path $backupDir ("certif-db-{0}-{1}.sql" -f $ReleaseVersion, $timestamp)
-    $command = "docker compose exec -T db mariadb-dump -uroot -proot certif > `"$backupFile`""
-    Write-Host $command
-
-    if (-not $DryRun) {
-        & powershell -NoProfile -Command $command
-        if ($LASTEXITCODE -ne 0) {
-            throw "Database backup failed."
-        }
-    }
-}
-
 Push-Location $repoRoot
 try {
     $expectedVersion = Get-LatestMigrationVersion
@@ -123,12 +106,6 @@ try {
         Write-Host "Application version: $appVersion"
         if ($appVersion -ne $ReleaseVersion) {
             throw "ReleaseVersion ($ReleaseVersion) does not match app/version.txt ($appVersion)."
-        }
-    }
-
-    if (-not $SkipBackup) {
-        Invoke-Step -Label "Backup database" -Action {
-            Backup-Database
         }
     }
 

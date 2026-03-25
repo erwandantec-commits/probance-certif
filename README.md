@@ -154,7 +154,7 @@ Principe:
 Ce script cree `db_schema/NN_description.sql` directement dans le volume partage.
 
 2. implementer et tester le SQL dans `db_schema/NN_description.sql`
-3. mettre a jour `app/version.txt` avec la version de release (ex: `1`, `2` ou `1.18.1`)
+3. mettre a jour `app/version.txt` a chaque modification, y compris mineure, avec une nouvelle version de release (ex: `1`, `2` ou `1.18.1`)
 4. redemarrer les conteneurs selon votre procedure de deploiement
 
 Au demarrage du conteneur `db`, l'entrypoint:
@@ -168,6 +168,7 @@ Au demarrage du conteneur `db`, l'entrypoint:
 Version applicative:
 
 - `app/version.txt` est la source de verite de la version visible dans l'app
+- toute modification livree, meme mineure, doit incrementer `app/version.txt`
 - le footer affiche automatiquement `Probance Certif Tool - V <version> - Probance <annee>`
 - `/version.php` expose un JSON minimal avec `app_version`, `schema_version` et `db_status`
 - `/opt/certif/scripts/verify-release.sh` reste disponible pour un controle manuel ponctuel si besoin
@@ -259,31 +260,3 @@ Redemarrer uniquement le web:
 docker compose up -d --build web
 ```
 
-## Sauvegarde locale
-
-Pour une sauvegarde locale simple "au cas ou", utiliser:
-
-```powershell
-.\scripts\backup.ps1
-```
-
-Ce script cree dans `backups/`:
-
-- un dump SQL de la base `certif`
-- une archive ZIP du projet utile (`app/`, `docs/`, `db_schema/`, `initdb/`, `scripts/`, fichiers racine)
-
-Options utiles:
-
-```powershell
-.\scripts\backup.ps1 -IncludeDataSnapshot
-.\scripts\backup.ps1 -IncludeDataSnapshot -StopDbForDataSnapshot
-.\scripts\backup.ps1 -KeepCount 5
-.\scripts\backup.ps1 -DryRun
-```
-
-Notes:
-
-- `-IncludeDataSnapshot` ajoute une archive du dossier `data/`
-- `-StopDbForDataSnapshot` arrete temporairement `db` pour une copie a froid plus fiable
-- par defaut, le script conserve les 3 dernieres sauvegardes de chaque type
-- les sauvegardes restent locales et ne doivent pas etre committees
