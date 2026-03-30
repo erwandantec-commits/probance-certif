@@ -34,12 +34,13 @@ if ($sess['status'] !== 'ACTIVE') {
 
 $scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
 $score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
+$roundedScore = round($score, 2);
 
 $threshold = (int)$sess['pass_threshold_percent'];
-$passed = ($score >= $threshold) ? 1 : 0;
+$passed = ($roundedScore >= $threshold) ? 1 : 0;
 $terminationType = session_is_expired($sess) ? 'TIMEOUT' : 'MANUAL';
 
-mark_session_terminated($pdo, $sid, round($score, 2), $passed, $terminationType);
+mark_session_terminated($pdo, $sid, $roundedScore, $passed, $terminationType);
 
 header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
 exit;

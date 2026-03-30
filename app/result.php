@@ -4,6 +4,10 @@ require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/services/session_service.php';
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 $pdo = db();
 $lang = get_lang();
 
@@ -62,9 +66,10 @@ if (!$s) {
 if (session_is_expired($s)) {
   $scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
   $score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
+  $roundedScore = round($score, 2);
   $threshold = (int)$s['pass_threshold_percent'];
-  $passed = ($score >= $threshold) ? 1 : 0;
-  mark_session_terminated($pdo, $sid, round($score, 2), $passed, 'TIMEOUT');
+  $passed = ($roundedScore >= $threshold) ? 1 : 0;
+  mark_session_terminated($pdo, $sid, $roundedScore, $passed, 'TIMEOUT');
 
   $stmt = $pdo->prepare("
     SELECT s.*, c.email, pk.name AS package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent, pk.duration_limit_minutes
@@ -104,8 +109,26 @@ function result_status_label(string $status, string $lang): string {
   };
 }
 
+function result_session_passed(array $s): ?bool {
+  $displayStatus = result_display_status($s);
+  if (!in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)) {
+    return null;
+  }
+
+  if ($s['score_percent'] !== null && $s['score_percent'] !== '' && isset($s['pass_threshold_percent'])) {
+    return round((float)$s['score_percent'], 2) >= (float)$s['pass_threshold_percent'];
+  }
+
+  if ($s['passed'] === null || $s['passed'] === '') {
+    return null;
+  }
+
+  return (int)$s['passed'] === 1;
+}
+
 $isTrainingSession = (($s['session_type'] ?? 'EXAM') === 'TRAINING');
 $displayStatus = result_display_status($s);
+$resultPassed = result_session_passed($s);
 $canShowReview = $isTrainingSession && in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true);
 $reviewPosition = max(0, (int)($_GET['review_p'] ?? 0));
 $reviewItems = [];
@@ -115,7 +138,7 @@ $isTerminatedExam = (
   (string)($s['session_type'] ?? '') === 'EXAM' &&
   in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)
 );
-$isPassedTerminatedExam = $isTerminatedExam && (int)($s['passed'] ?? 0) === 1;
+$isPassedTerminatedExam = $isTerminatedExam && ($resultPassed === true);
 $validUntil = '';
 $validUntilDays = null;
 if ($isPassedTerminatedExam) {
@@ -157,10 +180,10 @@ if ($passedBadge === '') {
 }
 $passedBadge = basename($passedBadge);
 $badgeVersion = (string)time();
-$heroImagePath = ((int)($s['passed'] ?? 0) === 1)
+$heroImagePath = ($resultPassed === true)
   ? '/assets/badges/' . $passedBadge . '?v=' . urlencode($badgeVersion)
   : '/assets/badges/failed.png?v=' . urlencode($badgeVersion);
-$heroScoreColor = ((int)($s['passed'] ?? 0) === 1)
+$heroScoreColor = ($resultPassed === true)
   ? package_color_hex((string)($s['package_name'] ?? ''), (string)($s['package_color_hex'] ?? ''))
   : '#C7C5B1';
 $heroProfile = trim((string)($s['package_profile'] ?? ''));
@@ -287,7 +310,7 @@ if ($canShowReview) {
         </div>
 
         <?php if ($displayStatus === 'TERMINATED'): ?>
-          <?php if ((int)$s['passed'] === 1): ?>
+          <?php if ($resultPassed === true): ?>
             <span class="badge ok"><?= h(t('result.badge.passed', [], $lang)) ?></span>
           <?php else: ?>
             <span class="badge bad"><?= h(t('result.badge.failed', [], $lang)) ?></span>
@@ -313,7 +336,7 @@ if ($canShowReview) {
           <?php if ($isTerminatedExam): ?>
             <div class="result-blue-hero">
               <img class="result-blue-hero-badge" src="<?= h($heroImagePath) ?>" alt="Badge Resultat">
-              <?php if ((int)$s['passed'] === 1): ?>
+              <?php if ($resultPassed === true): ?>
                 <p class="result-blue-hero-title"><?= h(t('result.hero_passed_title', ['cert' => localize_text((string)$s['package_name'], $lang)], $lang)) ?></p>
                 <p class="result-blue-hero-valid"><?= h(t('result.hero_profile_mention', ['profile' => $heroProfile], $lang)) ?></p>
               <?php else: ?>
@@ -323,7 +346,7 @@ if ($canShowReview) {
                 <span class="result-blue-hero-score-label"><?= h(t('result.hero_score_prefix', [], $lang)) ?></span>
                 <b><?= h(number_format((float)$s['score_percent'], 0, '.', '')) ?>%</b>
               </p>
-              <?php if ((int)$s['passed'] === 1 && $validUntil !== ''): ?>
+              <?php if ($resultPassed === true && $validUntil !== ''): ?>
                 <p class="result-blue-hero-valid">
                   <?= h(t('result.hero_valid_until', ['date' => $validUntil], $lang)) ?>
                   <?php if ($validUntilDays !== null): ?>
@@ -331,7 +354,7 @@ if ($canShowReview) {
                   <?php endif; ?>
                 </p>
               <?php endif; ?>
-              <?php if ((int)$s['passed'] !== 1): ?>
+              <?php if ($resultPassed !== true): ?>
                 <p class="result-blue-hero-valid"><?= h(t('result.hero_failed_message', ['score' => number_format((float)$s['score_percent'], 0, '.', '')], $lang)) ?></p>
               <?php endif; ?>
             </div>
@@ -354,7 +377,9 @@ if ($canShowReview) {
       <?php else: ?>
         <p><?= h(t('result.in_progress', [], $lang)) ?></p>
         <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a class="btn" href="/exam.php?sid=<?= h($sid) ?>&p=1&lang=<?= h($lang) ?>"><?= h(t('result.resume', [], $lang)) ?></a>
+          <?php if ($isTrainingSession): ?>
+            <a class="btn" href="/exam.php?sid=<?= h($sid) ?>&p=1&lang=<?= h($lang) ?>"><?= h(t('result.resume', [], $lang)) ?></a>
+          <?php endif; ?>
           <a class="btn ghost" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.back', [], $lang)) ?></a>
         </div>
       <?php endif; ?>

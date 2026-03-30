@@ -6,6 +6,9 @@ require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/services/session_service.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 $pdo = db();
 $lang = get_lang();
@@ -450,11 +453,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+  window.__examIntentionalNavigation = false;
+
   (function () {
+    var isExamSession = <?= json_encode(!$isTraining) ?>;
+    var leaveEndpoint = '/session_leave.php';
+    var leaveHandled = false;
     var form = document.getElementById('exam-form');
     if (!form) return;
     var primarySubmit = document.getElementById('exam-primary-submit');
+    var langSelect = document.getElementById('exam-lang');
     var answerInputs = Array.prototype.slice.call(form.querySelectorAll('input[name="answer"], input[name="answer[]"]'));
+
+    function markIntentionalNavigation() {
+      window.__examIntentionalNavigation = true;
+    }
+
+    function notifyExamLeave() {
+      if (!isExamSession || window.__examIntentionalNavigation || leaveHandled) return;
+      leaveHandled = true;
+
+      try {
+        var payload = new FormData();
+        payload.append('sid', <?= json_encode($sid) ?>);
+
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(leaveEndpoint, payload);
+          return;
+        }
+
+        fetch(leaveEndpoint, {
+          method: 'POST',
+          body: payload,
+          credentials: 'same-origin',
+          keepalive: true
+        }).catch(function () {});
+      } catch (e) {
+        // Ignore background leave failures while the page is closing.
+      }
+    }
 
     function syncPrimarySubmitState() {
       if (!primarySubmit) return;
@@ -474,11 +511,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     form.addEventListener('submit', function (e) {
       var submitter = e.submitter;
       if (!submitter) return;
+      markIntentionalNavigation();
       if (submitter.name !== 'abandon') return;
 
       var message = submitter.getAttribute('data-confirm-message') || 'Confirmer ?';
       if (!window.confirm(message)) {
+        window.__examIntentionalNavigation = false;
         e.preventDefault();
+      }
+    });
+
+    if (langSelect) {
+      langSelect.addEventListener('change', markIntentionalNavigation);
+    }
+
+    window.addEventListener('pagehide', notifyExamLeave);
+    window.addEventListener('pageshow', function (e) {
+      if (e.persisted) {
+        window.location.reload();
       }
     });
   })();
@@ -490,7 +540,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     document.getElementById('t').textContent =
       "<?= h(t('exam.timer_prefix', [], $lang)) ?>: " + m + "<?= h(t('exam.min', [], $lang)) ?> " + (s < 10 ? "0" : "") + s + "<?= h(t('exam.sec', [], $lang)) ?>";
     remaining--;
-    if (remaining < 0) location.href = "/submit.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h($lang) ?>";
+    if (remaining < 0) {
+      window.__examIntentionalNavigation = true;
+      location.href = "/submit.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h($lang) ?>";
+    }
   }
   tick();
   setInterval(tick, 1000);

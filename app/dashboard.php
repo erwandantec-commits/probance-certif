@@ -5,6 +5,10 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/services/session_service.php';
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 $pdo = db();
 $user = require_auth();
 $lang = get_lang();
@@ -94,7 +98,8 @@ $lastTerminationTypeSelect = $hasTerminationType
   ? ", s.termination_type"
   : ", 'MANUAL' AS termination_type";
 $lastStmt = $pdo->prepare("
-  SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed, pk.name as package_name, pk.name_color_hex AS package_color_hex
+  SELECT s.id, s.status, s.session_type, s.started_at, s.submitted_at, s.score_percent, s.passed,
+         pk.name as package_name, pk.name_color_hex AS package_color_hex, pk.pass_threshold_percent
     $lastTerminationTypeSelect
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
@@ -429,17 +434,35 @@ function dash_score_fmt($v, string $lang): string {
 }
 
 function dash_result_label(array $s, string $lang): string {
-  if ((string)dash_display_status($s) === 'ACTIVE' || $s['passed'] === null) {
+  $passed = dash_session_passed($s);
+  if ($passed === null) {
     return t('dash.na', [], $lang);
   }
-  return ((int)$s['passed'] === 1) ? t('dash.result.passed', [], $lang) : t('dash.result.failed', [], $lang);
+  return $passed ? t('dash.result.passed', [], $lang) : t('dash.result.failed', [], $lang);
 }
 
 function dash_result_badge_class(array $s): string {
-  if ((string)dash_display_status($s) === 'ACTIVE' || $s['passed'] === null) {
+  $passed = dash_session_passed($s);
+  if ($passed === null) {
     return 'pill';
   }
-  return ((int)$s['passed'] === 1) ? 'pill success' : 'pill danger';
+  return $passed ? 'pill success' : 'pill danger';
+}
+
+function dash_session_passed(array $s): ?bool {
+  if ((string)dash_display_status($s) === 'ACTIVE') {
+    return null;
+  }
+
+  if ($s['score_percent'] !== null && $s['score_percent'] !== '' && isset($s['pass_threshold_percent'])) {
+    return round((float)$s['score_percent'], 2) >= (float)$s['pass_threshold_percent'];
+  }
+
+  if ($s['passed'] === null || $s['passed'] === '') {
+    return null;
+  }
+
+  return (int)$s['passed'] === 1;
 }
 
 function dash_session_type_label(string $type, string $lang): string {
@@ -722,9 +745,11 @@ function dash_remaining_label(int $seconds): string {
               <?= h(t('dash.active_sessions.remaining', [], $lang)) ?>: <b><?= h(dash_remaining_label((int)$a['remaining_seconds'])) ?></b>
             </div>
             <div class="dashboard-active-item-actions">
-              <a class="btn" href="/exam.php?sid=<?= h((string)$a['id']) ?>&p=<?= (int)$a['resume_p'] ?>&lang=<?= h($lang) ?>">
-                <?= h(((string)$a['session_type'] === 'TRAINING') ? t('dash.continue_current_training', [], $lang) : t('dash.continue_current_exam', [], $lang)) ?>
-              </a>
+              <?php if ((string)$a['session_type'] === 'TRAINING'): ?>
+                <a class="btn" href="/exam.php?sid=<?= h((string)$a['id']) ?>&p=<?= (int)$a['resume_p'] ?>&lang=<?= h($lang) ?>">
+                  <?= h(t('dash.continue_current_training', [], $lang)) ?>
+                </a>
+              <?php endif; ?>
               <a class="btn ghost icon-btn danger"
                  href="/session_delete.php?sid=<?= h((string)$a['id']) ?>&lang=<?= h($lang) ?>"
                  aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
@@ -823,8 +848,18 @@ function dash_remaining_label(int $seconds): string {
             </td>
 	            <td>
                 <div class="dashboard-table-actions">
-	                <?php if ($s['status'] === 'ACTIVE'): ?>
+	                <?php if ($s['status'] === 'ACTIVE' && (string)($s['session_type'] ?? '') === 'TRAINING'): ?>
 	                  <a class="btn ghost" href="/exam.php?sid=<?= h($s['id']) ?>&p=<?= (int)($resumePosBySession[(string)$s['id']] ?? 1) ?>&lang=<?= h($lang) ?>"><?= h(t('dash.resume', [], $lang)) ?></a>
+                    <a class="btn ghost icon-btn danger"
+                       href="/session_delete.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"
+                       aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                       title="<?= h(t('dash.delete_active', [], $lang)) ?>"
+                       onclick="return confirm('<?= h(t('dash.delete_confirm', [], $lang)) ?>');">
+                      <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                      </svg>
+                    </a>
+	                <?php elseif ($s['status'] === 'ACTIVE'): ?>
                     <a class="btn ghost icon-btn danger"
                        href="/session_delete.php?sid=<?= h($s['id']) ?>&lang=<?= h($lang) ?>"
                        aria-label="<?= h(t('dash.delete_active', [], $lang)) ?>"
@@ -911,9 +946,9 @@ function dash_remaining_label(int $seconds): string {
         }
       }
       if (continueBtn) {
-        if (activeSid && !(selectedMode === 'EXAM' && selectedExamLocked)) {
+        if (activeSid && selectedMode === 'TRAINING' && !(selectedMode === 'EXAM' && selectedExamLocked)) {
           continueBtn.style.display = '';
-          continueBtn.textContent = (selectedMode === 'TRAINING') ? continueTrainingLabel : continueExamLabel;
+          continueBtn.textContent = continueTrainingLabel;
           continueBtn.setAttribute('href', '/exam.php?sid=' + encodeURIComponent(activeSid) + '&p=' + encodeURIComponent(activeP) + '&lang=' + encodeURIComponent(<?= json_encode($lang) ?>));
         } else {
           continueBtn.style.display = 'none';
