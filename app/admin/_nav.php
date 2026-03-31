@@ -9,6 +9,7 @@ if (!function_exists('admin_tab_icon_svg')) {
       'users' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm10 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3ZM7 13c-3.3 0-6 1.7-6 3.8V19h12v-2.2C13 14.7 10.3 13 7 13Zm10 0c-1.1 0-2.2.2-3.1.6A4.8 4.8 0 0 1 16 16.8V19h7v-2.2c0-2.1-2.7-3.8-6-3.8Z"/></svg>',
       'packages' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7.5 12 3l9 4.5-9 4.5-9-4.5Zm0 4.5 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/></svg>',
       'questions' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.35 9.2a2.65 2.65 0 1 1 5.15.9c0 1.75-2.5 2.52-2.5 4.15"/><path d="M12 16.95h.01"/><path d="M4 4h16v16H4z"/></svg>',
+      'translations' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h7v2H4zM4 11h7v2H4zM4 16h7v2H4zM14 6h6v2h-6zM14 11h6v2h-6zM14 16h6v2h-6z"/><path d="M12 4v16"/></svg>',
       'performance' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19h14M7 17V9m5 8V5m5 12v-6"/></svg>',
       'help' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.3"/><path d="M9.4 9.35a2.6 2.6 0 1 1 5.05.87c0 1.72-2.45 2.47-2.45 4.08"/><path d="M12 16.95h.01"/></svg>',
       'logout' => '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 16l4-4-4-4M19 12H9"/></svg>',
@@ -28,6 +29,7 @@ function render_admin_tabs(string $active = ''): void
     ['key' => 'users', 'href' => '/admin/users.php', 'label' => 'Utilisateurs'],
     ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => 'Packs'],
     ['key' => 'questions', 'href' => '/admin/questions.php', 'label' => 'Questions'],
+    ['key' => 'translations', 'href' => '/admin/question_translations.php', 'label' => 'Traductions'],
     ['key' => 'performance', 'href' => '/admin/question_performance.php', 'label' => 'Analyse'],
   ];
 

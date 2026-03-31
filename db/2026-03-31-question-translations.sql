@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS question_translations (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  question_id INT NOT NULL,
+  lang VARCHAR(5) NOT NULL,
+  question_text TEXT NOT NULL,
+  explanation TEXT NULL,
+  source_updated_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_question_lang (question_id, lang)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS question_option_translations (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  option_id INT NOT NULL,
+  lang VARCHAR(5) NOT NULL,
+  option_text TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_option_lang (option_id, lang)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

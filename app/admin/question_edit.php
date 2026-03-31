@@ -5,6 +5,7 @@ require_once __DIR__ . '/_nav.php';
 require_once __DIR__ . '/../utils.php';
 
 $pdo = db();
+ensure_question_translation_schema($pdo);
 
 function admin_question_edit_safe_return(?string $candidate): string {
   $fallback = '/admin/questions.php';
@@ -98,6 +99,33 @@ if (!in_array($question['need'], $knownNeeds, true) && $question['need'] !== '')
 
 $labels = ['A', 'B', 'C', 'D', 'E', 'F'];
 $errors = [];
+$translationLangs = ['en' => 'EN', 'es' => 'ES', 'jp' => 'JA'];
+$translationsByLang = [];
+foreach ($translationLangs as $translationLang => $translationLabel) {
+  $translationMetaStmt = $pdo->prepare("
+    SELECT question_text, explanation, source_updated_at
+    FROM question_translations
+    WHERE question_id = ? AND lang = ?
+    LIMIT 1
+  ");
+  $translationMetaStmt->execute([$id, $translationLang]);
+  $translationMeta = $translationMetaStmt->fetch() ?: [];
+  $translationsByLang[$translationLang] = [
+    'status' => question_translation_status($pdo, $id, $translationLang),
+    'text' => trim((string)($translationMeta['question_text'] ?? '')),
+    'explanation' => trim((string)($translationMeta['explanation'] ?? '')),
+    'source_updated_at' => trim((string)($translationMeta['source_updated_at'] ?? '')),
+    'options' => [],
+  ];
+}
+foreach ($labels as $label) {
+  $option = $optionsByLabel[$label] ?? null;
+  $optionId = (int)($option['id'] ?? 0);
+  foreach (array_keys($translationLangs) as $translationLang) {
+    $translationsByLang[$translationLang]['options'][$label] = translated_option_text($pdo, $optionId, $translationLang, '');
+  }
+}
+$existingTranslationsByLang = $translationsByLang;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $returnTo = admin_question_edit_safe_return((string)($_POST['return'] ?? $returnTo));
@@ -107,6 +135,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
   $question['allow_skip'] = 0;
   $question['explanation'] = trim((string)($_POST['explanation'] ?? ''));
+  foreach (array_keys($translationLangs) as $translationLang) {
+    $translationsByLang[$translationLang]['text'] = trim((string)($_POST['translations'][$translationLang]['text'] ?? ''));
+    $translationsByLang[$translationLang]['explanation'] = trim((string)($_POST['translations'][$translationLang]['explanation'] ?? ''));
+    foreach ($labels as $label) {
+      $translationsByLang[$translationLang]['options'][$label] = trim((string)($_POST['translations'][$translationLang]['options'][$label] ?? ''));
+    }
+  }
 
   if ($question['text'] === '') {
     $errors[] = "Enonce obligatoire.";
@@ -218,6 +253,103 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ");
       foreach ($rows as $r) {
         $io->execute([$qid, $r['label'], $r['text'], $r['is_correct'], $r['score_value']]);
+      }
+
+      $questionUpdatedAtStmt = $pdo->prepare("SELECT updated_at FROM questions WHERE id = ? LIMIT 1");
+      $questionUpdatedAtStmt->execute([$qid]);
+      $currentQuestionUpdatedAt = (string)($questionUpdatedAtStmt->fetchColumn() ?: '');
+
+      $optionsReloadStmt = $pdo->prepare("
+        SELECT id, label
+        FROM question_options
+        WHERE question_id = ?
+        ORDER BY label ASC
+      ");
+      $optionsReloadStmt->execute([$qid]);
+      $reloadedOptions = $optionsReloadStmt->fetchAll() ?: [];
+      $optionIdByLabel = [];
+      foreach ($reloadedOptions as $reloadedOption) {
+        $optionIdByLabel[(string)$reloadedOption['label']] = (int)$reloadedOption['id'];
+      }
+
+      $saveQuestionTranslation = $pdo->prepare("
+        INSERT INTO question_translations(question_id, lang, question_text, explanation, source_updated_at, created_at, updated_at)
+        VALUES(?,?,?,?,?,NOW(),NOW())
+        ON DUPLICATE KEY UPDATE
+          question_text = VALUES(question_text),
+          explanation = VALUES(explanation),
+          source_updated_at = VALUES(source_updated_at),
+          updated_at = NOW()
+      ");
+      $deleteQuestionTranslation = $pdo->prepare("
+        DELETE FROM question_translations
+        WHERE question_id = ? AND lang = ?
+      ");
+      $saveOptionTranslation = $pdo->prepare("
+        INSERT INTO question_option_translations(option_id, lang, option_text, created_at, updated_at)
+        VALUES(?,?,?,NOW(),NOW())
+        ON DUPLICATE KEY UPDATE
+          option_text = VALUES(option_text),
+          updated_at = NOW()
+      ");
+      $deleteOptionTranslationsForLang = $pdo->prepare("
+        DELETE qot
+        FROM question_option_translations qot
+        JOIN question_options qo ON qo.id = qot.option_id
+        WHERE qo.question_id = ? AND qot.lang = ?
+      ");
+
+      foreach (array_keys($translationLangs) as $translationLang) {
+        $translatedText = trim((string)($translationsByLang[$translationLang]['text'] ?? ''));
+        $translatedExplanation = trim((string)($translationsByLang[$translationLang]['explanation'] ?? ''));
+        $translatedOptions = $translationsByLang[$translationLang]['options'] ?? [];
+        $existingTranslation = $existingTranslationsByLang[$translationLang] ?? ['text' => '', 'explanation' => '', 'options' => [], 'source_updated_at' => ''];
+        $hasAnyOptionTranslation = false;
+        foreach ($translatedOptions as $translatedOptionText) {
+          if (trim((string)$translatedOptionText) !== '') {
+            $hasAnyOptionTranslation = true;
+            break;
+          }
+        }
+        $hasTranslationPayload = ($translatedText !== '' || $translatedExplanation !== '' || $hasAnyOptionTranslation);
+
+        if (!$hasTranslationPayload) {
+          $deleteQuestionTranslation->execute([$qid, $translationLang]);
+          $deleteOptionTranslationsForLang->execute([$qid, $translationLang]);
+          continue;
+        }
+
+        $translationChanged = (
+          $translatedText !== trim((string)($existingTranslation['text'] ?? ''))
+          || $translatedExplanation !== trim((string)($existingTranslation['explanation'] ?? ''))
+        );
+        foreach ($labels as $label) {
+          if (trim((string)($translatedOptions[$label] ?? '')) !== trim((string)($existingTranslation['options'][$label] ?? ''))) {
+            $translationChanged = true;
+            break;
+          }
+        }
+        $sourceUpdatedAtForSave = $translationChanged
+          ? ($currentQuestionUpdatedAt !== '' ? $currentQuestionUpdatedAt : null)
+          : (trim((string)($existingTranslation['source_updated_at'] ?? '')) !== '' ? trim((string)($existingTranslation['source_updated_at'] ?? '')) : null);
+
+        $saveQuestionTranslation->execute([
+          $qid,
+          $translationLang,
+          $translatedText !== '' ? $translatedText : $question['text'],
+          $translatedExplanation !== '' ? $translatedExplanation : null,
+          $sourceUpdatedAtForSave,
+        ]);
+
+        $deleteOptionTranslationsForLang->execute([$qid, $translationLang]);
+        foreach ($labels as $label) {
+          $optionId = (int)($optionIdByLabel[$label] ?? 0);
+          $translatedOptionText = trim((string)($translatedOptions[$label] ?? ''));
+          if ($optionId <= 0 || $translatedOptionText === '') {
+            continue;
+          }
+          $saveOptionTranslation->execute([$optionId, $translationLang, $translatedOptionText]);
+        }
       }
 
       $pdo->commit();
@@ -349,6 +481,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </label>
               <input class="input question-option-score" type="number" name="score[<?= h($label) ?>]" value="<?= h($scoreValue) ?>" placeholder="score">
             </div>
+          <?php endforeach; ?>
+        </div>
+      </section>
+
+      <section class="pack-config-section">
+        <h3 class="pack-config-title">Traductions</h3>
+        <div class="translation-edit-grid">
+          <?php foreach ($translationLangs as $translationLang => $translationLabel): ?>
+            <?php
+              $translationStatus = (string)($translationsByLang[$translationLang]['status'] ?? 'missing');
+              $statusLabel = match ($translationStatus) {
+                'complete' => 'A jour',
+                'stale' => 'A revoir',
+                'partial' => 'Partielle',
+                default => 'Manquante',
+              };
+              $statusClass = match ($translationStatus) {
+                'complete' => 'pill success',
+                'stale' => 'pill warning',
+                'partial' => 'pill info',
+                default => 'pill danger',
+              };
+            ?>
+            <article class="pack-config-card translation-edit-card">
+              <div class="translation-edit-head">
+                <h4 class="pack-config-card-title"><?= h($translationLabel) ?></h4>
+                <span class="<?= h($statusClass) ?>"><?= h($statusLabel) ?></span>
+              </div>
+              <div class="pack-config-fields">
+                <div class="question-field-full">
+                  <label class="label">Texte de la question</label>
+                  <textarea name="translations[<?= h($translationLang) ?>][text]" rows="3" class="question-textarea"><?= h((string)($translationsByLang[$translationLang]['text'] ?? '')) ?></textarea>
+                </div>
+                <div class="question-field-full">
+                  <label class="label">Explication</label>
+                  <textarea name="translations[<?= h($translationLang) ?>][explanation]" rows="4" class="question-textarea"><?= h((string)($translationsByLang[$translationLang]['explanation'] ?? '')) ?></textarea>
+                </div>
+                <?php foreach ($labels as $label): ?>
+                  <div class="question-field-full">
+                    <label class="label">Option <?= h($label) ?></label>
+                    <input class="input" type="text" name="translations[<?= h($translationLang) ?>][options][<?= h($label) ?>]" value="<?= h((string)($translationsByLang[$translationLang]['options'][$label] ?? '')) ?>" placeholder="Traduction de l'option <?= h($label) ?>">
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            </article>
           <?php endforeach; ?>
         </div>
       </section>

@@ -107,6 +107,8 @@ if (!$q) {
 
 $qid = (int)$q['id'];
 $sessionQuestionId = (int)($q['session_question_id'] ?? 0);
+$q['text'] = translated_question_field($pdo, $qid, $lang, 'question_text', (string)($q['text'] ?? ''));
+$q['explanation'] = translated_question_field($pdo, $qid, $lang, 'explanation', (string)($q['explanation'] ?? ''));
 $questionExplanation = trim(localize_text((string)($q['explanation'] ?? ''), $lang));
 $qType = (string)($q['question_type'] ?? 'MULTI');
 if (!in_array($qType, ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
@@ -124,6 +126,10 @@ $optStmt = $pdo->prepare("
 ");
 $optStmt->execute([$qid]);
 $options = $optStmt->fetchAll();
+foreach ($options as &$optionRow) {
+  $optionRow['option_text'] = translated_option_text($pdo, (int)($optionRow['id'] ?? 0), $lang, (string)($optionRow['option_text'] ?? ''));
+}
+unset($optionRow);
 if (count($options) < 2) {
   header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
   exit;

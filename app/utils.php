@@ -83,6 +83,307 @@ function app_build_url(string $path): string {
   return APP_BASE_URL . '/' . ltrim($path, '/');
 }
 
+function question_translation_normalize_lang(?string $lang): string {
+  $lang = strtolower(trim((string)$lang));
+  if ($lang === 'ja') {
+    $lang = 'jp';
+  }
+  if (!in_array($lang, ['fr', 'en', 'es', 'jp'], true)) {
+    $lang = 'fr';
+  }
+  return $lang;
+}
+
+function question_translation_table_exists(PDO $pdo, string $table): bool {
+  static $cache = [];
+  if (isset($cache[$table])) {
+    return $cache[$table];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = ?
+  ");
+  $st->execute([$table]);
+  $cache[$table] = ((int)$st->fetchColumn() > 0);
+  return $cache[$table];
+}
+
+function question_translation_column_exists(PDO $pdo, string $table, string $column): bool {
+  static $cache = [];
+  $key = $table . ':' . $column;
+  if (isset($cache[$key])) {
+    return $cache[$key];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = ?
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$table, $column]);
+  $cache[$key] = ((int)$st->fetchColumn() > 0);
+  return $cache[$key];
+}
+
+function ensure_question_translation_schema(PDO $pdo): void {
+  static $done = false;
+  if ($done) {
+    return;
+  }
+
+  $pdo->exec("
+    CREATE TABLE IF NOT EXISTS question_translations (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      question_id INT NOT NULL,
+      lang VARCHAR(5) NOT NULL,
+      question_text TEXT NOT NULL,
+      explanation TEXT NULL,
+      source_updated_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_question_lang (question_id, lang)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  ");
+
+  $pdo->exec("
+    CREATE TABLE IF NOT EXISTS question_option_translations (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      option_id INT NOT NULL,
+      lang VARCHAR(5) NOT NULL,
+      option_text TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_option_lang (option_id, lang)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  ");
+
+  if (!question_translation_column_exists($pdo, 'question_translations', 'source_updated_at')) {
+    $pdo->exec("ALTER TABLE question_translations ADD COLUMN source_updated_at DATETIME NULL AFTER explanation");
+  }
+
+  $done = true;
+}
+
+function question_translations_available(PDO $pdo): bool {
+  ensure_question_translation_schema($pdo);
+  return question_translation_table_exists($pdo, 'question_translations')
+    && question_translation_table_exists($pdo, 'question_option_translations');
+}
+
+function translated_question_field(PDO $pdo, int $questionId, string $lang, string $field, ?string $fallback = null): string {
+  $fallbackValue = trim((string)$fallback);
+  if ($questionId <= 0) {
+    return $fallbackValue;
+  }
+
+  $lang = question_translation_normalize_lang($lang);
+  if ($lang === 'fr' || !question_translations_available($pdo)) {
+    return $fallbackValue;
+  }
+
+  if (!in_array($field, ['question_text', 'explanation'], true)) {
+    return $fallbackValue;
+  }
+
+  static $cache = [];
+  $cacheKey = $questionId . ':' . $lang;
+  if (!array_key_exists($cacheKey, $cache)) {
+    $st = $pdo->prepare("
+      SELECT question_text, explanation
+      FROM question_translations
+      WHERE question_id = ?
+        AND lang = ?
+      LIMIT 1
+    ");
+    $st->execute([$questionId, $lang]);
+    $cache[$cacheKey] = $st->fetch() ?: null;
+  }
+
+  $row = $cache[$cacheKey];
+  if (!is_array($row)) {
+    return $fallbackValue;
+  }
+
+  $value = trim((string)($row[$field] ?? ''));
+  return $value !== '' ? $value : $fallbackValue;
+}
+
+function translated_option_text(PDO $pdo, int $optionId, string $lang, ?string $fallback = null): string {
+  $fallbackValue = trim((string)$fallback);
+  if ($optionId <= 0) {
+    return $fallbackValue;
+  }
+
+  $lang = question_translation_normalize_lang($lang);
+  if ($lang === 'fr' || !question_translations_available($pdo)) {
+    return $fallbackValue;
+  }
+
+  static $cache = [];
+  $cacheKey = $optionId . ':' . $lang;
+  if (!array_key_exists($cacheKey, $cache)) {
+    $st = $pdo->prepare("
+      SELECT option_text
+      FROM question_option_translations
+      WHERE option_id = ?
+        AND lang = ?
+      LIMIT 1
+    ");
+    $st->execute([$optionId, $lang]);
+    $cache[$cacheKey] = $st->fetchColumn();
+  }
+
+  $value = trim((string)($cache[$cacheKey] ?? ''));
+  return $value !== '' ? $value : $fallbackValue;
+}
+
+function question_translation_missing_details(PDO $pdo, array $questionIds, string $lang): array {
+  $lang = question_translation_normalize_lang($lang);
+  $questionIds = array_values(array_unique(array_map('intval', $questionIds)));
+  $questionIds = array_values(array_filter($questionIds, static fn($id) => $id > 0));
+
+  if ($lang === 'fr' || $questionIds === []) {
+    return [];
+  }
+
+  if (!question_translations_available($pdo)) {
+    $details = [];
+    foreach ($questionIds as $questionId) {
+      $details[$questionId] = ['question_text', 'explanation', 'options'];
+    }
+    return $details;
+  }
+
+  $placeholders = implode(',', array_fill(0, count($questionIds), '?'));
+
+  $questionStmt = $pdo->prepare("
+    SELECT q.id, qt.question_text, qt.explanation
+    FROM questions q
+    LEFT JOIN question_translations qt
+      ON qt.question_id = q.id
+     AND qt.lang = ?
+    WHERE q.id IN ($placeholders)
+  ");
+  $questionStmt->execute(array_merge([$lang], $questionIds));
+  $questionRows = $questionStmt->fetchAll() ?: [];
+  $questionMap = [];
+  foreach ($questionRows as $row) {
+    $questionMap[(int)$row['id']] = $row;
+  }
+
+  $optionStmt = $pdo->prepare("
+    SELECT
+      qo.question_id,
+      COUNT(*) AS option_count,
+      SUM(CASE WHEN qot.option_id IS NOT NULL AND TRIM(qot.option_text) <> '' THEN 1 ELSE 0 END) AS translated_count
+    FROM question_options qo
+    LEFT JOIN question_option_translations qot
+      ON qot.option_id = qo.id
+     AND qot.lang = ?
+    WHERE qo.question_id IN ($placeholders)
+    GROUP BY qo.question_id
+  ");
+  $optionStmt->execute(array_merge([$lang], $questionIds));
+  $optionRows = $optionStmt->fetchAll() ?: [];
+  $optionMap = [];
+  foreach ($optionRows as $row) {
+    $optionMap[(int)$row['question_id']] = $row;
+  }
+
+  $missing = [];
+  foreach ($questionIds as $questionId) {
+    $row = $questionMap[$questionId] ?? null;
+    $itemMissing = [];
+    if (!$row || trim((string)($row['question_text'] ?? '')) === '') {
+      $itemMissing[] = 'question_text';
+    }
+    if (!$row || trim((string)($row['explanation'] ?? '')) === '') {
+      $itemMissing[] = 'explanation';
+    }
+    $optionInfo = $optionMap[$questionId] ?? null;
+    $optionCount = (int)($optionInfo['option_count'] ?? 0);
+    $translatedCount = (int)($optionInfo['translated_count'] ?? 0);
+    if ($optionCount > 0 && $translatedCount < $optionCount) {
+      $itemMissing[] = 'options';
+    }
+    if ($itemMissing !== []) {
+      $missing[$questionId] = $itemMissing;
+    }
+  }
+
+  return $missing;
+}
+
+function questions_have_complete_translation(PDO $pdo, array $questionIds, string $lang): bool {
+  return question_translation_missing_details($pdo, $questionIds, $lang) === [];
+}
+
+function question_translation_status(PDO $pdo, int $questionId, string $lang): string {
+  $lang = question_translation_normalize_lang($lang);
+  if ($questionId <= 0) {
+    return 'missing';
+  }
+  if ($lang === 'fr') {
+    return 'complete';
+  }
+  if (!question_translations_available($pdo)) {
+    return 'missing';
+  }
+
+  $st = $pdo->prepare("
+    SELECT q.updated_at, qt.question_text, qt.explanation, qt.source_updated_at
+    FROM questions q
+    LEFT JOIN question_translations qt
+      ON qt.question_id = q.id
+     AND qt.lang = ?
+    WHERE q.id = ?
+    LIMIT 1
+  ");
+  $st->execute([$lang, $questionId]);
+  $row = $st->fetch();
+  if (!$row) {
+    return 'missing';
+  }
+
+  $questionText = trim((string)($row['question_text'] ?? ''));
+  if ($questionText === '') {
+    return 'missing';
+  }
+
+  $optionSt = $pdo->prepare("
+    SELECT
+      COUNT(*) AS option_count,
+      SUM(CASE WHEN qot.option_id IS NOT NULL AND TRIM(qot.option_text) <> '' THEN 1 ELSE 0 END) AS translated_count
+    FROM question_options qo
+    LEFT JOIN question_option_translations qot
+      ON qot.option_id = qo.id
+     AND qot.lang = ?
+    WHERE qo.question_id = ?
+  ");
+  $optionSt->execute([$lang, $questionId]);
+  $optionInfo = $optionSt->fetch() ?: ['option_count' => 0, 'translated_count' => 0];
+  $optionCount = (int)($optionInfo['option_count'] ?? 0);
+  $translatedCount = (int)($optionInfo['translated_count'] ?? 0);
+  $hasAllOptions = ($optionCount > 0 && $translatedCount === $optionCount);
+  $hasExplanation = trim((string)($row['explanation'] ?? '')) !== '';
+  $hasSourceSnapshot = trim((string)($row['source_updated_at'] ?? '')) !== '';
+
+  if (!$hasAllOptions || !$hasExplanation) {
+    return 'partial';
+  }
+
+  $sourceUpdatedAt = trim((string)($row['source_updated_at'] ?? ''));
+  $questionUpdatedAt = trim((string)($row['updated_at'] ?? ''));
+  if (!$hasSourceSnapshot || ($questionUpdatedAt !== '' && $sourceUpdatedAt !== '' && strtotime($sourceUpdatedAt) < strtotime($questionUpdatedAt))) {
+    return 'stale';
+  }
+
+  return 'complete';
+}
+
 function mail_header_encode(string $value): string {
   if ($value === '' || preg_match('/^[\x20-\x7E]+$/', $value)) {
     return $value;

@@ -153,6 +153,29 @@ if (($selection['error_key'] ?? null) !== null) {
   exit;
 }
 
+if (question_translation_normalize_lang($lang) !== 'fr') {
+  $blockingMissing = [];
+  foreach ($qids as $questionId) {
+    $translationStatus = question_translation_status($pdo, (int)$questionId, $lang);
+    if ($translationStatus !== 'complete') {
+      $blockingMissing[] = (int)$questionId;
+    }
+  }
+  if ($blockingMissing !== []) {
+    $previewIds = implode(', ', array_slice($blockingMissing, 0, 5));
+    $moreCount = max(0, count($blockingMissing) - 5);
+    $suffix = $moreCount > 0 ? (' +' . $moreCount) : '';
+    header(
+      "Location: /dashboard.php?lang=" . urlencode($lang)
+      . "&err=" . urlencode(t('start.err.exam_language_incomplete', [
+        'lang' => t('lang.' . question_translation_normalize_lang($lang), [], $lang),
+        'ids' => $previewIds . $suffix,
+      ], $lang))
+    );
+    exit;
+  }
+}
+
 $pdo->beginTransaction();
 try {
   $stmt = $pdo->prepare("SELECT id FROM contacts WHERE email=?");

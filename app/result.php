@@ -237,6 +237,13 @@ if ($canShowReview) {
   ");
   $reviewStmt->execute([$sid]);
   $reviewItems = $reviewStmt->fetchAll() ?: [];
+  foreach ($reviewItems as &$reviewItem) {
+    $reviewQuestionId = (int)($reviewItem['question_id'] ?? 0);
+    if ($reviewQuestionId > 0 && (int)($reviewItem['is_question_deleted'] ?? 0) !== 1) {
+      $reviewItem['text'] = translated_question_field($pdo, $reviewQuestionId, $lang, 'question_text', (string)($reviewItem['text'] ?? ''));
+    }
+  }
+  unset($reviewItem);
 
   if ($reviewPosition > 0) {
     foreach ($reviewItems as $reviewItem) {
@@ -277,6 +284,10 @@ if ($canShowReview) {
       ");
       $selectedOptionsStmt->execute([$sid, $selectedQuestionId, $selectedQuestionId]);
       $selectedReviewOptions = $selectedOptionsStmt->fetchAll() ?: [];
+      foreach ($selectedReviewOptions as &$selectedOption) {
+        $selectedOption['option_text'] = translated_option_text($pdo, (int)($selectedOption['id'] ?? 0), $lang, (string)($selectedOption['option_text'] ?? ''));
+      }
+      unset($selectedOption);
     }
   }
 }

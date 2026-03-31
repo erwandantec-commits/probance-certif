@@ -1916,6 +1916,32 @@ body.admin-with-sidebar .admin-tabs-bottom {
   text-align: center;
 }
 
+.translation-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.translation-coverage-table th,
+.translation-coverage-table td {
+  vertical-align: middle;
+}
+
+.translation-coverage-table td:nth-child(1),
+.translation-coverage-table td:nth-child(3),
+.translation-coverage-table td:nth-child(5),
+.translation-coverage-table td:nth-child(6),
+.translation-coverage-table td:nth-child(7),
+.translation-coverage-table td:nth-child(8) {
+  text-align: center;
+}
+
+.translation-coverage-table td:nth-child(2),
+.translation-coverage-table td:nth-child(4) {
+  text-align: left;
+}
+
 .performance-scatter-card {
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -2765,6 +2791,28 @@ body.admin-with-sidebar .admin-tabs-bottom {
   letter-spacing: .04em;
 }
 
+.translation-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.translation-edit-card {
+  min-width: 0;
+}
+
+.translation-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.translation-edit-head .pack-config-card-title {
+  margin: 0;
+}
+
 .pack-config-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3046,6 +3094,10 @@ body.admin-with-sidebar .admin-tabs-bottom {
   }
 
   .pack-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .translation-edit-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -3532,6 +3584,10 @@ body.admin-with-sidebar .admin-tabs-bottom {
 
 :root[data-theme="dark"] .dash-cert-tile-time {
   color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .dash-cert-tile-profile {
+  color: #94a3b8;
 }
 
 :root[data-theme="dark"] .dash-cert-tile.pkg-black .dash-cert-tile-name {
@@ -4343,9 +4399,18 @@ body.admin-with-sidebar .admin-tabs-bottom {
   color: var(--cert-tone, #0f172a);
 }
 
+.dash-cert-tile-profile {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1.35;
+}
+
 .dash-cert-tile-time {
   display: inline-block;
-  margin-top: 2px;
+  margin-top: 4px;
   font-size: 12px;
   color: #475569;
 }

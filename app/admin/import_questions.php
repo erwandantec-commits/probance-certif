@@ -5,6 +5,7 @@ require_once __DIR__ . '/_nav.php';
 require_once __DIR__ . '/../utils.php';
 
 $pdo = db();
+ensure_question_translation_schema($pdo);
 
 function normalize_header(string $value): string {
   $value = trim(mb_strtolower($value, 'UTF-8'));
@@ -212,24 +213,36 @@ function db_column_nullable(PDO $pdo, string $table, string $column): bool {
   return $v === 'YES';
 }
 
-function mapping_fields(): array {
-  return [
-    'id' => ['label' => 'ID', 'required' => true, 'aliases' => ['id']],
+function import_mode_normalize(string $mode): string {
+  $mode = strtolower(trim($mode));
+  return in_array($mode, ['source', 'translation'], true) ? $mode : 'source';
+}
+
+function mapping_fields(string $importMode = 'source'): array {
+  $common = [
+    'id' => ['label' => 'ID', 'required' => true, 'aliases' => ['id', 'questionid', 'questionexternalid']],
     'question' => ['label' => 'Questions', 'required' => true, 'aliases' => ['questions', 'question']],
+    'answer1' => ['label' => 'Reponse 1', 'required' => true, 'aliases' => ['reponse1', 'response1', 'answer1', 'answera']],
+    'answer2' => ['label' => 'Reponse 2', 'required' => true, 'aliases' => ['reponse2', 'response2', 'answer2', 'answerb']],
+    'answer3' => ['label' => 'Reponse 3', 'required' => false, 'aliases' => ['reponse3', 'response3', 'answer3', 'answerc']],
+    'answer4' => ['label' => 'Reponse 4', 'required' => false, 'aliases' => ['reponse4', 'response4', 'answer4', 'answerd']],
+    'answer5' => ['label' => 'Reponse 5', 'required' => false, 'aliases' => ['reponse5', 'response5', 'answer5', 'answere']],
+    'answer6' => ['label' => 'Reponse 6', 'required' => false, 'aliases' => ['reponse6', 'response6', 'answer6', 'answerf']],
+    'explanation' => ['label' => 'Explication', 'required' => false, 'aliases' => ['explicationdetailleedelabonneresponse', 'explicationdetaillee', 'explanation']],
+  ];
+
+  if ($importMode === 'translation') {
+    return $common;
+  }
+
+  return $common + [
     'knowledge_required' => ['label' => 'Categorie', 'required' => true, 'aliases' => ['categorie', 'toolconcerned', 'connaissancesrequises', 'knowledgerequired', 'knowledge', 'need', 'needs']],
     'theme' => ['label' => 'Theme', 'required' => false, 'aliases' => ['themequestion', 'theme']],
     'level' => ['label' => 'Niveau question', 'required' => true, 'aliases' => ['niveauquestion', 'level', 'niveau']],
-    'answer1' => ['label' => 'Reponse 1', 'required' => true, 'aliases' => ['reponse1', 'response1', 'answer1']],
-    'answer2' => ['label' => 'Reponse 2', 'required' => true, 'aliases' => ['reponse2', 'response2', 'answer2']],
-    'answer3' => ['label' => 'Reponse 3', 'required' => false, 'aliases' => ['reponse3', 'response3', 'answer3']],
-    'answer4' => ['label' => 'Reponse 4', 'required' => false, 'aliases' => ['reponse4', 'response4', 'answer4']],
-    'answer5' => ['label' => 'Reponse 5', 'required' => false, 'aliases' => ['reponse5', 'response5', 'answer5']],
-    'answer6' => ['label' => 'Reponse 6', 'required' => false, 'aliases' => ['reponse6', 'response6', 'answer6']],
     'correct' => ['label' => 'Bonnes reponses', 'required' => true, 'aliases' => ['bonnesreponses', 'bonnereponse', 'correctanswers', 'goodanswers', 'correct']],
     'user_probance' => ['label' => 'Utilisateur Probance', 'required' => false, 'aliases' => ['utilisateurprobance', 'userprobance', 'probanceuser']],
     'user_brainpad' => ['label' => 'Utilisateur Brainpad', 'required' => false, 'aliases' => ['utilisateurbrainpad', 'userbrainpad', 'brainpaduser']],
     'open_to_client' => ['label' => 'Ouvert au client', 'required' => false, 'aliases' => ['ouvertauclient', 'open_to_client', 'opentoclient', 'clientopen', 'openedtoclient']],
-    'explanation' => ['label' => 'Explication', 'required' => false, 'aliases' => ['explicationdetailleedelabonneresponse', 'explicationdetaillee', 'explanation']],
   ];
 }
 
@@ -260,13 +273,13 @@ function primary_need_from_tokens(array $tokens): string {
   return (string)($tokens[0] ?? '');
 }
 
-function auto_map_headers(array $headers): array {
+function auto_map_headers(array $headers, string $importMode): array {
   $map = [];
   $normToIdx = [];
   foreach ($headers as $idx => $header) {
     $normToIdx[normalize_header((string)$header)] = (int)$idx;
   }
-  foreach (mapping_fields() as $key => $def) {
+  foreach (mapping_fields($importMode) as $key => $def) {
     $map[$key] = null;
     foreach ($def['aliases'] as $alias) {
       if (array_key_exists($alias, $normToIdx)) {
@@ -289,9 +302,9 @@ function auto_map_headers(array $headers): array {
   return $map;
 }
 
-function validate_mapping(array $map): array {
+function validate_mapping(array $map, string $importMode): array {
   $errors = [];
-  foreach (mapping_fields() as $key => $def) {
+  foreach (mapping_fields($importMode) as $key => $def) {
     if (!$def['required']) {
       continue;
     }
@@ -309,7 +322,7 @@ function cell_value(array $cells, ?int $idx): string {
   return trim((string)($cells[$idx] ?? ''));
 }
 
-function validate_and_prepare_rows(array $rows, array $map): array {
+function validate_and_prepare_rows(PDO $pdo, array $rows, array $map, string $importMode, string $importLang): array {
   $report = [
     'read_lines' => 0,
     'created' => 0,
@@ -319,6 +332,8 @@ function validate_and_prepare_rows(array $rows, array $map): array {
   ];
   $prepared = [];
   $headerCells = $rows[0]['__cells'] ?? [];
+  $importMode = import_mode_normalize($importMode);
+  $importLang = question_translation_normalize_lang($importLang);
 
   for ($r = 1; $r < count($rows); $r++) {
     $lineNo = (int)($rows[$r]['__line'] ?? ($r + 1));
@@ -338,6 +353,7 @@ function validate_and_prepare_rows(array $rows, array $map): array {
 
     $externalIdRaw = cell_value($cells, $map['id'] ?? null);
     $questionText = cell_value($cells, $map['question'] ?? null);
+    $explanation = cell_value($cells, $map['explanation'] ?? null);
     $theme = cell_value($cells, $map['theme'] ?? null);
     $knowledgeRequiredRaw = cell_value($cells, $map['knowledge_required'] ?? null);
     $levelRaw = cell_value($cells, $map['level'] ?? null);
@@ -345,7 +361,6 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     $userProbanceRaw = cell_value($cells, $map['user_probance'] ?? null);
     $userBrainpadRaw = cell_value($cells, $map['user_brainpad'] ?? null);
     $openToClientRaw = cell_value($cells, $map['open_to_client'] ?? null);
-    $explanation = cell_value($cells, $map['explanation'] ?? null);
     $openToClient = parse_open_to_client_value($openToClientRaw);
 
     $rowErrors = [];
@@ -354,13 +369,6 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     }
     if ($questionText === '') {
       $rowErrors[] = "Questions vide.";
-    }
-    $knowledgeTokens = parse_knowledge_required($knowledgeRequiredRaw);
-    if (!$knowledgeTokens) {
-      $rowErrors[] = "Categorie vide ou invalide.";
-    }
-    if ($levelRaw === '' || !preg_match('/^-?\d+$/', $levelRaw)) {
-      $rowErrors[] = "Niveau question non numerique.";
     }
 
     $responses = [];
@@ -378,6 +386,87 @@ function validate_and_prepare_rows(array $rows, array $map): array {
     }
     if (count($nonEmptyResponseIndexes) < 2) {
       $rowErrors[] = "Moins de 2 reponses non vides.";
+    }
+    if ($importMode === 'translation') {
+      $questionLookup = $pdo->prepare("
+        SELECT id, updated_at
+        FROM questions
+        WHERE external_id = ?
+        LIMIT 1
+      ");
+      $optionLookup = $pdo->prepare("
+        SELECT id, label
+        FROM question_options
+        WHERE question_id = ?
+        ORDER BY label ASC
+      ");
+
+      $questionLookup->execute([(int)$externalIdRaw]);
+      $questionSource = $questionLookup->fetch() ?: null;
+      $questionId = (int)($questionSource['id'] ?? 0);
+      if ($questionId <= 0) {
+        $rowErrors[] = "Question source introuvable pour cet ID.";
+      }
+
+      $existingOptions = [];
+      if ($questionId > 0) {
+        $optionLookup->execute([$questionId]);
+        $existingOptions = $optionLookup->fetchAll() ?: [];
+      }
+      if (count($existingOptions) < 2) {
+        $rowErrors[] = "Question source sans assez de reponses.";
+      }
+
+      foreach ($existingOptions as $optionIndex => $existingOption) {
+        $responseIndex = $optionIndex + 1;
+        if (trim((string)($responses[$responseIndex] ?? '')) === '') {
+          $rowErrors[] = "Traduction manquante pour la reponse " . $existingOption['label'] . ".";
+        }
+      }
+      for ($i = count($existingOptions) + 1; $i <= 6; $i++) {
+        if (trim((string)($responses[$i] ?? '')) !== '') {
+          $rowErrors[] = "Reponse traduite en trop (colonne $i) par rapport a la question source.";
+        }
+      }
+
+      if ($rowErrors) {
+        $report['rejected']++;
+        $rowId = $externalIdRaw !== '' ? $externalIdRaw : '?';
+        foreach ($rowErrors as $rowError) {
+          $report['errors'][] = "Ligne $lineNo (ID $rowId): $rowError";
+        }
+        continue;
+      }
+
+      $translations = [];
+      foreach ($existingOptions as $optionIndex => $existingOption) {
+        $responseIndex = $optionIndex + 1;
+        $translations[] = [
+          'option_id' => (int)$existingOption['id'],
+          'label' => (string)$existingOption['label'],
+          'text' => trim((string)($responses[$responseIndex] ?? '')),
+        ];
+      }
+
+      $prepared[] = [
+        'line_no' => $lineNo,
+        'external_id' => (int)$externalIdRaw,
+        'question_id' => $questionId,
+        'lang' => $importLang,
+        'question_text' => $questionText,
+        'explanation' => $explanation !== '' ? $explanation : null,
+        'source_updated_at' => (string)($questionSource['updated_at'] ?? ''),
+        'option_translations' => $translations,
+      ];
+      continue;
+    }
+
+    $knowledgeTokens = parse_knowledge_required($knowledgeRequiredRaw);
+    if (!$knowledgeTokens) {
+      $rowErrors[] = "Categorie vide ou invalide.";
+    }
+    if ($levelRaw === '' || !preg_match('/^-?\d+$/', $levelRaw)) {
+      $rowErrors[] = "Niveau question non numerique.";
     }
     if ($correctRaw === '') {
       $rowErrors[] = "Bonnes reponses vide.";
@@ -496,7 +585,60 @@ function validate_and_prepare_rows(array $rows, array $map): array {
   return ['prepared' => $prepared, 'report' => $report];
 }
 
-function run_import(PDO $pdo, array $prepared, array $report): array {
+function run_import(PDO $pdo, array $prepared, array $report, string $importMode, string $importLang): array {
+  $importMode = import_mode_normalize($importMode);
+  $importLang = question_translation_normalize_lang($importLang);
+
+  if ($importMode === 'translation') {
+    ensure_question_translation_schema($pdo);
+    $upsertQuestionTranslation = $pdo->prepare("
+      INSERT INTO question_translations(question_id, lang, question_text, explanation, source_updated_at, created_at, updated_at)
+      VALUES(?,?,?,?,?,NOW(),NOW())
+      ON DUPLICATE KEY UPDATE
+        question_text = VALUES(question_text),
+        explanation = VALUES(explanation),
+        source_updated_at = VALUES(source_updated_at),
+        updated_at = NOW()
+    ");
+    $upsertOptionTranslation = $pdo->prepare("
+      INSERT INTO question_option_translations(option_id, lang, option_text, created_at, updated_at)
+      VALUES(?,?,?,NOW(),NOW())
+      ON DUPLICATE KEY UPDATE
+        option_text = VALUES(option_text),
+        updated_at = NOW()
+    ");
+
+    foreach ($prepared as $row) {
+      $lineNo = (int)$row['line_no'];
+      $externalId = (int)$row['external_id'];
+      $pdo->beginTransaction();
+      try {
+        $upsertQuestionTranslation->execute([
+          (int)$row['question_id'],
+          $importLang,
+          (string)$row['question_text'],
+          $row['explanation'],
+          ($row['source_updated_at'] !== '' ? $row['source_updated_at'] : null),
+        ]);
+        foreach (($row['option_translations'] ?? []) as $optionTranslation) {
+          $upsertOptionTranslation->execute([
+            (int)$optionTranslation['option_id'],
+            $importLang,
+            (string)$optionTranslation['text'],
+          ]);
+        }
+        $pdo->commit();
+        $report['updated']++;
+      } catch (Throwable $e) {
+        $pdo->rollBack();
+        $report['rejected']++;
+        $report['errors'][] = "Ligne $lineNo (ID $externalId): Erreur DB traduction: " . $e->getMessage();
+      }
+    }
+
+    return $report;
+  }
+
   $hasOpenToClientColumn = db_column_exists($pdo, 'questions', 'open_to_client');
   $selectQ = $pdo->prepare("SELECT id FROM questions WHERE external_id=? LIMIT 1");
   if ($hasOpenToClientColumn) {
@@ -662,7 +804,7 @@ function run_import(PDO $pdo, array $prepared, array $report): array {
   return $report;
 }
 
-$stateKey = 'question_import_v11';
+$stateKey = 'question_import_v12';
 if (!isset($_SESSION[$stateKey]) || !is_array($_SESSION[$stateKey])) {
   $_SESSION[$stateKey] = [];
 }
@@ -678,7 +820,9 @@ if (db_column_exists($pdo, 'questions', 'package_id') && !db_column_nullable($pd
   $schemaErrors[] = "questions.package_id est NOT NULL. Lance les migrations SQL du projet.";
 }
 
-$mappingDefs = mapping_fields();
+$importMode = import_mode_normalize((string)($_POST['import_mode'] ?? ($state['import_mode'] ?? 'source')));
+$importLang = question_translation_normalize_lang((string)($_POST['import_lang'] ?? ($state['import_lang'] ?? 'fr')));
+$mappingDefs = mapping_fields($importMode);
 $mapping = $state['mapping'] ?? [];
 $report = null;
 $verifyDone = false;
@@ -706,12 +850,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new RuntimeException("Le fichier est vide ou ne contient pas de donnees.");
       }
       $headers = $rows[0]['__cells'] ?? [];
-      $mapping = auto_map_headers($headers);
+      $importMode = import_mode_normalize((string)($_POST['import_mode'] ?? 'source'));
+      $importLang = question_translation_normalize_lang((string)($_POST['import_lang'] ?? 'fr'));
+      $mapping = auto_map_headers($headers, $importMode);
       $state = [
         'file_name' => (string)($_FILES['import_file']['name'] ?? ''),
         'rows' => $rows,
         'headers' => $headers,
         'mapping' => $mapping,
+        'import_mode' => $importMode,
+        'import_lang' => $importLang,
         'can_import' => false,
       ];
       $_SESSION[$stateKey] = $state;
@@ -735,12 +883,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'errors' => ["Aucun fichier charge. Charge d'abord un fichier."],
       ];
     } else {
+      $importMode = import_mode_normalize((string)($_POST['import_mode'] ?? ($state['import_mode'] ?? 'source')));
+      $importLang = question_translation_normalize_lang((string)($_POST['import_lang'] ?? ($state['import_lang'] ?? 'fr')));
       $mapping = [];
-      foreach ($mappingDefs as $key => $_def) {
+      foreach (mapping_fields($importMode) as $key => $_def) {
         $raw = $_POST['mapping'][$key] ?? '';
         $mapping[$key] = ($raw === '' ? null : (int)$raw);
       }
-      $errors = validate_mapping($mapping);
+      $errors = validate_mapping($mapping, $importMode);
       if ($errors) {
         $report = [
           'read_lines' => 0,
@@ -750,9 +900,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'errors' => $errors,
         ];
       } else {
-        $validation = validate_and_prepare_rows($state['rows'], $mapping);
+        $validation = validate_and_prepare_rows($pdo, $state['rows'], $mapping, $importMode, $importLang);
         $report = $validation['report'];
         $state['mapping'] = $mapping;
+        $state['import_mode'] = $importMode;
+        $state['import_lang'] = $importLang;
         $state['can_import'] = true;
         $_SESSION[$stateKey] = $state;
         $verifyDone = true;
@@ -770,7 +922,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ];
     } else {
       $mapping = $state['mapping'] ?? [];
-      $validationErrors = validate_mapping($mapping);
+      $importMode = import_mode_normalize((string)($state['import_mode'] ?? 'source'));
+      $importLang = question_translation_normalize_lang((string)($state['import_lang'] ?? 'fr'));
+      $validationErrors = validate_mapping($mapping, $importMode);
       if ($validationErrors) {
         $report = [
           'read_lines' => 0,
@@ -780,8 +934,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'errors' => $validationErrors,
         ];
       } else {
-        $validation = validate_and_prepare_rows($state['rows'], $mapping);
-        $report = run_import($pdo, $validation['prepared'], $validation['report']);
+        $validation = validate_and_prepare_rows($pdo, $state['rows'], $mapping, $importMode, $importLang);
+        $report = run_import($pdo, $validation['prepared'], $validation['report'], $importMode, $importLang);
         // Import termine: on purge l'etat pour masquer le mapping.
         $_SESSION[$stateKey] = [];
         $state = [];
@@ -792,6 +946,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $state = $_SESSION[$stateKey] ?? [];
+$importMode = import_mode_normalize((string)($state['import_mode'] ?? $importMode ?? 'source'));
+$importLang = question_translation_normalize_lang((string)($state['import_lang'] ?? $importLang ?? 'fr'));
+$mappingDefs = mapping_fields($importMode);
 $hasLoadedRows = isset($state['rows']) && is_array($state['rows']) && count($state['rows']) > 0;
 $headers = $state['headers'] ?? [];
 if ((empty($headers) || !is_array($headers)) && $hasLoadedRows) {
@@ -876,6 +1033,8 @@ $mapping = $state['mapping'] ?? $mapping;
         <?php if (($verifyDone || ($report !== null && empty($report['errors']))) && !empty($state['can_import'])): ?>
           <form method="post" class="import-form" style="margin-top:12px;">
             <input type="hidden" name="action" value="import">
+            <input type="hidden" name="import_mode" value="<?= h($importMode) ?>">
+            <input type="hidden" name="import_lang" value="<?= h($importLang) ?>">
             <div class="import-actions">
               <button class="btn" type="submit">Importer les lignes valides</button>
             </div>
@@ -887,6 +1046,22 @@ $mapping = $state['mapping'] ?? $mapping;
     <form method="post" class="import-form" enctype="multipart/form-data">
       <input type="hidden" name="action" value="load_file">
       <div class="import-fields">
+        <div class="import-field">
+          <label class="label">Mode d'import</label>
+          <select class="input" name="import_mode">
+            <option value="source" <?= $importMode === 'source' ? 'selected' : '' ?>>Source de reference</option>
+            <option value="translation" <?= $importMode === 'translation' ? 'selected' : '' ?>>Traductions</option>
+          </select>
+        </div>
+        <div class="import-field">
+          <label class="label">Langue importee</label>
+          <select class="input" name="import_lang">
+            <option value="fr" <?= $importLang === 'fr' ? 'selected' : '' ?>>FR</option>
+            <option value="en" <?= $importLang === 'en' ? 'selected' : '' ?>>EN</option>
+            <option value="es" <?= $importLang === 'es' ? 'selected' : '' ?>>ES</option>
+            <option value="jp" <?= $importLang === 'jp' ? 'selected' : '' ?>>JA</option>
+          </select>
+        </div>
         <div class="import-field import-field-full">
           <label class="label">Fichier (.csv ou .xlsx)</label>
           <input class="input" type="file" name="import_file" accept=".csv,.xlsx" required>
@@ -909,6 +1084,8 @@ $mapping = $state['mapping'] ?? $mapping;
 
       <form method="post" class="import-form">
         <input type="hidden" name="action" value="verify">
+        <input type="hidden" name="import_mode" value="<?= h($importMode) ?>">
+        <input type="hidden" name="import_lang" value="<?= h($importLang) ?>">
         <div class="import-fields">
           <?php foreach ($mappingDefs as $key => $def): ?>
             <?php $selected = $mapping[$key] ?? null; ?>
@@ -936,7 +1113,7 @@ $mapping = $state['mapping'] ?? $mapping;
 
     <p class="small import-note">
       *Colonnes obligatoires.<br>
-      La verification ne modifie pas la base. A chaque re-import d'un meme <code>ID question</code>, les infos de la question sont remplacées par les nouvelles.
+      La verification ne modifie pas la base. En mode <code>source</code>, un re-import remplace la question de reference et ses reponses. En mode <code>traduction</code>, l'import met a jour uniquement les libelles traduits de la langue choisie.
     </p>
   </div>
 </div>

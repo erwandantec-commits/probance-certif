@@ -367,7 +367,7 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
         $take = (int)($bucket['take'] ?? 0);
         $targetTotal = (int)($bucket['target_total'] ?? 0);
 
-        if ($need === '' || !is_array($levels) || $take <= 0) {
+        if ($need === '' || !is_array($levels)) {
           continue;
         }
 
@@ -378,6 +378,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
         }
 
         $remaining = $max - count($qids);
+        if ($take <= 0) {
+          $take = $remaining;
+        }
         if ($take > $remaining) {
           $take = $remaining;
         }

@@ -640,6 +640,7 @@ function dash_remaining_label(int $seconds): string {
 		              <?php foreach ($packages as $pk): ?>
 	                <?php
 	                  $pkName = localize_text((string)$pk['name'], $lang);
+	                  $pkProfile = trim(localize_text((string)($pk['profile'] ?? ''), $lang));
 	                  $pkCode = strtoupper(trim((string)$pk['name']));
 	                  $pkTone = package_color_hex((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''));
 	                  $pkDuration = (int)$pk['duration_limit_minutes'];
@@ -661,6 +662,9 @@ function dash_remaining_label(int $seconds): string {
 		                  style="--cert-tone: <?= h($pkTone) ?>;"
 		                >
 	                  <span class="dash-cert-tile-name"><?= h($pkName) ?></span>
+                    <?php if ($pkProfile !== ''): ?>
+	                  <span class="dash-cert-tile-profile"><?= h($pkProfile) ?></span>
+                    <?php endif; ?>
 	                  <span class="dash-cert-tile-time"><?= (int)$pkDuration ?> min</span>
 	                </button>
 		              <?php endforeach; ?>

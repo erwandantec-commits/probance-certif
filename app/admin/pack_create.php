@@ -86,13 +86,12 @@ function pack_create_rule_rows_with_cumulative_targets(array $rows): array {
 
 function pack_create_rule_rows_from_post(): array {
   $needs = $_POST['rule_need'] ?? [];
-  $takes = $_POST['rule_take'] ?? [];
   $targets = $_POST['rule_target_total'] ?? [];
   $level1 = $_POST['rule_level_1'] ?? [];
   $level2 = $_POST['rule_level_2'] ?? [];
   $level3 = $_POST['rule_level_3'] ?? [];
 
-  if (!is_array($needs) || !is_array($takes) || !is_array($targets)) {
+  if (!is_array($needs) || !is_array($targets)) {
     return [];
   }
 
@@ -100,7 +99,6 @@ function pack_create_rule_rows_from_post(): array {
   $total = count($needs);
   for ($i = 0; $i < $total; $i++) {
     $need = normalize_question_need((string)($needs[$i] ?? ''));
-    $take = (int)($takes[$i] ?? 0);
     $targetTotal = (int)($targets[$i] ?? 0);
     $levels = [];
     if ((string)($level1[$i] ?? '') === '1') {
@@ -113,14 +111,13 @@ function pack_create_rule_rows_from_post(): array {
       $levels[] = 3;
     }
 
-    if ($need === '' || $take <= 0 || !$levels) {
+    if ($need === '' || !$levels) {
       continue;
     }
 
     $rows[] = [
       'need' => $need,
       'levels' => $levels,
-      'take' => $take,
       'target_total' => $targetTotal > 0 ? $targetTotal : 0,
     ];
   }
@@ -135,7 +132,6 @@ function pack_create_rule_rows_to_json(array $rows, int $selectionCount): string
     $bucket = [
       'need' => (string)$row['need'],
       'levels' => array_values(array_map('intval', $row['levels'] ?? [])),
-      'take' => (int)$row['take'],
     ];
     $targetTotal = (int)($row['target_total'] ?? 0);
     if ($targetTotal > 0) {
@@ -348,7 +344,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             continue;
           }
           $need = normalize_question_need((string)($row['need'] ?? ''));
-          $take = (int)($row['take'] ?? 0);
           $targetTotal = (int)($row['target_total'] ?? 0);
           $levelsRaw = $row['levels'] ?? [];
           if (!is_array($levelsRaw)) {
@@ -364,13 +359,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
           $levels = array_values(array_unique($levels));
           sort($levels);
 
-          if ($need === '' || $take <= 0 || !$levels) {
+          if ($need === '' || !$levels) {
             continue;
           }
           $parsedRows[] = [
             'need' => $need,
             'levels' => $levels,
-            'take' => $take,
             'target_total' => max(0, $targetTotal),
           ];
         }
@@ -663,13 +657,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <tr>
                     <th>Categorie</th>
                     <th>Niveaux</th>
-                    <th>Nb de questions (max)</th>
                     <th>
                       <span class="order-help-wrap">
-                        <span>Cible cumul&eacute;e</span>
+                        <span>Cumul vis&eacute;</span>
                         <span class="order-help-tip" tabindex="0" aria-label="Aide sur la cible cumulee">
                           i
-                          <span class="order-help-bubble">Ajoute un objectif cumul&eacute; pour ce palier. Le total correspond &agrave; la somme des lignes.</span>
+                          <span class="order-help-bubble">Chaque palier prend automatiquement toutes les questions correspondant &agrave; ses crit&egrave;res. Le cumul vis&eacute; permet de fixer le total souhait&eacute; atteint apr&egrave;s ce palier.</span>
                         </span>
                       </span>
                     </th>
@@ -700,7 +693,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="hidden" class="rule-level-3-input" value="<?= !empty($levelsMap[3]) ? '1' : '0' ?>">
                         <label class="rule-level-check"><input type="checkbox" class="rule-level-3-check" <?= !empty($levelsMap[3]) ? 'checked' : '' ?>> L3</label>
                       </td>
-                      <td><input class="input rule-take" type="number" name="rule_take[]" min="1" max="200" value="<?= (int)($row['take'] ?? 0) ?>"></td>
                       <td><input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>"></td>
                       <td>
                         <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier">
@@ -714,8 +706,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tbody>
                 <tfoot>
                   <tr class="rule-summary-row">
-                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label">Total</span></td>
-                    <td class="rule-summary-value"><span id="rule-total-take" class="rule-summary-number">0</span></td>
+                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label">R&eacute;capitulatif</span></td>
                     <td class="rule-summary-value"><span id="rule-total-target" class="rule-summary-number">0</span></td>
                     <td></td>
                   </tr>
@@ -750,20 +741,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       var rows = [];
       body.querySelectorAll('.rule-row').forEach(function (row) {
         var need = row.querySelector('.rule-need');
-        var take = row.querySelector('.rule-take');
         var target = row.querySelector('.rule-target-total');
         var levels = [];
         if (row.querySelector('.rule-level-1-check:checked')) levels.push(1);
         if (row.querySelector('.rule-level-2-check:checked')) levels.push(2);
         if (row.querySelector('.rule-level-3-check:checked')) levels.push(3);
         var needVal = need ? String(need.value || '').trim().toUpperCase() : '';
-        var takeVal = take ? parseInt(String(take.value || '0'), 10) : 0;
         var targetVal = target ? parseInt(String(target.value || '0'), 10) : 0;
-        if (!needVal || !levels.length || !Number.isFinite(takeVal) || takeVal <= 0) return;
+        if (!needVal || !levels.length) return;
         rows.push({
           need: needVal,
           levels: levels,
-          take: takeVal,
           target_total: Number.isFinite(targetVal) && targetVal > 0 ? targetVal : 0
         });
       });
@@ -807,7 +795,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     var templateSelect = document.getElementById('rule-template');
     var countInput = document.querySelector('input[name="selection_count"]');
     var form = document.querySelector('form[method="post"]');
-    var totalTakeEl = document.getElementById('rule-total-take');
     var totalTargetEl = document.getElementById('rule-total-target');
 
     function bindRowActions(row) {
@@ -824,27 +811,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     function updateRuleTotals() {
       if (!tbody) return;
-      var totalTake = 0;
       var totalTarget = 0;
       tbody.querySelectorAll('.rule-row').forEach(function (row) {
-        var takeInput = row.querySelector('.rule-take');
         var targetInput = row.querySelector('.rule-target-total');
-        var takeVal = takeInput ? parseInt(String(takeInput.value || '0'), 10) : 0;
         var targetVal = targetInput ? parseInt(String(targetInput.value || '0'), 10) : 0;
-        if (Number.isFinite(takeVal) && takeVal > 0) {
-          totalTake += takeVal;
-        }
         if (Number.isFinite(targetVal) && targetVal > 0) {
           totalTarget += targetVal;
         }
       });
-      if (totalTakeEl) totalTakeEl.textContent = String(totalTake);
       if (totalTargetEl) totalTargetEl.textContent = String(totalTarget);
     }
 
     function buildRowHtml(data) {
       var need = String(data.need || 'PONE');
-      var take = data.take || 1;
       var targetTotal = data.target_total || 0;
       var levels = Array.isArray(data.levels) ? data.levels : [1];
       var hasL1 = levels.indexOf(1) !== -1;
@@ -869,7 +848,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             '<input type="hidden" class="rule-level-3-input" value="' + (hasL3 ? '1' : '0') + '">' +
             '<label class="rule-level-check"><input type="checkbox" class="rule-level-3-check"' + (hasL3 ? ' checked' : '') + '> L3</label>' +
           '</td>' +
-          '<td><input class="input rule-take" type="number" min="1" max="200" value="' + take + '"></td>' +
           '<td><input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '"></td>' +
           '<td><button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier"><svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/></svg></button></td>' +
         '</tr>';
@@ -892,7 +870,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       var rows = tbody.querySelectorAll('.rule-row');
       rows.forEach(function (row, idx) {
         var need = row.querySelector('.rule-need');
-        var take = row.querySelector('.rule-take');
         var target = row.querySelector('.rule-target-total');
         var l1Input = row.querySelector('.rule-level-1-input');
         var l2Input = row.querySelector('.rule-level-2-input');
@@ -902,7 +879,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         var l3Check = row.querySelector('.rule-level-3-check');
 
         if (need) need.name = 'rule_need[' + idx + ']';
-        if (take) take.name = 'rule_take[' + idx + ']';
         if (target) target.name = 'rule_target_total[' + idx + ']';
         if (l1Input) {
           l1Input.name = 'rule_level_1[' + idx + ']';
@@ -984,7 +960,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       updateRuleTotals();
       validateRuleTargets(false);
       tbody.addEventListener('input', function (e) {
-        if (e.target && e.target.classList && (e.target.classList.contains('rule-target-total') || e.target.classList.contains('rule-take'))) {
+        if (e.target && e.target.classList && e.target.classList.contains('rule-target-total')) {
           validateRuleTargets(false);
         }
       });
@@ -999,7 +975,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (addRowBtn) {
       addRowBtn.addEventListener('click', function () {
-        addRuleRow({ need: 'PONE', levels: [1], take: 1, target_total: 0 });
+        addRuleRow({ need: 'PONE', levels: [1], target_total: 0 });
       });
     }
 
