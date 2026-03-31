@@ -155,7 +155,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
         $take = (int)($b['take'] ?? 0);
         $targetTotal = (int)($b['target_total'] ?? 0);
         $levels = $b['levels'] ?? [];
-        if ($take <= 0 || $need === '' || !is_array($levels)) {
+        if ($need === '' || !is_array($levels)) {
           continue;
         }
 
@@ -165,6 +165,15 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
           $bucketAvail += (int)($counts[$need][$lv] ?? 0);
         }
 
+        $remainingToRequired = $required - $sumAvail;
+        if ($remainingToRequired <= 0) {
+          break;
+        }
+
+        if ($take <= 0) {
+          $take = $remainingToRequired;
+        }
+
         $canTake = min($take, $bucketAvail);
         if ($targetTotal > 0) {
           $remainingToTarget = $targetTotal - $sumAvail;
@@ -172,10 +181,6 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
             continue;
           }
           $canTake = min($canTake, $remainingToTarget);
-        }
-        $remainingToRequired = $required - $sumAvail;
-        if ($remainingToRequired <= 0) {
-          break;
         }
         $canTake = min($canTake, $remainingToRequired);
         if ($canTake <= 0) {
