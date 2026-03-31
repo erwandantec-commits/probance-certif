@@ -84,8 +84,8 @@ if ($dateTo !== '') {
 $whereSql = implode("\n      AND ", $whereParts);
 $resultFilterSql = $answerStatus === 'ALL' ? "perf.answer_status IN ('OK', 'KO')" : "perf.answer_status = ?";
 $resultLabel = match ($answerStatus) {
-  'OK' => 'reussites',
-  'KO' => 'echecs',
+  'OK' => 'réussites',
+  'KO' => 'échecs',
   default => 'resultats',
 };
 
@@ -294,11 +294,11 @@ $rows = $stmt->fetchAll() ?: [];
         <strong class="admin-stat-value"><?= ($question['external_id'] === null || $question['external_id'] === '') ? '-' : (int)$question['external_id'] ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux reussite</span>
+        <span class="admin-stat-label">Taux réussite</span>
         <strong class="admin-stat-value"><?= h(number_format($okRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux echec</span>
+        <span class="admin-stat-label">Taux échec</span>
         <strong class="admin-stat-value"><?= h(number_format($koRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">

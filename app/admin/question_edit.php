@@ -195,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     try {
       if ($question['id'] > 0) {
-        $up = $pdo->prepare("UPDATE questions SET text=?, need=?, level=?, question_type=?, allow_skip=?, explanation=? WHERE id=?");
+        $up = $pdo->prepare("UPDATE questions SET text=?, need=?, level=?, question_type=?, allow_skip=?, explanation=?, updated_at=NOW() WHERE id=?");
         $up->execute([
           $question['text'],
           $question['need'],

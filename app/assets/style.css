@@ -1774,15 +1774,54 @@ body.admin-with-sidebar .admin-tabs-bottom {
   vertical-align: middle;
 }
 
+.admin-session-table th,
+.admin-session-table td {
+  vertical-align: middle;
+}
+
+.admin-session-table td:nth-child(1),
+.admin-session-table td:nth-child(2),
+.admin-session-table td:nth-child(4),
+.admin-session-table td:nth-child(5),
+.admin-session-table td:nth-child(6),
+.admin-session-table td:nth-child(7) {
+  text-align: center;
+}
+
+.admin-session-table th:nth-child(3),
+.admin-session-table td:nth-child(3) {
+  text-align: left;
+}
+
 .sessions-table th:nth-child(3),
 .sessions-table td:nth-child(3) {
   text-align: center;
+}
+
+.sessions-table.admin-session-table th:nth-child(3),
+.sessions-table.admin-session-table td:nth-child(3) {
+  text-align: left;
+}
+
+.sessions-table th:nth-child(6),
+.sessions-table td:nth-child(6) {
+  width: 108px;
+  min-width: 108px;
 }
 
 .sessions-table th:last-child,
 .sessions-table td:last-child {
   width: 110px;
   text-align: center;
+  white-space: nowrap;
+}
+
+.admin-session-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
   white-space: nowrap;
 }
 
@@ -1794,17 +1833,80 @@ body.admin-with-sidebar .admin-tabs-bottom {
   margin-right: 0;
 }
 
-.performance-table .actions-cell {
+.admin-session-actions {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 2px;
   flex-wrap: nowrap;
 }
 
-.performance-table .actions-cell .btn {
-  margin-right: 0;
+.admin-session-flag {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #b45309;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
   flex: 0 0 auto;
+}
+
+.performance-table .actions-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.performance-table th,
+.performance-table td {
+  vertical-align: middle;
+}
+
+.performance-table td:nth-child(1),
+.performance-table td:nth-child(2),
+.performance-table td:nth-child(6),
+.performance-table td:nth-child(7),
+.performance-table td:nth-child(8),
+.performance-table td:nth-child(9) {
+  text-align: center;
+}
+
+.performance-table td:nth-child(3),
+.performance-table td:nth-child(4),
+.performance-table th:nth-child(5),
+.performance-table td:nth-child(5) {
+  text-align: left !important;
+}
+
+.performance-question-state {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.performance-table th:nth-child(5),
+.performance-table td:nth-child(5) {
+  min-width: 132px;
+}
+
+.performance-table td:nth-child(5) .pill {
+  margin-left: 0;
+}
+
+.performance-table .actions-cell .btn {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 0;
+  margin-left: 4px;
+}
+
+.performance-table .actions-cell .btn:first-child {
+  margin-left: 0;
 }
 
 .performance-table th:last-child,
@@ -3067,6 +3169,51 @@ body.admin-with-sidebar .admin-tabs-bottom {
   line-height: 1.35;
   text-align: center;
   pointer-events: none;
+}
+
+.result-review-table th:nth-child(5),
+.result-review-table td:nth-child(5) {
+  width: 150px;
+  min-width: 150px;
+}
+
+.result-review-table th:last-child,
+.result-review-table td:last-child {
+  width: 64px;
+  min-width: 64px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.result-review-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.result-review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  white-space: nowrap;
+}
+
+.result-review-flag {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #b45309;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 :root[data-theme="dark"] .app-version-footer {

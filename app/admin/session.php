@@ -210,11 +210,11 @@ $statusClass = match ((string)$s['status']) {
             Les questions liees ont probablement ete supprimees apres import/reset.
           </p>
         <?php else: ?>
-          <table class="table questions-table">
+          <table class="table questions-table sessions-table admin-session-table">
             <thead>
               <tr>
                 <th>#</th>
-                <th>ID question</th>
+                <th>ID</th>
                 <th>Question</th>
                 <th>Reponse candidat</th>
                 <th>Reponse correcte</th>
@@ -229,23 +229,20 @@ $statusClass = match ((string)$s['status']) {
                   <td><?= ($it['question_external_id'] === null || $it['question_external_id'] === '') ? '-' : (int)$it['question_external_id'] ?></td>
                   <td>
                     <?= h((string)$it['text']) ?>
-                    <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
-                      <span class="badge" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
-                    <?php elseif (!empty($it['is_question_modified'])): ?>
-                      <span class="badge" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
-                    <?php endif; ?>
                   </td>
                   <td><?= h($it['picked_labels'] ?: '-') ?></td>
                   <td><?= h($it['correct_labels'] ?: '-') ?></td>
                   <td>
-                    <span class="<?= h($it['answer_status_class']) ?>" title="<?= h((string)($it['answer_status_label'] ?? '')) ?>" aria-label="<?= h((string)($it['answer_status_label'] ?? '')) ?>"><?= h($it['answer_status']) ?></span>
-                    <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
-                      <span class="badge" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
-                    <?php elseif (!empty($it['is_question_modified'])): ?>
-                      <span class="badge" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
-                    <?php endif; ?>
+                    <div class="admin-session-status">
+                      <span class="<?= h($it['answer_status_class']) ?>" title="<?= h((string)($it['answer_status_label'] ?? '')) ?>" aria-label="<?= h((string)($it['answer_status_label'] ?? '')) ?>"><?= h($it['answer_status']) ?></span>
+                      <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
+                        <span class="admin-session-flag" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
+                      <?php elseif (!empty($it['is_question_modified'])): ?>
+                        <span class="admin-session-flag" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
+                      <?php endif; ?>
+                    </div>
                   </td>
-                  <td class="actions-cell">
+                  <td class="actions-cell admin-session-actions">
                     <?php if (!empty($it['question_id'])): ?>
                       <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$it['question_id'] ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Modifier la question" title="Modifier la question">
                         <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

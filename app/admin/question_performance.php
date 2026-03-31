@@ -9,8 +9,8 @@ require_once __DIR__ . '/../services/session_service.php';
 $pdo = db();
 
 $knowledgeRequired = trim((string)($_GET['knowledge_required'] ?? ''));
-$questionSearch = trim((string)($_GET['q'] ?? ''));
 $questionIdRaw = trim((string)($_GET['question_id'] ?? ''));
+$questionState = strtoupper(trim((string)($_GET['question_state'] ?? 'ALL')));
 $sessionType = strtoupper(trim((string)($_GET['session_type'] ?? 'ALL')));
 $dateFrom = trim((string)($_GET['date_from'] ?? ''));
 $dateTo = trim((string)($_GET['date_to'] ?? ''));
@@ -33,6 +33,9 @@ $chartFailRateRaw = trim((string)($_GET['chart_fail_rate'] ?? ''));
 
 if (!in_array($sessionType, ['ALL', 'EXAM', 'TRAINING'], true)) {
   $sessionType = 'ALL';
+}
+if (!in_array($questionState, ['ALL', 'UNCHANGED', 'MODIFIED', 'DELETED'], true)) {
+  $questionState = 'ALL';
 }
 if (!in_array($sort, ['question_text', 'knowledge_required', 'response_count', 'ok_rate', 'fail_rate'], true)) {
   $sort = 'fail_rate';
@@ -145,6 +148,26 @@ $knowledgeRequiredRows = $pdo->query("
   ORDER BY knowledge_required_name ASC
 ")->fetchAll() ?: [];
 
+$hasQuestionExternalSnapshot = table_column_exists($pdo, 'session_questions', 'question_external_id_snapshot');
+$hasQuestionTextSnapshot = table_column_exists($pdo, 'session_questions', 'question_text_snapshot');
+$hasQuestionUpdatedSnapshot = table_column_exists($pdo, 'session_questions', 'question_updated_at_snapshot');
+
+$questionTextFilterExpr = $hasQuestionTextSnapshot
+  ? "COALESCE(sq.question_text_snapshot, q0.text)"
+  : "q0.text";
+$questionExternalFilterExpr = $hasQuestionExternalSnapshot
+  ? "COALESCE(sq.question_external_id_snapshot, q0.external_id)"
+  : "q0.external_id";
+$questionTextSnapshotSelect = $hasQuestionTextSnapshot
+  ? "sq.question_text_snapshot"
+  : "q0.text";
+$questionExternalSnapshotSelect = $hasQuestionExternalSnapshot
+  ? "sq.question_external_id_snapshot"
+  : "q0.external_id";
+$questionUpdatedSnapshotSelect = $hasQuestionUpdatedSnapshot
+  ? "sq.question_updated_at_snapshot"
+  : "NULL";
+
 $where = ["s.status IN ('TERMINATED', 'EXPIRED')"];
 $params = [];
 if ($sessionType !== 'ALL') {
@@ -167,12 +190,8 @@ if ($knowledgeRequired !== '') {
   $where[] = "q0.knowledge_required_csv = ?";
   $params[] = $knowledgeRequired;
 }
-if ($questionSearch !== '') {
-  $where[] = "q0.text LIKE ?";
-  $params[] = '%' . $questionSearch . '%';
-}
 if ($questionId !== null) {
-  $where[] = "q0.external_id = ?";
+  $where[] = "$questionExternalFilterExpr = ?";
   $params[] = $questionId;
 }
 $whereSql = implode("\n      AND ", $where);
@@ -200,6 +219,23 @@ $responseHaving = performance_having_int_clause('COUNT(*)', $responseOp, $respon
 if ($responseHaving !== null) {
   $havingParts[] = $responseHaving;
 }
+
+$stateDeletedExpr = "MAX(CASE WHEN q.id IS NULL THEN 1 ELSE 0 END)";
+$stateModifiedExpr = "MAX(CASE
+  WHEN q.id IS NOT NULL
+   AND perf.question_updated_at_snapshot IS NOT NULL
+   AND q.updated_at IS NOT NULL
+   AND UNIX_TIMESTAMP(q.updated_at) > UNIX_TIMESTAMP(perf.question_updated_at_snapshot)
+  THEN 1 ELSE 0 END)";
+if ($questionState === 'DELETED') {
+  $havingParts[] = "$stateDeletedExpr = 1";
+} elseif ($questionState === 'MODIFIED') {
+  $havingParts[] = "$stateDeletedExpr = 0";
+  $havingParts[] = "$stateModifiedExpr = 1";
+} elseif ($questionState === 'UNCHANGED') {
+  $havingParts[] = "$stateDeletedExpr = 0";
+  $havingParts[] = "$stateModifiedExpr = 0";
+}
 $havingSql = $havingParts ? ('HAVING ' . implode(' AND ', $havingParts)) : '';
 
 $perfFromSql = "
@@ -207,10 +243,13 @@ $perfFromSql = "
     SELECT
       sq.session_id,
       sq.question_id,
+      $questionExternalSnapshotSelect AS question_external_id_snapshot,
+      $questionTextSnapshotSelect AS question_text_snapshot,
+      $questionUpdatedSnapshotSelect AS question_updated_at_snapshot,
       $answerStatusExpr AS answer_status
     FROM session_questions sq
     JOIN sessions s ON s.id = sq.session_id
-    JOIN questions q0 ON q0.id = sq.question_id
+    LEFT JOIN questions q0 ON q0.id = sq.question_id
     " . ($hasAnswerStatusSnapshot ? "" : "
     JOIN (
       SELECT
@@ -232,7 +271,7 @@ $perfFromSql = "
     ") . "
     WHERE $whereSql
   ) perf
-  JOIN questions q ON q.id = perf.question_id
+  LEFT JOIN questions q ON q.id = perf.question_id
 ";
 $answeredPerfFromSql = $perfFromSql . "
   WHERE perf.answer_status <> 'UNANSWERED'
@@ -257,17 +296,19 @@ $offset = ($page - 1) * $limit;
 
 $sql = "
   SELECT
-    q.id,
-    q.external_id,
-    q.text AS question_text,
+    perf.question_id AS id,
+    COALESCE(q.external_id, perf.question_external_id_snapshot) AS external_id,
+    COALESCE(q.text, perf.question_text_snapshot) AS question_text,
     COALESCE(NULLIF(TRIM(q.knowledge_required_csv), ''), '-') AS knowledge_required,
     COUNT(*) AS response_count,
     SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END) AS ok_count,
     SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END) AS fail_count,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
-    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
+    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate,
+    $stateDeletedExpr AS is_deleted,
+    $stateModifiedExpr AS is_modified
   $answeredPerfFromSql
-  GROUP BY q.id, q.external_id, q.text, q.knowledge_required_csv
+  GROUP BY perf.question_id, COALESCE(q.external_id, perf.question_external_id_snapshot), COALESCE(q.text, perf.question_text_snapshot), q.knowledge_required_csv
   $havingSql
   ORDER BY $sort $dir, response_count DESC, q.id DESC
   LIMIT ? OFFSET ?
@@ -284,15 +325,17 @@ $rows = $stmt->fetchAll() ?: [];
 
 $rankingSql = "
   SELECT
-    q.id,
-    q.external_id,
-    q.text AS question_text,
+    perf.question_id AS id,
+    COALESCE(q.external_id, perf.question_external_id_snapshot) AS external_id,
+    COALESCE(q.text, perf.question_text_snapshot) AS question_text,
     COALESCE(NULLIF(TRIM(q.knowledge_required_csv), ''), '-') AS knowledge_required,
     COUNT(*) AS response_count,
     ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'OK' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS ok_rate,
-    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate
+    ROUND((100.0 * SUM(CASE WHEN perf.answer_status = 'KO' THEN 1 ELSE 0 END)) / COUNT(*), 1) AS fail_rate,
+    $stateDeletedExpr AS is_deleted,
+    $stateModifiedExpr AS is_modified
   $answeredPerfFromSql
-  GROUP BY q.id, q.external_id, q.text, q.knowledge_required_csv
+  GROUP BY perf.question_id, COALESCE(q.external_id, perf.question_external_id_snapshot), COALESCE(q.text, perf.question_text_snapshot), q.knowledge_required_csv
   $havingSql
   ORDER BY ok_rate DESC, response_count DESC, q.id ASC
 ";
@@ -316,6 +359,26 @@ $summary = $summaryStmt->fetch() ?: ['response_count' => 0, 'ok_count' => 0, 'fa
 $totalResponses = (int)($summary['response_count'] ?? 0);
 $globalOkRate = $totalResponses > 0 ? round(((int)$summary['ok_count'] * 100) / $totalResponses, 1) : 0.0;
 $globalFailRate = $totalResponses > 0 ? round(((int)$summary['fail_count'] * 100) / $totalResponses, 1) : 0.0;
+
+$stateSummaryStmt = $pdo->prepare("
+  SELECT
+    SUM(CASE WHEN state_rows.is_deleted = 1 THEN 1 ELSE 0 END) AS deleted_count,
+    SUM(CASE WHEN state_rows.is_deleted = 0 AND state_rows.is_modified = 1 THEN 1 ELSE 0 END) AS modified_count,
+    SUM(CASE WHEN state_rows.is_deleted = 0 AND state_rows.is_modified = 0 THEN 1 ELSE 0 END) AS unchanged_count
+  FROM (
+    SELECT
+      perf.question_id,
+      $stateDeletedExpr AS is_deleted,
+      $stateModifiedExpr AS is_modified
+    $answeredPerfFromSql
+    GROUP BY perf.question_id
+  ) state_rows
+");
+$stateSummaryStmt->execute($params);
+$stateSummary = $stateSummaryStmt->fetch() ?: ['deleted_count' => 0, 'modified_count' => 0, 'unchanged_count' => 0];
+$deletedQuestions = (int)($stateSummary['deleted_count'] ?? 0);
+$modifiedQuestions = (int)($stateSummary['modified_count'] ?? 0);
+$unchangedQuestions = (int)($stateSummary['unchanged_count'] ?? 0);
 
 $tableTitle = 'Tableau de performance';
 $tableRows = $rows;
@@ -437,16 +500,28 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
         <strong class="admin-stat-value"><?= (int)$totalRows ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Reponses</span>
+        <span class="admin-stat-label">Réponses</span>
         <strong class="admin-stat-value"><?= (int)$totalResponses ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux reussite global</span>
+        <span class="admin-stat-label">Taux réussite global</span>
         <strong class="admin-stat-value"><?= h(number_format($globalOkRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux echec global</span>
+        <span class="admin-stat-label">Taux échec global</span>
         <strong class="admin-stat-value"><?= h(number_format($globalFailRate, 1, '.', '')) ?>%</strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Inchangées</span>
+        <strong class="admin-stat-value"><?= (int)$unchangedQuestions ?></strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Modifiées</span>
+        <strong class="admin-stat-value"><?= (int)$modifiedQuestions ?></strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Supprimées</span>
+        <strong class="admin-stat-value"><?= (int)$deletedQuestions ?></strong>
       </article>
     </div>
 
@@ -470,10 +545,6 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
             <input class="input" id="audit_question_id" name="question_id" type="text" inputmode="numeric" pattern="[0-9]*" value="<?= h($questionIdRaw) ?>" placeholder="ID">
           </div>
           <div>
-            <label class="label" for="audit_q">Question</label>
-            <input class="input" id="audit_q" name="q" type="text" value="<?= h($questionSearch) ?>" placeholder="Contient...">
-          </div>
-          <div>
             <label class="label" for="audit_session_type">Type</label>
             <select class="input" id="audit_session_type" name="session_type">
               <option value="ALL" <?= $sessionType === 'ALL' ? 'selected' : '' ?>>Tous</option>
@@ -491,7 +562,16 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
             </select>
           </div>
           <div>
-            <label class="label" for="audit_knowledge_required">Categorie</label>
+            <label class="label" for="audit_question_state">Etat</label>
+            <select class="input" id="audit_question_state" name="question_state">
+              <option value="ALL" <?= $questionState === 'ALL' ? 'selected' : '' ?>>Toutes</option>
+              <option value="UNCHANGED" <?= $questionState === 'UNCHANGED' ? 'selected' : '' ?>>Inchangées</option>
+              <option value="MODIFIED" <?= $questionState === 'MODIFIED' ? 'selected' : '' ?>>Modifiées</option>
+              <option value="DELETED" <?= $questionState === 'DELETED' ? 'selected' : '' ?>>Supprimées</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="audit_knowledge_required">Catégorie</label>
             <select class="input" id="audit_knowledge_required" name="knowledge_required">
               <option value="" <?= $knowledgeRequired === '' ? 'selected' : '' ?>>Toutes</option>
               <?php foreach ($knowledgeRequiredRows as $knowledgeRow): ?>
@@ -518,7 +598,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
         </div>
         <div class="audit-advanced-grid">
           <div class="audit-advanced-card">
-            <span class="audit-setting-title">Taux reussite</span>
+            <span class="audit-setting-title">Taux réussite</span>
             <div class="audit-filter-grid audit-filter-grid-metrics">
               <div>
                 <label class="label" for="audit_ok_rate_op">Comparateur</label>
@@ -541,7 +621,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
             </div>
           </div>
           <div class="audit-advanced-card">
-            <span class="audit-setting-title">Taux echec</span>
+            <span class="audit-setting-title">Taux échec</span>
             <div class="audit-filter-grid audit-filter-grid-metrics">
               <div>
                 <label class="label" for="audit_fail_rate_op">Comparateur</label>
@@ -624,19 +704,20 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'knowledge_required'; $urlQs['dir'] = ($sort === 'knowledge_required' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Categorie</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Catégorie</a>
               </th>
+              <th>Etat</th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'response_count'; $urlQs['dir'] = ($sort === 'response_count' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
                 <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Nb reponses</a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'ok_rate'; $urlQs['dir'] = ($sort === 'ok_rate' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux reussite</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux réussite</a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'fail_rate'; $urlQs['dir'] = ($sort === 'fail_rate' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux echec</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux échec</a>
               </th>
               <th>Action</th>
             </tr>
@@ -649,6 +730,17 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
                 <td><?= ($row['external_id'] === null || $row['external_id'] === '') ? '-' : (int)$row['external_id'] ?></td>
                 <td><?= h(mb_strimwidth((string)$row['question_text'], 0, 110, '...', 'UTF-8')) ?></td>
                 <td><?= h((string)$row['knowledge_required']) ?></td>
+                <td>
+                  <div class="performance-question-state">
+                  <?php if ((int)($row['is_deleted'] ?? 0) === 1): ?>
+                    <span class="pill danger">Supprimée</span>
+                  <?php elseif ((int)($row['is_modified'] ?? 0) === 1): ?>
+                    <span class="pill warning">Modifiée</span>
+                  <?php else: ?>
+                    <span class="pill">Inchangée</span>
+                  <?php endif; ?>
+                  </div>
+                </td>
                 <td><?= (int)$row['response_count'] ?></td>
                 <td><span class="badge ok"><?= h(number_format((float)$row['ok_rate'], 1, '.', '')) ?>%</span></td>
                 <td><span class="badge bad"><?= h(number_format((float)$row['fail_rate'], 1, '.', '')) ?>%</span></td>

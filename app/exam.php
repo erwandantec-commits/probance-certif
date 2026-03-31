@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $lang = get_lang();
   $navigationOnlyFromFeedback =
     $showFeedback &&
-    (isset($_POST['next']) || ($isAdminViewer && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
+    (isset($_POST['next']) || (($isTraining || $isAdminViewer) && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
   $mustAnswerValidationError = false;
 
   if ($isTraining && isset($_POST['check'])) {
@@ -273,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     refresh_active_session_score($pdo, $sid);
   }
 
-  if ($isAdminViewer && isset($_POST['pause'])) {
+  if (($isTraining || $isAdminViewer) && isset($_POST['pause'])) {
     if ($hasPausedRemaining) {
       $savePause = $pdo->prepare("
         UPDATE sessions
@@ -430,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </button>
             <?php endif; ?>
           <?php endif; ?>
-          <?php if ($isAdminViewer): ?>
+          <?php if ($isTraining || $isAdminViewer): ?>
 	        <button class="btn ghost" type="submit" name="pause" value="1" formnovalidate><?= h(t('exam.pause', [], $lang)) ?></button>
           <?php endif; ?>
 
@@ -458,6 +458,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   (function () {
     var isExamSession = <?= json_encode(!$isTraining) ?>;
     var leaveEndpoint = '/session_leave.php';
+    var leaveConfirmMessage = <?= json_encode(t('exam.leave_confirm_exam', [], $lang)) ?>;
+    var leaveNoticeMessage = <?= json_encode(t('exam.leave_notice_exam', [], $lang)) ?>;
+    var dashboardUrl = '/dashboard.php?lang=' + encodeURIComponent(<?= json_encode($lang) ?>) + '&err=' + encodeURIComponent(leaveNoticeMessage);
     var leaveHandled = false;
     var form = document.getElementById('exam-form');
     if (!form) return;
@@ -469,28 +472,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       window.__examIntentionalNavigation = true;
     }
 
-    function notifyExamLeave() {
-      if (!isExamSession || window.__examIntentionalNavigation || leaveHandled) return;
+    function sendLeaveSignal(force) {
+      if (!isExamSession || leaveHandled) return Promise.resolve();
+      if (!force && window.__examIntentionalNavigation) return Promise.resolve();
       leaveHandled = true;
 
       try {
         var payload = new FormData();
         payload.append('sid', <?= json_encode($sid) ?>);
 
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon(leaveEndpoint, payload);
-          return;
-        }
-
-        fetch(leaveEndpoint, {
+        return fetch(leaveEndpoint, {
           method: 'POST',
           body: payload,
           credentials: 'same-origin',
           keepalive: true
         }).catch(function () {});
       } catch (e) {
-        // Ignore background leave failures while the page is closing.
+        return Promise.resolve();
       }
+
+      return Promise.resolve();
+    }
+
+    function notifyExamLeave() {
+      if (!isExamSession || window.__examIntentionalNavigation || leaveHandled) return;
+
+      if (navigator.sendBeacon) {
+        try {
+          var payload = new FormData();
+          payload.append('sid', <?= json_encode($sid) ?>);
+          leaveHandled = true;
+          navigator.sendBeacon(leaveEndpoint, payload);
+          return;
+        } catch (e) {
+          leaveHandled = false;
+        }
+      }
+
+      sendLeaveSignal(false);
+    }
+
+    function leaveExamAndGo(targetUrl) {
+      if (!isExamSession) {
+        window.location.replace(targetUrl);
+        return;
+      }
+
+      markIntentionalNavigation();
+      Promise.resolve(sendLeaveSignal(true)).finally(function () {
+        window.location.replace(targetUrl);
+      });
     }
 
     function syncPrimarySubmitState() {
@@ -524,6 +555,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (langSelect) {
       langSelect.addEventListener('change', markIntentionalNavigation);
     }
+
+    if (isExamSession) {
+      try {
+        window.history.pushState({ examGuard: true }, '', window.location.href);
+      } catch (e) {
+        // Ignore history guard failures.
+      }
+    }
+
+    window.addEventListener('beforeunload', function (e) {
+      if (!isExamSession || window.__examIntentionalNavigation) return;
+      e.preventDefault();
+      e.returnValue = leaveConfirmMessage;
+      return leaveConfirmMessage;
+    });
+
+    window.addEventListener('popstate', function () {
+      if (!isExamSession || window.__examIntentionalNavigation) return;
+
+      var confirmed = window.confirm(leaveConfirmMessage);
+      if (!confirmed) {
+        try {
+          window.history.pushState({ examGuard: true }, '', window.location.href);
+        } catch (e) {
+          // Ignore history guard failures.
+        }
+        return;
+      }
+
+      leaveExamAndGo(dashboardUrl);
+    });
 
     window.addEventListener('pagehide', notifyExamLeave);
     window.addEventListener('pageshow', function (e) {

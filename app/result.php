@@ -436,7 +436,7 @@ if ($canShowReview) {
             <?php if (!$reviewItems): ?>
               <p class="empty-state"><?= h(t('dash.none', [], $lang)) ?></p>
             <?php else: ?>
-              <table class="table">
+              <table class="table result-review-table">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -479,33 +479,32 @@ if ($canShowReview) {
                       <td><?= (int)$it['position'] ?></td>
                       <td>
                         <?= h(localize_text((string)$it['text'], $lang)) ?>
-                        <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
-                          <span class="badge" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
-                        <?php elseif ($isQuestionModified): ?>
-                          <span class="badge" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
-                        <?php endif; ?>
                       </td>
                       <td><?= h((string)($it['picked_labels'] ?: '-')) ?></td>
                       <td><?= h((string)($it['correct_labels'] ?: '-')) ?></td>
                       <td>
-                        <span class="<?= h($reviewClass) ?>"><?= h(t($reviewKey, [], $lang)) ?></span>
-                        <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
-                          <span class="badge" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
-                        <?php elseif ($isQuestionModified): ?>
-                          <span class="badge" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
-                        <?php endif; ?>
+                        <div class="result-review-status">
+                          <span class="<?= h($reviewClass) ?>"><?= h(t($reviewKey, [], $lang)) ?></span>
+                          <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
+                            <span class="result-review-flag" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
+                          <?php elseif ($isQuestionModified): ?>
+                            <span class="result-review-flag" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
+                          <?php endif; ?>
+                        </div>
                       </td>
                       <td>
-                        <a
-                          class="btn ghost icon-btn"
-                          href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>&review_p=<?= (int)$it['position'] ?>#review-detail"
-                          aria-label="<?= h(t('dash.view', [], $lang)) ?>"
-                          title="<?= h(t('dash.view', [], $lang)) ?>"
-                        >
-                          <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12s-3.8 6.5-10.5 6.5S1.5 12 1.5 12Zm10.5 4a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-2.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6Z" fill="currentColor"/>
-                          </svg>
-                        </a>
+                        <div class="result-review-actions">
+                          <a
+                            class="btn ghost icon-btn"
+                            href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>&review_p=<?= (int)$it['position'] ?>#review-detail"
+                            aria-label="<?= h(t('dash.view', [], $lang)) ?>"
+                            title="<?= h(t('dash.view', [], $lang)) ?>"
+                          >
+                            <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12s-3.8 6.5-10.5 6.5S1.5 12 1.5 12Zm10.5 4a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-2.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6Z" fill="currentColor"/>
+                            </svg>
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   <?php endforeach; ?>
