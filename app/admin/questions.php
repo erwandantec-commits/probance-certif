@@ -215,26 +215,52 @@ function questions_export_url(array $query): string {
 }
 
 if (isset($_GET['export']) && $_GET['export'] === '1') {
-  $columnsStmt = $pdo->query("SHOW COLUMNS FROM questions");
-  $columnRows = $columnsStmt->fetchAll() ?: [];
-  $columns = [];
-  foreach ($columnRows as $columnRow) {
-    $field = (string)($columnRow['Field'] ?? '');
-    if ($field !== '') {
-      $columns[] = $field;
-    }
-  }
-
-  if ($columns === []) {
-    http_response_code(500);
-    exit('Impossible de lire les colonnes de la table questions.');
-  }
-
-  $selectColumns = implode(', ', array_map(static fn(string $column): string => 'q.`' . str_replace('`', '``', $column) . '`', $columns));
   $exportStmt = $pdo->prepare("
-    SELECT $selectColumns
+    SELECT
+      q.external_id AS export_id,
+      q.text AS question_text,
+      MAX(CASE WHEN qo.label = 'A' THEN qo.option_text END) AS response_1,
+      MAX(CASE WHEN qo.label = 'B' THEN qo.option_text END) AS response_2,
+      MAX(CASE WHEN qo.label = 'C' THEN qo.option_text END) AS response_3,
+      MAX(CASE WHEN qo.label = 'D' THEN qo.option_text END) AS response_4,
+      MAX(CASE WHEN qo.label = 'E' THEN qo.option_text END) AS response_5,
+      MAX(CASE WHEN qo.label = 'F' THEN qo.option_text END) AS response_6,
+      q.explanation,
+      q.category,
+      q.theme,
+      q.level AS question_level,
+      GROUP_CONCAT(
+        CASE
+          WHEN qo.is_correct = 1 THEN
+            CASE qo.label
+              WHEN 'A' THEN '1'
+              WHEN 'B' THEN '2'
+              WHEN 'C' THEN '3'
+              WHEN 'D' THEN '4'
+              WHEN 'E' THEN '5'
+              WHEN 'F' THEN '6'
+              ELSE qo.label
+            END
+          ELSE NULL
+        END
+        ORDER BY qo.label ASC
+        SEPARATOR ';'
+      ) AS correct_answers,
+      q.meta_json,
+      q.open_to_client
     FROM questions q
+    LEFT JOIN question_options qo ON qo.question_id = q.id
     $where
+    GROUP BY
+      q.id,
+      q.external_id,
+      q.text,
+      q.explanation,
+      q.category,
+      q.theme,
+      q.level,
+      q.meta_json,
+      q.open_to_client
     ORDER BY q.id DESC
   ");
 
@@ -247,15 +273,53 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename="questions_export.csv"');
 
+  $columns = [
+    'ID',
+    'Questions',
+    'Reponse 1',
+    'Reponse 2',
+    'Reponse 3',
+    'Reponse 4',
+    'Reponse 5',
+    'Reponse 6',
+    'Explication',
+    'Categorie',
+    'Theme',
+    'Niveau question',
+    'Bonnes reponses',
+    'Utilisateur Probance',
+    'Utilisateur Brainpad',
+    'Ouvert au client',
+  ];
+
   $out = fopen('php://output', 'w');
   fwrite($out, "\xEF\xBB\xBF");
   fputcsv($out, $columns);
 
   while ($row = $exportStmt->fetch(PDO::FETCH_ASSOC)) {
-    $line = [];
-    foreach ($columns as $column) {
-      $line[] = $row[$column] ?? null;
+    $meta = json_decode((string)($row['meta_json'] ?? ''), true);
+    if (!is_array($meta)) {
+      $meta = [];
     }
+
+    $line = [
+      $row['export_id'] ?? '',
+      $row['question_text'] ?? '',
+      $row['response_1'] ?? '',
+      $row['response_2'] ?? '',
+      $row['response_3'] ?? '',
+      $row['response_4'] ?? '',
+      $row['response_5'] ?? '',
+      $row['response_6'] ?? '',
+      $row['explanation'] ?? '',
+      $row['category'] ?? '',
+      $row['theme'] ?? '',
+      $row['question_level'] ?? '',
+      $row['correct_answers'] ?? '',
+      (string)($meta['User Probance'] ?? ''),
+      (string)($meta['User Brainpad'] ?? ''),
+      ((int)($row['open_to_client'] ?? 0) === 1) ? 'TRUE' : 'FALSE',
+    ];
     fputcsv($out, $line);
   }
 
