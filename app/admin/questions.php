@@ -207,6 +207,61 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
 
   return '/admin/questions.php' . ($params ? ('?' . http_build_query($params)) : '');
 }
+
+function questions_export_url(array $query): string {
+  unset($query['page']);
+  $query['export'] = '1';
+  return '/admin/questions.php?' . http_build_query($query);
+}
+
+if (isset($_GET['export']) && $_GET['export'] === '1') {
+  $columnsStmt = $pdo->query("SHOW COLUMNS FROM questions");
+  $columnRows = $columnsStmt->fetchAll() ?: [];
+  $columns = [];
+  foreach ($columnRows as $columnRow) {
+    $field = (string)($columnRow['Field'] ?? '');
+    if ($field !== '') {
+      $columns[] = $field;
+    }
+  }
+
+  if ($columns === []) {
+    http_response_code(500);
+    exit('Impossible de lire les colonnes de la table questions.');
+  }
+
+  $selectColumns = implode(', ', array_map(static fn(string $column): string => 'q.`' . str_replace('`', '``', $column) . '`', $columns));
+  $exportStmt = $pdo->prepare("
+    SELECT $selectColumns
+    FROM questions q
+    $where
+    ORDER BY q.id DESC
+  ");
+
+  $i = 1;
+  foreach ($params as $v) {
+    $exportStmt->bindValue($i++, $v);
+  }
+  $exportStmt->execute();
+
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="questions_export.csv"');
+
+  $out = fopen('php://output', 'w');
+  fwrite($out, "\xEF\xBB\xBF");
+  fputcsv($out, $columns);
+
+  while ($row = $exportStmt->fetch(PDO::FETCH_ASSOC)) {
+    $line = [];
+    foreach ($columns as $column) {
+      $line[] = $row[$column] ?? null;
+    }
+    fputcsv($out, $line);
+  }
+
+  fclose($out);
+  exit;
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -238,7 +293,10 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
         <h3 class="h1" style="margin:0;">Gestion du catalogue</h3>
         <p class="sub" style="margin:6px 0 0;">Recherche, navigation et analyse de la banque de questions.</p>
       </div>
-      <a class="btn admin-primary-action-btn" href="/admin/import_questions.php">+ Importer</a>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <a class="btn ghost" href="<?= h(questions_export_url($_GET)) ?>">Exporter CSV</a>
+        <a class="btn admin-primary-action-btn" href="/admin/import_questions.php">+ Importer</a>
+      </div>
     </div>
     <form method="get" class="filters-grid users-filters admin-panel-surface" style="margin-bottom:8px;">
       <?php foreach ($activeNeeds as $n): ?>
