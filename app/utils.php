@@ -142,6 +142,7 @@ function ensure_question_translation_schema(PDO $pdo): void {
       question_text TEXT NOT NULL,
       explanation TEXT NULL,
       source_updated_at DATETIME NULL,
+      status_override VARCHAR(16) NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_question_lang (question_id, lang)
@@ -162,6 +163,9 @@ function ensure_question_translation_schema(PDO $pdo): void {
 
   if (!question_translation_column_exists($pdo, 'question_translations', 'source_updated_at')) {
     $pdo->exec("ALTER TABLE question_translations ADD COLUMN source_updated_at DATETIME NULL AFTER explanation");
+  }
+  if (!question_translation_column_exists($pdo, 'question_translations', 'status_override')) {
+    $pdo->exec("ALTER TABLE question_translations ADD COLUMN status_override VARCHAR(16) NULL AFTER source_updated_at");
   }
 
   $done = true;
@@ -260,7 +264,7 @@ function question_translation_missing_details(PDO $pdo, array $questionIds, stri
   $placeholders = implode(',', array_fill(0, count($questionIds), '?'));
 
   $questionStmt = $pdo->prepare("
-    SELECT q.id, qt.question_text, qt.explanation
+    SELECT q.id, q.explanation AS source_explanation, qt.question_text, qt.explanation
     FROM questions q
     LEFT JOIN question_translations qt
       ON qt.question_id = q.id
@@ -300,7 +304,8 @@ function question_translation_missing_details(PDO $pdo, array $questionIds, stri
     if (!$row || trim((string)($row['question_text'] ?? '')) === '') {
       $itemMissing[] = 'question_text';
     }
-    if (!$row || trim((string)($row['explanation'] ?? '')) === '') {
+    $sourceExplanation = trim((string)($row['source_explanation'] ?? ''));
+    if ($sourceExplanation !== '' && (!$row || trim((string)($row['explanation'] ?? '')) === '')) {
       $itemMissing[] = 'explanation';
     }
     $optionInfo = $optionMap[$questionId] ?? null;
@@ -334,7 +339,7 @@ function question_translation_status(PDO $pdo, int $questionId, string $lang): s
   }
 
   $st = $pdo->prepare("
-    SELECT q.updated_at, qt.question_text, qt.explanation, qt.source_updated_at
+    SELECT q.updated_at, q.explanation AS source_explanation, qt.question_text, qt.explanation, qt.source_updated_at, qt.status_override
     FROM questions q
     LEFT JOIN question_translations qt
       ON qt.question_id = q.id
@@ -346,6 +351,11 @@ function question_translation_status(PDO $pdo, int $questionId, string $lang): s
   $row = $st->fetch();
   if (!$row) {
     return 'missing';
+  }
+
+  $statusOverride = trim((string)($row['status_override'] ?? ''));
+  if (in_array($statusOverride, ['complete', 'stale'], true)) {
+    return $statusOverride;
   }
 
   $questionText = trim((string)($row['question_text'] ?? ''));
@@ -368,7 +378,8 @@ function question_translation_status(PDO $pdo, int $questionId, string $lang): s
   $optionCount = (int)($optionInfo['option_count'] ?? 0);
   $translatedCount = (int)($optionInfo['translated_count'] ?? 0);
   $hasAllOptions = ($optionCount > 0 && $translatedCount === $optionCount);
-  $hasExplanation = trim((string)($row['explanation'] ?? '')) !== '';
+  $sourceExplanation = trim((string)($row['source_explanation'] ?? ''));
+  $hasExplanation = ($sourceExplanation === '') || trim((string)($row['explanation'] ?? '')) !== '';
   $hasSourceSnapshot = trim((string)($row['source_updated_at'] ?? '')) !== '';
 
   if (!$hasAllOptions || !$hasExplanation) {

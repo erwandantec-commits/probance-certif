@@ -229,6 +229,150 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       COALESCE(NULLIF(q.knowledge_required_csv, ''), q.need, '') AS category_export,
       q.theme,
       q.level AS question_level,
+      (
+        SELECT qt.question_text
+        FROM question_translations qt
+        WHERE qt.question_id = q.id AND qt.lang = 'en'
+        LIMIT 1
+      ) AS question_text_en,
+      (
+        SELECT qt.explanation
+        FROM question_translations qt
+        WHERE qt.question_id = q.id AND qt.lang = 'en'
+        LIMIT 1
+      ) AS explanation_en,
+      (
+        SELECT qt.question_text
+        FROM question_translations qt
+        WHERE qt.question_id = q.id AND qt.lang = 'es'
+        LIMIT 1
+      ) AS question_text_es,
+      (
+        SELECT qt.explanation
+        FROM question_translations qt
+        WHERE qt.question_id = q.id AND qt.lang = 'es'
+        LIMIT 1
+      ) AS explanation_es,
+      (
+        SELECT qt.question_text
+        FROM question_translations qt
+        WHERE qt.question_id = q.id AND qt.lang = 'jp'
+        LIMIT 1
+      ) AS question_text_jp,
+      (
+        SELECT qt.explanation
+        FROM question_translations qt
+        WHERE qt.question_id = q.id AND qt.lang = 'jp'
+        LIMIT 1
+      ) AS explanation_jp,
+      MAX(CASE WHEN qo.label = 'A' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'en'
+        LIMIT 1
+      ) END) AS response_1_en,
+      MAX(CASE WHEN qo.label = 'B' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'en'
+        LIMIT 1
+      ) END) AS response_2_en,
+      MAX(CASE WHEN qo.label = 'C' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'en'
+        LIMIT 1
+      ) END) AS response_3_en,
+      MAX(CASE WHEN qo.label = 'D' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'en'
+        LIMIT 1
+      ) END) AS response_4_en,
+      MAX(CASE WHEN qo.label = 'E' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'en'
+        LIMIT 1
+      ) END) AS response_5_en,
+      MAX(CASE WHEN qo.label = 'F' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'en'
+        LIMIT 1
+      ) END) AS response_6_en,
+      MAX(CASE WHEN qo.label = 'A' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'es'
+        LIMIT 1
+      ) END) AS response_1_es,
+      MAX(CASE WHEN qo.label = 'B' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'es'
+        LIMIT 1
+      ) END) AS response_2_es,
+      MAX(CASE WHEN qo.label = 'C' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'es'
+        LIMIT 1
+      ) END) AS response_3_es,
+      MAX(CASE WHEN qo.label = 'D' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'es'
+        LIMIT 1
+      ) END) AS response_4_es,
+      MAX(CASE WHEN qo.label = 'E' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'es'
+        LIMIT 1
+      ) END) AS response_5_es,
+      MAX(CASE WHEN qo.label = 'F' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'es'
+        LIMIT 1
+      ) END) AS response_6_es,
+      MAX(CASE WHEN qo.label = 'A' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'jp'
+        LIMIT 1
+      ) END) AS response_1_jp,
+      MAX(CASE WHEN qo.label = 'B' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'jp'
+        LIMIT 1
+      ) END) AS response_2_jp,
+      MAX(CASE WHEN qo.label = 'C' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'jp'
+        LIMIT 1
+      ) END) AS response_3_jp,
+      MAX(CASE WHEN qo.label = 'D' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'jp'
+        LIMIT 1
+      ) END) AS response_4_jp,
+      MAX(CASE WHEN qo.label = 'E' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'jp'
+        LIMIT 1
+      ) END) AS response_5_jp,
+      MAX(CASE WHEN qo.label = 'F' THEN (
+        SELECT qot.option_text
+        FROM question_option_translations qot
+        WHERE qot.option_id = qo.id AND qot.lang = 'jp'
+        LIMIT 1
+      ) END) AS response_6_jp,
       GROUP_CONCAT(
         CASE
           WHEN qo.is_correct = 1 THEN
@@ -291,6 +435,30 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     'Utilisateur Probance',
     'Utilisateur Brainpad',
     'Ouvert au client',
+    'Questions EN',
+    'Reponse 1 EN',
+    'Reponse 2 EN',
+    'Reponse 3 EN',
+    'Reponse 4 EN',
+    'Reponse 5 EN',
+    'Reponse 6 EN',
+    'Explication EN',
+    'Questions ES',
+    'Reponse 1 ES',
+    'Reponse 2 ES',
+    'Reponse 3 ES',
+    'Reponse 4 ES',
+    'Reponse 5 ES',
+    'Reponse 6 ES',
+    'Explication ES',
+    'Questions JP',
+    'Reponse 1 JP',
+    'Reponse 2 JP',
+    'Reponse 3 JP',
+    'Reponse 4 JP',
+    'Reponse 5 JP',
+    'Reponse 6 JP',
+    'Explication JP',
   ];
 
   $out = fopen('php://output', 'w');
@@ -320,6 +488,30 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       (string)($meta['User Probance'] ?? ''),
       (string)($meta['User Brainpad'] ?? ''),
       ((int)($row['open_to_client'] ?? 0) === 1) ? 'TRUE' : 'FALSE',
+      $row['question_text_en'] ?? '',
+      $row['response_1_en'] ?? '',
+      $row['response_2_en'] ?? '',
+      $row['response_3_en'] ?? '',
+      $row['response_4_en'] ?? '',
+      $row['response_5_en'] ?? '',
+      $row['response_6_en'] ?? '',
+      $row['explanation_en'] ?? '',
+      $row['question_text_es'] ?? '',
+      $row['response_1_es'] ?? '',
+      $row['response_2_es'] ?? '',
+      $row['response_3_es'] ?? '',
+      $row['response_4_es'] ?? '',
+      $row['response_5_es'] ?? '',
+      $row['response_6_es'] ?? '',
+      $row['explanation_es'] ?? '',
+      $row['question_text_jp'] ?? '',
+      $row['response_1_jp'] ?? '',
+      $row['response_2_jp'] ?? '',
+      $row['response_3_jp'] ?? '',
+      $row['response_4_jp'] ?? '',
+      $row['response_5_jp'] ?? '',
+      $row['response_6_jp'] ?? '',
+      $row['explanation_jp'] ?? '',
     ];
     fputcsv($out, $line);
   }

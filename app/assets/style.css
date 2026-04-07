@@ -1928,6 +1928,13 @@ body.admin-with-sidebar .admin-tabs-bottom {
   vertical-align: middle;
 }
 
+.translation-coverage-table th:nth-child(8),
+.translation-coverage-table td:nth-child(8) {
+  width: 92px;
+  min-width: 92px;
+  text-align: center;
+}
+
 .translation-coverage-table td:nth-child(1),
 .translation-coverage-table td:nth-child(3),
 .translation-coverage-table td:nth-child(5),
@@ -1940,6 +1947,10 @@ body.admin-with-sidebar .admin-tabs-bottom {
 .translation-coverage-table td:nth-child(2),
 .translation-coverage-table td:nth-child(4) {
   text-align: left;
+}
+
+.translation-coverage-table .pill {
+  white-space: nowrap;
 }
 
 .performance-scatter-card {
@@ -2811,6 +2822,20 @@ body.admin-with-sidebar .admin-tabs-bottom {
 
 .translation-edit-head .pack-config-card-title {
   margin: 0;
+}
+
+.translation-status-btn.is-active {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
+}
+
+.translation-status-complete.is-active {
+  background: #16a34a;
+}
+
+.translation-status-review.is-active {
+  background: #ea580c;
 }
 
 .pack-config-fields {
