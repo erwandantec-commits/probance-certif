@@ -162,14 +162,10 @@ if (question_translation_normalize_lang($lang) !== 'fr') {
     }
   }
   if ($blockingMissing !== []) {
-    $previewIds = implode(', ', array_slice($blockingMissing, 0, 5));
-    $moreCount = max(0, count($blockingMissing) - 5);
-    $suffix = $moreCount > 0 ? (' +' . $moreCount) : '';
     header(
       "Location: /dashboard.php?lang=" . urlencode($lang)
       . "&err=" . urlencode(t('start.err.exam_language_incomplete', [
         'lang' => t('lang.' . question_translation_normalize_lang($lang), [], $lang),
-        'ids' => $previewIds . $suffix,
       ], $lang))
     );
     exit;

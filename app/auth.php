@@ -1,6 +1,45 @@
 <?php
 // app/auth.php
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (!isset($_SESSION) || !is_array($_SESSION)) {
+  $_SESSION = [];
+}
+
+function auth_parse_ini_size(string $value): int {
+  $value = trim($value);
+  if ($value === '') {
+    return 0;
+  }
+  $unit = strtolower(substr($value, -1));
+  $number = (float)$value;
+  return match ($unit) {
+    'g' => (int)($number * 1024 * 1024 * 1024),
+    'm' => (int)($number * 1024 * 1024),
+    'k' => (int)($number * 1024),
+    default => (int)$number,
+  };
+}
+
+function auth_request_too_large(): bool {
+  if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+    return false;
+  }
+  $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+  if ($contentLength <= 0) {
+    return false;
+  }
+  $postMaxSize = auth_parse_ini_size((string)ini_get('post_max_size'));
+  return $postMaxSize > 0 && $contentLength > $postMaxSize;
+}
+
+if (auth_request_too_large()) {
+  if (!headers_sent()) {
+    http_response_code(413);
+  }
+  echo "Request too large. Reduce the file size and try again.";
+  exit;
+}
+
+if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) session_start();
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/i18n.php';
@@ -59,9 +98,11 @@ function require_admin(): array {
 
 function logout(): void {
   $_SESSION = [];
-  if (ini_get("session.use_cookies")) {
+  if (session_status() === PHP_SESSION_ACTIVE && ini_get("session.use_cookies")) {
     $p = session_get_cookie_params();
     setcookie(session_name(), '', time()-42000, $p["path"], $p["domain"], $p["secure"], $p["httponly"]);
   }
-  session_destroy();
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_destroy();
+  }
 }
