@@ -1138,6 +1138,38 @@ body.admin-with-sidebar .admin-tabs-bottom {
   width: 100%;
 }
 
+.rule-target-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rule-target-meta {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.rule-target-warning {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.rule-row.rule-row-warning {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.rule-builder-warning {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b45309;
+}
+
 .rules-table th:nth-child(1),
 .rules-table td:nth-child(1) {
   width: 24%;
@@ -2868,7 +2900,10 @@ body.admin-with-sidebar .admin-tabs-bottom {
 }
 
 .badge-current-link {
-  display: inline-block;
+  display: inline-flex;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
   text-decoration: none;
   color: inherit;
 }
@@ -3028,7 +3063,7 @@ body.admin-with-sidebar .admin-tabs-bottom {
 }
 
 .badge-current {
-  width: 100%;
+  width: auto;
   max-width: 360px;
   min-height: 56px;
   background: #ffffff;

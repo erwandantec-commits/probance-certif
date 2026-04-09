@@ -207,6 +207,34 @@ function pack_create_known_needs(PDO $pdo): array {
   return array_keys($needs);
 }
 
+function pack_create_available_question_counts(PDO $pdo): array {
+  $counts = [];
+  $st = $pdo->query("
+    SELECT q.need, q.level, COUNT(*) c
+    FROM questions q
+    WHERE EXISTS (
+      SELECT 1
+      FROM question_options qo
+      WHERE qo.question_id = q.id
+      GROUP BY qo.question_id
+      HAVING COUNT(*) >= 2
+    )
+    GROUP BY q.need, q.level
+  ");
+  foreach (($st ? $st->fetchAll() : []) as $row) {
+    $need = normalize_question_need((string)($row['need'] ?? ''));
+    $level = (int)($row['level'] ?? 0);
+    if ($need === '' || $level < 1 || $level > 3) {
+      continue;
+    }
+    if (!isset($counts[$need])) {
+      $counts[$need] = [1 => 0, 2 => 0, 3 => 0];
+    }
+    $counts[$need][$level] = (int)($row['c'] ?? 0);
+  }
+  return $counts;
+}
+
 $error = '';
 $name = '';
 $threshold = 80;
@@ -222,6 +250,7 @@ $isActive = 1;
 $nameColorHex = '#334155';
 $ruleTemplates = pack_create_rule_templates();
 $knownNeeds = pack_create_known_needs($pdo);
+$availableQuestionCounts = pack_create_available_question_counts($pdo);
 $selectedTemplate = '';
 $ruleRows = [];
 
@@ -693,7 +722,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="hidden" class="rule-level-3-input" value="<?= !empty($levelsMap[3]) ? '1' : '0' ?>">
                         <label class="rule-level-check"><input type="checkbox" class="rule-level-3-check" <?= !empty($levelsMap[3]) ? 'checked' : '' ?>> L3</label>
                       </td>
-                      <td><input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>"></td>
+                      <td>
+                        <div class="rule-target-cell">
+                          <input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>">
+                          <span class="rule-target-meta">max. 0</span>
+                        </div>
+                        <p class="rule-target-warning" hidden></p>
+                      </td>
                       <td>
                         <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier">
                           <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -713,6 +748,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tfoot>
               </table>
             </div>
+            <p class="rule-builder-warning" id="rule-builder-warning" hidden></p>
           </section>
         <?php endif; ?>
 
@@ -789,6 +825,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($hasRulesColumn): ?>
     var ruleTemplates = <?= json_encode($ruleTemplates, JSON_UNESCAPED_UNICODE) ?>;
     var knownNeeds = <?= json_encode(array_values($knownNeeds), JSON_UNESCAPED_UNICODE) ?>;
+    var availableQuestionCounts = <?= json_encode($availableQuestionCounts, JSON_UNESCAPED_UNICODE) ?>;
     var tbody = document.getElementById('rule-rows-body');
     var addRowBtn = document.getElementById('add-rule-row');
     var applyTemplateBtn = document.getElementById('apply-rule-template');
@@ -796,6 +833,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     var countInput = document.querySelector('input[name="selection_count"]');
     var form = document.querySelector('form[method="post"]');
     var totalTargetEl = document.getElementById('rule-total-target');
+    var ruleBuilderWarningEl = document.getElementById('rule-builder-warning');
 
     function bindRowActions(row) {
       var removeBtn = row.querySelector('.rule-remove');
@@ -820,6 +858,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
       });
       if (totalTargetEl) totalTargetEl.textContent = String(totalTarget);
+    }
+
+    function cloneAvailableCounts() {
+      var copy = {};
+      Object.keys(availableQuestionCounts || {}).forEach(function (need) {
+        var levels = availableQuestionCounts[need] || {};
+        copy[need] = {
+          1: parseInt(String(levels[1] || 0), 10) || 0,
+          2: parseInt(String(levels[2] || 0), 10) || 0,
+          3: parseInt(String(levels[3] || 0), 10) || 0
+        };
+      });
+      return copy;
+    }
+
+    function getRuleRowNeed(row) {
+      var needInput = row.querySelector('.rule-need');
+      return needInput ? String(needInput.value || '').trim().toUpperCase() : '';
+    }
+
+    function getRuleRowLevels(row) {
+      var levels = [];
+      if (row.querySelector('.rule-level-1-check:checked')) levels.push(1);
+      if (row.querySelector('.rule-level-2-check:checked')) levels.push(2);
+      if (row.querySelector('.rule-level-3-check:checked')) levels.push(3);
+      return levels;
+    }
+
+    function getRuleRowTargetValue(row) {
+      var targetInput = row.querySelector('.rule-target-total');
+      var raw = targetInput ? String(targetInput.value || '').trim() : '';
+      var targetVal = raw === '' ? 0 : parseInt(raw, 10);
+      if (!Number.isFinite(targetVal) || targetVal < 0) {
+        return 0;
+      }
+      return targetVal;
+    }
+
+    function setRuleRowAvailability(row, stepMax, requestedStep) {
+      var meta = row.querySelector('.rule-target-meta');
+      var warning = row.querySelector('.rule-target-warning');
+      var hasWarning = requestedStep > stepMax;
+      if (meta) {
+        meta.textContent = 'max. ' + stepMax;
+      }
+      row.classList.toggle('rule-row-warning', hasWarning);
+      if (warning) {
+        if (hasWarning) {
+          warning.textContent = 'Risque de questions insuffisantes : ' + requestedStep + ' demandée(s), ' + stepMax + ' disponible(s) pour ce palier.';
+          warning.hidden = false;
+        } else {
+          warning.textContent = '';
+          warning.hidden = true;
+        }
+      }
+      return hasWarning;
+    }
+
+    function updateRuleAvailabilityWarnings() {
+      if (!tbody) return;
+      var remainingByNeed = cloneAvailableCounts();
+      var hasAnyWarning = false;
+      tbody.querySelectorAll('.rule-row').forEach(function (row) {
+        var need = getRuleRowNeed(row);
+        var levels = getRuleRowLevels(row);
+        var requestedStep = getRuleRowTargetValue(row);
+        var stepMax = 0;
+
+        levels.forEach(function (level) {
+          if (!remainingByNeed[need]) {
+            return;
+          }
+          stepMax += parseInt(String(remainingByNeed[need][level] || 0), 10) || 0;
+        });
+
+        if (setRuleRowAvailability(row, stepMax, requestedStep)) {
+          hasAnyWarning = true;
+        }
+
+        var toConsume = Math.min(requestedStep, stepMax);
+        levels.forEach(function (level) {
+          if (!remainingByNeed[need] || toConsume <= 0) {
+            return;
+          }
+          var available = parseInt(String(remainingByNeed[need][level] || 0), 10) || 0;
+          var consumed = Math.min(available, toConsume);
+          remainingByNeed[need][level] = available - consumed;
+          toConsume -= consumed;
+        });
+      });
+
+      if (ruleBuilderWarningEl) {
+        if (hasAnyWarning) {
+          ruleBuilderWarningEl.textContent = 'Certaines lignes demandent plus de questions que le stock actuellement disponible en base.';
+          ruleBuilderWarningEl.hidden = false;
+        } else {
+          ruleBuilderWarningEl.textContent = '';
+          ruleBuilderWarningEl.hidden = true;
+        }
+      }
     }
 
     function buildRowHtml(data) {
@@ -848,7 +986,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             '<input type="hidden" class="rule-level-3-input" value="' + (hasL3 ? '1' : '0') + '">' +
             '<label class="rule-level-check"><input type="checkbox" class="rule-level-3-check"' + (hasL3 ? ' checked' : '') + '> L3</label>' +
           '</td>' +
-          '<td><input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '"></td>' +
+          '<td>' +
+            '<div class="rule-target-cell">' +
+              '<input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '">' +
+              '<span class="rule-target-meta">max. 0</span>' +
+            '</div>' +
+            '<p class="rule-target-warning" hidden></p>' +
+          '</td>' +
           '<td><button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier"><svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/></svg></button></td>' +
         '</tr>';
     }
@@ -863,6 +1007,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       syncRuleInputNames();
       updateRuleTotals();
       validateRuleTargets(false);
+      updateRuleAvailabilityWarnings();
     }
 
     function syncRuleInputNames() {
@@ -959,12 +1104,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       syncRuleInputNames();
       updateRuleTotals();
       validateRuleTargets(false);
+      updateRuleAvailabilityWarnings();
       tbody.addEventListener('input', function (e) {
-        if (e.target && e.target.classList && e.target.classList.contains('rule-target-total')) {
+        if (e.target && e.target.classList && (
+          e.target.classList.contains('rule-target-total') ||
+          e.target.classList.contains('rule-level-1-check') ||
+          e.target.classList.contains('rule-level-2-check') ||
+          e.target.classList.contains('rule-level-3-check') ||
+          e.target.classList.contains('rule-need')
+        )) {
           validateRuleTargets(false);
+          updateRuleAvailabilityWarnings();
         }
       });
       tbody.addEventListener('change', function (e) {
+        if (e.target && e.target.classList && (
+          e.target.classList.contains('rule-target-total') ||
+          e.target.classList.contains('rule-level-1-check') ||
+          e.target.classList.contains('rule-level-2-check') ||
+          e.target.classList.contains('rule-level-3-check') ||
+          e.target.classList.contains('rule-need')
+        )) {
+          updateRuleAvailabilityWarnings();
+        }
         if (e.target && e.target.classList && e.target.classList.contains('rule-target-total')) {
           if (!validateRuleTargets(true)) {
             e.target.focus();
@@ -993,12 +1155,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         syncRuleInputNames();
         updateRuleTotals();
         validateRuleTargets(false);
+        updateRuleAvailabilityWarnings();
       });
     }
 
     if (countInput) {
       countInput.addEventListener('input', function () {
         validateRuleTargets(false);
+        updateRuleAvailabilityWarnings();
       });
     }
 
