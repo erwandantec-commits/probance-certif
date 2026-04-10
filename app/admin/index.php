@@ -47,6 +47,12 @@ function admin_session_type_label(string $type): string {
   };
 }
 
+function admin_session_has_result(array $session): bool {
+  return in_array((string)($session['status'] ?? ''), ['TERMINATED', 'EXPIRED'], true)
+    && $session['passed'] !== null
+    && $session['passed'] !== '';
+}
+
 // Construction WHERE + params
 $where = [];
 $params = [];
@@ -68,9 +74,9 @@ if ($package !== 'ALL') {
   $params[] = (int)$package;
 }
 if ($result === 'PASSED') {
-  $where[] = "s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=1";
+  $where[] = "s.status IN ('TERMINATED', 'EXPIRED') AND s.passed=1";
 } elseif ($result === 'FAILED') {
-  $where[] = "s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=0";
+  $where[] = "s.status IN ('TERMINATED', 'EXPIRED') AND s.passed=0";
 }
 
 $whereSql = $where ? ("WHERE " . implode(" AND ", $where)) : "";
@@ -159,7 +165,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 
   foreach ($rows as $r) {
     $resultLabel = 'NA';
-    if ($r['session_type'] === 'EXAM' && $r['status'] === 'TERMINATED') {
+    if (admin_session_has_result($r)) {
       $resultLabel = ((int)$r['passed'] === 1) ? 'PASSED' : 'FAILED';
     }
 
@@ -384,7 +390,7 @@ $stats = $pdo->query("
 	                  </td>
                   <td><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></td>
                   <td>
-                    <?php if ($s['session_type'] === 'EXAM' && $s['status'] === 'TERMINATED'): ?>
+                    <?php if (admin_session_has_result($s)): ?>
                       <?php if ((int)$s['passed'] === 1): ?>
                         <span class="badge ok">R&eacute;ussi</span>
                       <?php else: ?>

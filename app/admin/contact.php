@@ -99,6 +99,12 @@ function admin_session_type_label(string $type): string {
   };
 }
 
+function admin_contact_session_has_result(array $session): bool {
+  return in_array((string)($session['status'] ?? ''), ['TERMINATED', 'EXPIRED'], true)
+    && $session['passed'] !== null
+    && $session['passed'] !== '';
+}
+
 $stmt = $pdo->prepare("SELECT * FROM contacts WHERE email = ? LIMIT 1");
 $stmt->execute([$email]);
 $contact = $stmt->fetch();
@@ -371,8 +377,8 @@ if ($hpackage !== 'ALL') {
 }
 $histWhere[] = "(
   ? = 'ALL'
-  OR (? = 'PASSED' AND s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=1)
-  OR (? = 'FAILED' AND s.session_type='EXAM' AND s.status='TERMINATED' AND s.passed=0)
+  OR (? = 'PASSED' AND s.status IN ('TERMINATED', 'EXPIRED') AND s.passed=1)
+  OR (? = 'FAILED' AND s.status IN ('TERMINATED', 'EXPIRED') AND s.passed=0)
 )";
 $histParams[] = $hresult;
 $histParams[] = $hresult;
@@ -879,7 +885,7 @@ $hist = $histStmt->fetchAll();
                   </td>
                   <td><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></td>
                   <td>
-                    <?php if ($s['session_type'] === 'EXAM' && $s['status'] === 'TERMINATED'): ?>
+                    <?php if (admin_contact_session_has_result($s)): ?>
                       <?php if ((int)$s['passed'] === 1): ?>
                         <span class="badge ok">Reussi</span>
                       <?php else: ?>

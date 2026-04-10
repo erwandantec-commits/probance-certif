@@ -18,7 +18,7 @@ L'outil permet de:
 Pour utiliser l'outil simplement:
 
 1. connecte-toi
-2. choisis un package
+2. choisis un pack
 3. lance une session
 4. reponds aux questions avant la fin du temps
 5. consulte ton resultat
@@ -48,7 +48,7 @@ Tu y retrouves:
 - tes resultats precedents
 - l'etat de tes certifications
 
-Depuis cette page, tu peux choisir un package puis demarrer une session.
+Depuis cette page, tu peux choisir un pack puis demarrer une session.
 
 ## Les deux types de session
 
@@ -79,7 +79,7 @@ Dans ce mode:
 Pour lancer une session:
 
 1. rends-toi sur le tableau de bord
-2. choisis le package souhaite
+2. choisis le pack souhaite
 3. choisis le type de session
 4. clique sur le bouton de demarrage
 
@@ -127,7 +127,7 @@ La page de resultat affiche generalement:
 
 - le score obtenu
 - le statut de la session
-- le package concerne
+- le pack concerne
 - la date de passage
 - le resultat obtenu: reussi, echoue ou expire
 
@@ -191,7 +191,7 @@ Ca peut arriver si:
 
 - tu as deja une certification encore valide
 - un delai d'attente est actif apres un echec
-- le package n'est pas disponible
+- le pack n'est pas disponible
 
 ### Quelle difference entre entrainement et exam ?
 

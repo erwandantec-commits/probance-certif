@@ -38,6 +38,11 @@ if (!$sess) {
   exit;
 }
 
+function exam_redirect_to_submit(string $sid, string $lang): void {
+  header("Location: /submit.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
+  exit;
+}
+
 $hasPausedRemaining = sessions_column_exists($pdo, 'paused_remaining_seconds');
 if ($hasPausedRemaining && isset($sess['paused_remaining_seconds']) && $sess['paused_remaining_seconds'] !== null) {
   $remaining = max(0, (int)$sess['paused_remaining_seconds']);
@@ -177,8 +182,15 @@ $expiresTs = strtotime((string)$sess['started_at']) + (max(1, (int)$sess['durati
 $remainingSeconds = max(0, $expiresTs - time());
 $formError = '';
 
+if ($remainingSeconds <= 0 || session_is_expired($sess)) {
+  exam_redirect_to_submit($sid, $lang);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $lang = get_lang();
+  if ($remainingSeconds <= 0 || session_is_expired($sess)) {
+    exam_redirect_to_submit($sid, $lang);
+  }
   $navigationOnlyFromFeedback =
     $showFeedback &&
     (isset($_POST['next']) || (($isTraining || $isAdminViewer) && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));

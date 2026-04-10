@@ -177,13 +177,13 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'result.badge.expired' => 'Expirée',
       'result.badge.active' => 'En cours',
 
-      'start.err.invalid_package' => 'Package invalide.',
-      'start.err.package_not_found' => 'Package introuvable.',
+      'start.err.invalid_package' => 'Pack invalide.',
+      'start.err.package_not_found' => 'Pack introuvable.',
       'start.err.cert_already_valid' => 'Cette certification est déjà valide. Vous ne pouvez pas la repasser pour le moment.',
       'start.err.failed_exam_cooldown' => 'Cette certification est indisponible pendant {{days}} jour(s) après un échec ou un arrêt d\'exam. Prochain accès: {{date}}.',
       'start.err.exam_language_incomplete' => 'Cette certification ne peut pas encore démarrer en {{lang}}. Traductions manquantes.',
       'start.err.not_enough_tagged' => 'Pas assez de questions taguées pour générer cette certification.',
-      'start.err.not_enough_package' => 'Pas assez de questions pour ce package.',
+      'start.err.not_enough_package' => 'Pas assez de questions pour ce pack.',
       'start.err.create_failed' => 'Erreur création session.',
     ],
     'en' => [

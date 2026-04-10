@@ -105,7 +105,7 @@ foreach ($rows as $row) {
     'text' => (string)($row['text'] ?? ''),
     'need' => (string)($row['need'] ?? ''),
     'level' => (int)($row['level'] ?? 0),
-    'package_name' => (string)($row['package_name'] ?? '(Banque globale)'),
+    'package_name' => (string)($row['package_name'] ?? '(Banque commune)'),
     'package_color_hex' => (string)($row['package_color_hex'] ?? ''),
     'statuses' => $statuses,
   ];
@@ -207,7 +207,7 @@ function translation_cover_query(array $overrides = []): string {
         <form method="get" class="admin-panel-surface audit-config-panel">
           <div class="audit-filter-grid audit-filter-grid-main">
             <div>
-              <label class="label" for="translation_package_id">Package</label>
+              <label class="label" for="translation_package_id">Pack</label>
               <select class="input" id="translation_package_id" name="package_id">
                 <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>>Tous</option>
                 <?php foreach ($packages as $pkg): ?>
@@ -268,7 +268,15 @@ function translation_cover_query(array $overrides = []): string {
                   <th>ID</th>
                   <th>Question</th>
                   <th>Catégorie</th>
-                  <th>Package</th>
+                  <th>
+                    <span class="order-help-wrap">
+                      <span>Pack</span>
+                      <span class="order-help-tip" tabindex="0" aria-label="Aide sur la colonne pack">
+                        ?
+                        <span class="order-help-bubble">Indique le pack rattache a la question. "Banque commune" signifie que la question n'est liee a aucun pack precis et peut etre reutilisee dans plusieurs contextes.</span>
+                      </span>
+                    </span>
+                  </th>
                   <th>EN</th>
                   <th>ES</th>
                   <th>JA</th>
