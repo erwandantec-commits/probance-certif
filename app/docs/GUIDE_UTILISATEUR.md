@@ -2,17 +2,6 @@
 
 Ce document explique comment utiliser l'outil de certification Probance au quotidien, sans entrer dans les details techniques.
 
-## A quoi sert l'outil
-
-L'outil permet de:
-
-- se connecter a son espace
-- lancer un questionnaire de certification ou d'entrainement
-- repondre aux questions dans un temps donne
-- consulter son resultat
-- suivre son historique de passages
-- visualiser ses certifications obtenues ou a renouveler
-
 ## Resume rapide
 
 Pour utiliser l'outil simplement:
@@ -23,18 +12,6 @@ Pour utiliser l'outil simplement:
 4. reponds aux questions avant la fin du temps
 5. consulte ton resultat
 6. suis tes certifications depuis le tableau de bord
-
-## Se connecter
-
-Pour acceder a l'outil:
-
-1. ouvre la page de connexion
-2. saisis ton email et ton mot de passe
-3. valide pour arriver sur ton tableau de bord
-
-Si tu n'as pas encore de compte, utilise la page d'inscription.
-
-Si tu as oublie ton mot de passe, utilise la fonction de reinitialisation.
 
 ## Tableau de bord
 
@@ -52,17 +29,22 @@ Depuis cette page, tu peux choisir un pack puis demarrer une session.
 
 ## Les deux types de session
 
-L'outil propose en general deux modes:
+L'outil propose deux modes:
 
 ### Mode Exam
 
-Le mode `Exam` sert a passer une vraie tentative.
+Le mode `Exam` sert a passer une vraie tentative de certification.
 
 Dans ce mode:
 
-- tu reponds aux questions sans correction immediate
-- le score final est calcule a la fin
+- tu avances sans correction immediate pendant la session
+- tu ne peux pas mettre la session en pause depuis l'espace candidat standard
+- le score final est calcule a la fin ou a l'expiration du temps
 - le resultat determine si la certification est obtenue ou non
+- si tu reussis, la certification peut devenir valide pendant une duree definie par le pack
+- tant que cette certification est encore valide, il est normal de ne pas pouvoir relancer un nouvel exam sur le meme pack
+- si tu echoues ou si tu arretes l'exam, un delai d'attente peut s'appliquer avant de pouvoir le repasser
+- ce mode est donc reserve a l'evaluation officielle, pas a l'entrainement
 
 ### Mode Entrainement
 
@@ -71,8 +53,19 @@ Le mode `Entrainement` sert a s'entrainer.
 Dans ce mode:
 
 - tu peux valider question par question
-- l'outil peut afficher un retour immediat
-- tu peux apprendre de tes erreurs plus facilement
+- tu peux mettre la session en pause puis la reprendre plus tard
+- l'outil affiche un retour immediat apres validation sur les questions prevues pour cela
+- selon les questions, tu peux voir la bonne reponse et parfois une explication
+- ce mode permet donc de comprendre ses erreurs au fil de l'eau
+- le score et le resultat restent visibles, mais ils n'ont pas de valeur de certification officielle
+- un entrainement ne cree pas de certification valable dans le temps
+- tu peux relancer des entrainements autant de fois que necessaire sur un meme pack
+- contrairement a l'exam, il n'y a pas de blocage metier destine a limiter les tentatives d'entrainement
+
+En resume:
+
+- `Exam` = tentative officielle, sans pause candidat, avec regles de validite et eventuel delai avant nouvelle tentative
+- `Entrainement` = mode libre pour pratiquer, avec pause possible, corrections, explications et repetitions illimitees
 
 ## Demarrer une session
 
@@ -158,30 +151,11 @@ Depuis ton espace, tu peux consulter:
 
 Une certification peut apparaitre comme:
 
-- valide
-- bientot expirante
-- expiree
-- absente
+- valide: la certification est en cours de validite, tu n'as aucune action immediate a faire
+- bientot expirante: la certification est encore valable, mais sa date de fin approche et il faut anticiper un futur renouvellement
+- expiree: la periode de validite est terminee, la certification n'est plus consideree comme active et une nouvelle tentative sera necessaire pour la recuperer
 
 Cela permet de savoir rapidement si une nouvelle tentative est necessaire.
-
-## Changer la langue
-
-L'outil peut proposer plusieurs langues d'affichage.
-
-Si cette option est disponible:
-
-- choisis la langue dans le selecteur prevu
-- la page se recharge avec les textes correspondants
-
-## En cas de probleme
-
-Si tu rencontres un souci:
-
-- verifie d'abord ton email et ton mot de passe
-- recharge la page si un affichage semble bloque
-- verifie que ta session n'a pas expire
-- contacte un administrateur si tu penses qu'un acces ou une certification est bloquee a tort
 
 ## Questions frequentes
 

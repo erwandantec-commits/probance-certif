@@ -2,29 +2,6 @@
 
 This document explains how to use the Probance certification tool in daily practice, without going into technical details.
 
-## What is the tool for
-
-The tool allows you to:
-
-- sign in to your space
-- start a certification or training questionnaire
-- answer questions within a limited time
-- view your result
-- track your session history
-- see your certifications obtained or due for renewal
-
-## Sign in
-
-To access the tool:
-
-1. open the login page
-2. enter your email and password
-3. confirm to reach your dashboard
-
-If you do not have an account yet, use the registration page.
-
-If you forgot your password, use the reset feature.
-
 ## Dashboard
 
 The dashboard is the user's main page.
@@ -41,17 +18,22 @@ From this page, you can choose a package and start a session.
 
 ## The two session types
 
-The tool generally offers two modes:
+The tool offers two modes:
 
 ### Certification mode
 
-The `Exam` mode is used for a real attempt.
+The `Exam` mode is used for a real certification attempt.
 
 In this mode:
 
-- you answer questions without immediate correction
-- the final score is calculated at the end
-- the result determines whether the certification is obtained or not
+- you move forward without immediate correction during the session
+- you cannot pause the session from the standard candidate area
+- the final score is calculated at the end or when the time limit expires
+- the result determines whether the certification is obtained
+- if you pass, the certification may become valid for a limited period defined by the package
+- while that certification is still valid, starting a new exam on the same package may be blocked
+- if you fail or stop the exam, a waiting period may apply before another official attempt is allowed
+- this mode is meant for formal evaluation, not for practice
 
 ### Test mode
 
@@ -60,8 +42,19 @@ The `Test` or `Training` mode is used for practice.
 In this mode:
 
 - you can validate question by question
-- the tool may display immediate feedback
-- you can learn from your mistakes more easily
+- you can pause the session and resume it later
+- the tool shows immediate feedback after validation when available for that question flow
+- depending on the question, you may see the correct answer and sometimes an explanation
+- this makes the mode useful for understanding mistakes as you go
+- the score and result are still visible, but they do not count as an official certification result
+- a training session does not create a time-valid certification
+- you can restart training sessions as many times as needed on the same package
+- unlike the exam flow, training is not intended to be limited by official cooldown rules
+
+In short:
+
+- `Exam` = official attempt, no standard candidate pause, certification validity rules, possible cooldown before retry
+- `Training` = practice mode, pause available, corrections and explanations, unlimited repetition
 
 ## Starting a session
 
@@ -147,30 +140,11 @@ From your space, you can view:
 
 A certification may appear as:
 
-- valid
-- expiring soon
-- expired
-- missing
+- valid: the certification is currently valid and no immediate action is required
+- expiring soon: the certification is still valid, but its end date is approaching and a future renewal should be anticipated
+- expired: the validity period is over, the certification is no longer considered active, and a new attempt will be required to regain it
 
 This helps you quickly know whether a new attempt is needed.
-
-## Changing the language
-
-The tool may offer several display languages.
-
-If this option is available:
-
-- choose the language in the selector
-- the page reloads with the corresponding texts
-
-## In case of a problem
-
-If you encounter an issue:
-
-- first check your email and password
-- reload the page if something seems stuck
-- check whether your session has expired
-- contact an administrator if you think access or certification is blocked by mistake
 
 ## Frequently asked questions
 
@@ -195,14 +169,3 @@ The session is considered expired and the result is calculated based on the stat
 
 It depends on the active configuration and your permissions.
 In most standard user cases, it is better to assume that a session must be completed in the same working period.
-
-## Quick summary
-
-To use the tool simply:
-
-1. sign in
-2. choose a package
-3. start a session
-4. answer the questions before time runs out
-5. view your result
-6. track your certifications from the dashboard

@@ -112,7 +112,7 @@ MD,
 
 ダッシュボードでは次の操作ができます。
 
-- 認定パッケージの選択
+- 認定パックの選択
 - セッションモードの選択
 - 新しいセッションの開始
 - 進行中セッションの再開
@@ -385,9 +385,7 @@ $docSections = [];
 if ($guideMarkdown !== '' && preg_match_all('/^##\s+(.+)$/m', $guideMarkdown, $matches)) {
   foreach ($matches[1] as $heading) {
     $label = trim((string)$heading);
-    $slug = strtolower($label);
-    $slug = preg_replace('/[^[:alnum:]]+/u', '-', $slug);
-    $slug = trim((string)$slug, '-');
+    $slug = app_markdown_slugify($label);
     if ($slug !== '') {
       $docSections[] = ['label' => $label, 'slug' => $slug];
     }
@@ -458,9 +456,24 @@ $languageLabel = match ($lang) {
   'jp' => '言語',
   default => 'Langue',
 };
+ 
+$backToTopLabel = match ($lang) {
+  'en' => 'Back to top',
+  'es' => 'Volver arriba',
+  'jp' => 'ä¸Šã«æˆ»ã‚‹',
+  default => 'Remonter',
+};
+
+$backToTopMeta = match ($lang) {
+  'en' => 'Return to the top of the guide',
+  'es' => 'Volver al inicio de la guia',
+  'jp' => 'ã‚¬ã‚¤ãƒ‰ã®ä¸€ç•ªä¸Šã«æˆ»ã‚‹',
+  default => 'Retourner en haut du guide',
+};
+$backToTopLabel = $lang === 'jp' ? 'Top' : $backToTopLabel;
 ?>
 <!doctype html>
-<html lang="<?= h(html_lang_code($lang)) ?>">
+<html lang="<?= h(html_lang_code($lang)) ?>" id="doc-top">
 <head>
   <meta charset="utf-8">
   <title><?= h($helpTitle) ?></title>
@@ -521,5 +534,9 @@ $languageLabel = match ($lang) {
     </div>
   </div>
 </div>
+<a class="doc-scroll-top" href="#doc-top" aria-label="<?= h($backToTopLabel) ?>" title="<?= h($backToTopLabel) ?>">
+  <span aria-hidden="true">↑</span>
+  <span><?= h($backToTopLabel) ?></span>
+</a>
 </body>
 </html>

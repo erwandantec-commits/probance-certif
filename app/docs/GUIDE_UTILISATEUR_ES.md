@@ -2,29 +2,6 @@
 
 Este documento explica como utilizar la herramienta de certificacion Probance en el dia a dia, sin entrar en detalles tecnicos.
 
-## Para que sirve la herramienta
-
-La herramienta permite:
-
-- iniciar sesion en tu espacio
-- comenzar un cuestionario de certificacion o de entrenamiento
-- responder preguntas dentro de un tiempo limitado
-- consultar tu resultado
-- seguir el historial de tus sesiones
-- visualizar tus certificaciones obtenidas o por renovar
-
-## Iniciar sesion
-
-Para acceder a la herramienta:
-
-1. abre la pagina de inicio de sesion
-2. introduce tu correo electronico y tu contrasena
-3. valida para llegar a tu panel principal
-
-Si aun no tienes cuenta, utiliza la pagina de registro.
-
-Si has olvidado tu contrasena, utiliza la funcion de restablecimiento.
-
 ## Panel principal
 
 El panel principal es la pagina principal del usuario.
@@ -41,17 +18,22 @@ Desde esta pagina puedes elegir un paquete y comenzar una sesion.
 
 ## Los dos tipos de sesion
 
-La herramienta suele ofrecer dos modos:
+La herramienta ofrece dos modos:
 
 ### Modo certificacion
 
-El modo `Exam` sirve para realizar un intento real.
+El modo `Exam` sirve para realizar un intento oficial de certificacion.
 
 En este modo:
 
-- respondes a las preguntas sin correccion inmediata
-- la puntuacion final se calcula al final
+- avanzas sin correccion inmediata durante la sesion
+- no puedes poner la sesion en pausa desde el espacio candidato estandar
+- la puntuacion final se calcula al final o cuando se agota el tiempo
 - el resultado determina si la certificacion se obtiene o no
+- si apruebas, la certificacion puede quedar valida durante un tiempo definido por el pack
+- mientras esa certificacion siga siendo valida, es normal que no puedas relanzar otro exam del mismo pack
+- si suspendes o interrumpes el exam, puede aplicarse un periodo de espera antes de otro intento oficial
+- este modo esta pensado para una evaluacion formal, no para practicar
 
 ### Modo test
 
@@ -60,8 +42,19 @@ El modo `Test` o `Training` sirve para practicar.
 En este modo:
 
 - puedes validar pregunta por pregunta
-- la herramienta puede mostrar comentarios inmediatos
-- puedes aprender de tus errores con mas facilidad
+- puedes poner la sesion en pausa y retomarla despues
+- la herramienta muestra un retorno inmediato tras validar cuando ese flujo esta disponible
+- segun la pregunta, puedes ver la respuesta correcta y a veces una explicacion
+- este modo ayuda a comprender los errores a medida que avanzas
+- la puntuacion y el resultado siguen visibles, pero no cuentan como resultado oficial de certificacion
+- un entrenamiento no genera una certificacion valida durante un periodo
+- puedes relanzar entrenamientos tantas veces como necesites en un mismo pack
+- a diferencia del exam, el entrenamiento no esta pensado para limitarse por reglas oficiales de espera
+
+En resumen:
+
+- `Exam` = intento oficial, sin pausa candidato estandar, con reglas de validez y posible espera antes de repetir
+- `Training` = modo de practica, con pausa, correcciones, explicaciones y repeticiones ilimitadas
 
 ## Iniciar una sesion
 
@@ -147,30 +140,11 @@ Desde tu espacio puedes consultar:
 
 Una certificacion puede aparecer como:
 
-- valida
-- proxima a expirar
-- expirada
-- ausente
+- valida: la certificacion sigue vigente y no requiere ninguna accion inmediata
+- proxima a expirar: la certificacion sigue siendo valida, pero su fecha de fin se acerca y conviene anticipar una futura renovacion
+- expirada: el periodo de validez ha terminado, la certificacion ya no se considera activa y sera necesario un nuevo intento para recuperarla
 
 Esto permite saber rapidamente si es necesario un nuevo intento.
-
-## Cambiar el idioma
-
-La herramienta puede ofrecer varios idiomas de visualizacion.
-
-Si esta opcion esta disponible:
-
-- elige el idioma en el selector previsto
-- la pagina se recarga con los textos correspondientes
-
-## En caso de problema
-
-Si encuentras un problema:
-
-- comprueba primero tu correo y tu contrasena
-- recarga la pagina si algo parece bloqueado
-- verifica si tu sesion ha expirado
-- contacta con un administrador si crees que un acceso o una certificacion estan bloqueados por error
 
 ## Preguntas frecuentes
 
@@ -195,14 +169,3 @@ La sesion se considera expirada y el resultado se calcula segun el estado al fin
 
 Depende de la configuracion activa y de tus permisos.
 En la mayoria de los casos de usuario estandar, es mejor considerar que una sesion debe terminarse en la misma franja de trabajo.
-
-## Resumen rapido
-
-Para utilizar la herramienta de forma sencilla:
-
-1. inicia sesion
-2. elige un paquete
-3. comienza una sesion
-4. responde a las preguntas antes de que termine el tiempo
-5. consulta tu resultado
-6. sigue tus certificaciones desde el panel principal

@@ -598,6 +598,12 @@ function app_markdown_inline(string $text): string {
   return (string)$escaped;
 }
 
+function app_markdown_slugify(string $title): string {
+  $slug = strtolower(trim($title));
+  $slug = preg_replace('/[^[:alnum:]]+/u', '-', $slug);
+  return trim((string)$slug, '-');
+}
+
 function app_markdown_to_html(string $markdown): string {
   $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
   $lines = explode("\n", $markdown);
@@ -647,9 +653,7 @@ function app_markdown_to_html(string $markdown): string {
       $level = strlen($matches[1]) + 1;
       $level = min(4, max(2, $level));
       $title = trim($matches[2]);
-      $slug = strtolower($title);
-      $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
-      $slug = trim((string)$slug, '-');
+      $slug = app_markdown_slugify($title);
       $idAttr = $slug !== '' ? ' id="' . h($slug) . '"' : '';
       $html[] = '<h' . $level . $idAttr . '>' . app_markdown_inline($title) . '</h' . $level . '>';
       continue;

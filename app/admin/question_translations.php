@@ -22,7 +22,7 @@ if (!in_array($stateFilter, ['ALL', 'complete', 'stale', 'partial', 'missing'], 
 }
 
 $packages = $pdo->query("
-  SELECT id, name, name_color_hex
+  SELECT id, name, name_color_hex, selection_rules_json
   FROM packages
   ORDER BY name ASC
 ")->fetchAll() ?: [];
@@ -51,47 +51,158 @@ if ($needFilter !== '' && !in_array($needFilter, $allNeeds, true)) {
 
 $where = [];
 $params = [];
-if ($packageId > 0) {
-  $where[] = "q.package_id = ?";
-  $params[] = $packageId;
-}
 if ($needFilter !== '') {
   $where[] = "q.need = ?";
   $params[] = $needFilter;
 }
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
-$countStmt = $pdo->prepare("SELECT COUNT(*) FROM questions q $whereSql");
-$countStmt->execute($params);
-$totalQuestions = (int)$countStmt->fetchColumn();
-$totalPages = max(1, (int)ceil($totalQuestions / $limit));
-if ($page > $totalPages) {
-  $page = $totalPages;
-}
-$offset = ($page - 1) * $limit;
-
-$query = "
+$questionQuery = "
   SELECT
     q.id,
     q.external_id,
     q.text,
     q.need,
     q.level,
-    q.package_id,
-    p.name AS package_name,
-    p.name_color_hex AS package_color_hex
+    q.package_id
   FROM questions q
-  LEFT JOIN packages p ON p.id = q.package_id
   $whereSql
   ORDER BY q.id DESC
-  LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
-$stmt = $pdo->prepare($query);
-$stmt->execute($params);
-$rows = $stmt->fetchAll() ?: [];
+";
+$questionStmt = $pdo->prepare($questionQuery);
+$questionStmt->execute($params);
+$questionRows = $questionStmt->fetchAll() ?: [];
 
-$coverageRows = [];
-foreach ($rows as $row) {
+function translation_package_usage_definitions(array $packages): array {
+  $definitions = [];
+  foreach ($packages as $pkg) {
+    $packageId = (int)($pkg['id'] ?? 0);
+    if ($packageId <= 0) {
+      continue;
+    }
+
+    $definition = [
+      'id' => $packageId,
+      'name' => (string)($pkg['name'] ?? ''),
+      'color' => (string)($pkg['name_color_hex'] ?? ''),
+      'mode' => 'legacy',
+      'rules' => [],
+    ];
+
+    $rawRules = trim((string)($pkg['selection_rules_json'] ?? ''));
+    if ($rawRules !== '') {
+      $decoded = json_decode($rawRules, true);
+      $buckets = is_array($decoded) ? ($decoded['buckets'] ?? null) : null;
+      if (is_array($buckets) && !empty($buckets)) {
+        $compiledRules = [];
+        foreach ($buckets as $bucket) {
+          $need = normalize_question_need((string)($bucket['need'] ?? ''));
+          $levels = $bucket['levels'] ?? [];
+          if ($need === '' || !is_array($levels)) {
+            continue;
+          }
+          $levels = array_values(array_unique(array_filter(array_map('intval', $levels), static fn(int $level): bool => $level >= 1 && $level <= 9)));
+          if (!$levels) {
+            continue;
+          }
+          $compiledRules[] = [
+            'need' => $need,
+            'levels' => $levels,
+          ];
+        }
+        if ($compiledRules) {
+          $definition['mode'] = 'rules';
+          $definition['rules'] = $compiledRules;
+        }
+      }
+    }
+
+    $definitions[] = $definition;
+  }
+
+  return $definitions;
+}
+
+function translation_packages_for_question(array $question, array $packageDefinitions): array {
+  $matches = [];
+  $questionNeed = normalize_question_need((string)($question['need'] ?? ''));
+  $questionLevel = (int)($question['level'] ?? 0);
+  $questionPackageId = (int)($question['package_id'] ?? 0);
+
+  foreach ($packageDefinitions as $definition) {
+    if (($definition['mode'] ?? 'legacy') === 'rules') {
+      foreach (($definition['rules'] ?? []) as $rule) {
+        if ($questionNeed === (string)($rule['need'] ?? '') && in_array($questionLevel, $rule['levels'] ?? [], true)) {
+          $matches[] = [
+            'id' => (int)$definition['id'],
+            'name' => (string)$definition['name'],
+            'color' => (string)$definition['color'],
+          ];
+          break;
+        }
+      }
+      continue;
+    }
+
+    if ($questionPackageId > 0 && $questionPackageId === (int)$definition['id']) {
+      $matches[] = [
+        'id' => (int)$definition['id'],
+        'name' => (string)$definition['name'],
+        'color' => (string)$definition['color'],
+      ];
+    }
+  }
+
+  return $matches;
+}
+
+function translation_package_usage_meta(array $usedPackages): array {
+  $count = count($usedPackages);
+  $names = array_values(array_filter(array_map(static fn(array $pkg): string => trim((string)($pkg['name'] ?? '')), $usedPackages), static fn(string $name): bool => $name !== ''));
+  $tooltip = implode(', ', $names);
+
+  if ($count === 0) {
+    return [
+      'label' => '',
+      'title' => '',
+      'class' => 'translation-pack-usage-empty',
+      'color' => '',
+      'is_package' => false,
+    ];
+  }
+
+  if ($count === 1) {
+    return [
+      'label' => (string)($names[0] ?? ''),
+      'title' => (string)($names[0] ?? ''),
+      'class' => 'translation-pack-usage-single',
+      'color' => (string)($usedPackages[0]['color'] ?? ''),
+      'is_package' => true,
+    ];
+  }
+
+  return [
+    'label' => $count . ' packs',
+    'title' => $tooltip,
+    'class' => 'translation-pack-usage-multi pill info',
+    'color' => '',
+    'is_package' => false,
+  ];
+}
+
+$packageDefinitions = translation_package_usage_definitions($packages);
+$filteredRows = [];
+foreach ($questionRows as $row) {
   $questionId = (int)($row['id'] ?? 0);
+  $usedPackages = translation_packages_for_question($row, $packageDefinitions);
+
+  if ($packageId > 0) {
+    $usedPackageIds = array_map(static fn(array $pkg): int => (int)($pkg['id'] ?? 0), $usedPackages);
+    if (!in_array($packageId, $usedPackageIds, true)) {
+      continue;
+    }
+  }
+
   $statuses = [];
   foreach (['en', 'es', 'jp'] as $langCode) {
     $statuses[$langCode] = question_translation_status($pdo, $questionId, $langCode);
@@ -99,35 +210,36 @@ foreach ($rows as $row) {
   if ($stateFilter !== 'ALL' && ($statuses[$langFilter] ?? 'missing') !== $stateFilter) {
     continue;
   }
-  $coverageRows[] = [
+
+  $filteredRows[] = [
     'id' => $questionId,
     'external_id' => $row['external_id'],
     'text' => (string)($row['text'] ?? ''),
     'need' => (string)($row['need'] ?? ''),
     'level' => (int)($row['level'] ?? 0),
-    'package_name' => (string)($row['package_name'] ?? '(Banque commune)'),
-    'package_color_hex' => (string)($row['package_color_hex'] ?? ''),
+    'used_packages' => $usedPackages,
+    'usage_meta' => translation_package_usage_meta($usedPackages),
     'statuses' => $statuses,
   ];
 }
 
-$summaryQuery = "
-  SELECT q.id
-  FROM questions q
-  $whereSql
-  ORDER BY q.id DESC
-";
-$summaryStmt = $pdo->prepare($summaryQuery);
-$summaryStmt->execute($params);
-$allQuestionIds = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), $summaryStmt->fetchAll() ?: []);
+$totalQuestions = count($filteredRows);
+$totalPages = max(1, (int)ceil($totalQuestions / $limit));
+if ($page > $totalPages) {
+  $page = $totalPages;
+}
+$offset = ($page - 1) * $limit;
+$coverageRows = array_slice($filteredRows, $offset, $limit);
+
+$allQuestionIds = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), $filteredRows);
 $summary = [
   'en' => ['complete' => 0, 'stale' => 0, 'partial' => 0, 'missing' => 0],
   'es' => ['complete' => 0, 'stale' => 0, 'partial' => 0, 'missing' => 0],
   'jp' => ['complete' => 0, 'stale' => 0, 'partial' => 0, 'missing' => 0],
 ];
-foreach ($allQuestionIds as $questionId) {
+foreach ($filteredRows as $row) {
   foreach (['en', 'es', 'jp'] as $langCode) {
-    $status = question_translation_status($pdo, (int)$questionId, $langCode);
+    $status = (string)($row['statuses'][$langCode] ?? 'missing');
     if (!isset($summary[$langCode][$status])) {
       $summary[$langCode][$status] = 0;
     }
@@ -207,7 +319,7 @@ function translation_cover_query(array $overrides = []): string {
         <form method="get" class="admin-panel-surface audit-config-panel">
           <div class="audit-filter-grid audit-filter-grid-main">
             <div>
-              <label class="label" for="translation_package_id">Pack</label>
+              <label class="label" for="translation_package_id">Packs</label>
               <select class="input" id="translation_package_id" name="package_id">
                 <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>>Tous</option>
                 <?php foreach ($packages as $pkg): ?>
@@ -268,15 +380,7 @@ function translation_cover_query(array $overrides = []): string {
                   <th>ID</th>
                   <th>Question</th>
                   <th>Catégorie</th>
-                  <th>
-                    <span class="order-help-wrap">
-                      <span>Pack</span>
-                      <span class="order-help-tip" tabindex="0" aria-label="Aide sur la colonne pack">
-                        ?
-                        <span class="order-help-bubble">Indique le pack rattache a la question. "Banque commune" signifie que la question n'est liee a aucun pack precis et peut etre reutilisee dans plusieurs contextes.</span>
-                      </span>
-                    </span>
-                  </th>
+                  <th>Packs</th>
                   <th>EN</th>
                   <th>ES</th>
                   <th>JA</th>
@@ -289,7 +393,16 @@ function translation_cover_query(array $overrides = []): string {
                     <td><?= $row['external_id'] === null || $row['external_id'] === '' ? '-' : (int)$row['external_id'] ?></td>
                     <td><?= h(mb_strimwidth((string)$row['text'], 0, 110, '...', 'UTF-8')) ?></td>
                     <td><?= h((string)$row['need']) ?></td>
-                    <td><span style="<?= h(package_label_style((string)$row['package_name'], (string)$row['package_color_hex'])) ?>"><?= h((string)$row['package_name']) ?></span></td>
+                    <td>
+                      <?php $usageMeta = $row['usage_meta'] ?? []; ?>
+                      <?php if (!empty($usageMeta['is_package'])): ?>
+                        <span title="<?= h((string)($usageMeta['title'] ?? '')) ?>" style="<?= h(package_label_style((string)($usageMeta['label'] ?? ''), (string)($usageMeta['color'] ?? ''))) ?>"><?= h((string)($usageMeta['label'] ?? '')) ?></span>
+                      <?php elseif ((string)($usageMeta['label'] ?? '') !== ''): ?>
+                        <span class="<?= h((string)($usageMeta['class'] ?? 'pill info')) ?>" title="<?= h((string)($usageMeta['title'] ?? '')) ?>"><?= h((string)($usageMeta['label'] ?? '')) ?></span>
+                      <?php else: ?>
+                        <span class="translation-pack-usage-empty"></span>
+                      <?php endif; ?>
+                    </td>
                     <?php foreach (['en', 'es', 'jp'] as $langCode): ?>
                       <?php $meta = translation_status_meta((string)($row['statuses'][$langCode] ?? 'missing')); ?>
                       <td><span class="<?= h($meta['class']) ?>"><?= h($meta['label']) ?></span></td>
