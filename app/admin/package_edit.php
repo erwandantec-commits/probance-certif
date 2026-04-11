@@ -1718,11 +1718,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         )) {
           updateRuleAvailabilityWarnings();
         }
-        if (e.target && e.target.classList && e.target.classList.contains('rule-target-total')) {
-          if (!validateRuleTargets(true)) {
-            e.target.focus();
-          }
-        }
       });
     }
 
