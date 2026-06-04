@@ -1,10 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+
+REMOTE_USER="probance_certif"
+REMOTE_HOST="10.4.32.3"
+REMOTE_PATH="/home/probance_certif/docker/certif-app"
+
+
 RSYNC_PARAM=(
   -avz
   --itemize-changes
-#  --dry-run
   --delete
   --exclude='.*'
   --exclude='*.md'
@@ -19,9 +24,16 @@ RSYNC_PARAM=(
 
 
 echo "Debug:"
+echo "rsync --dry-run ${RSYNC_PARAM[@]} . \"${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}\""
+rsync --dry-run ${RSYNC_PARAM[@]} . "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
+
+
+read -rp "Proceed with rsync? [y/N] " answer
+[[ "$answer" =~ ^([Yy]|[Yy][Ee][Ss])$ ]] || exit 1
+
+
 echo "rsync ${RSYNC_PARAM[@]} . \"${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}\""
 rsync ${RSYNC_PARAM[@]} . "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
-
 
 # Run remote command
 echo "Recreate containers"
