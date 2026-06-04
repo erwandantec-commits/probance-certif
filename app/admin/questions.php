@@ -6,24 +6,8 @@ require_once __DIR__ . '/_nav.php';
 require_once __DIR__ . '/../utils.php';
 
 $pdo = db();
-function questions_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
 $activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
-$hasPackageProgramColumn = questions_package_column_exists($pdo, 'program_id');
+$hasPackageProgramColumn = table_column_exists($pdo, 'packages', 'program_id');
 $hasProgramQuestionLinksTable = auth_table_exists($pdo, 'program_question_links');
 $idFilterRaw = trim((string)($_GET['id_question'] ?? ''));
 $idFilter = ($idFilterRaw !== '' && preg_match('/^\d+$/', $idFilterRaw)) ? (int)$idFilterRaw : null;
@@ -626,13 +610,13 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Questions</title>
+  <title><?= h(t('admin.questions.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -641,7 +625,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
         <p class="admin-page-eyebrow">Administration</p>
-        <h2 class="h1">Admin &middot; Questions</h2>
+        <h2 class="h1"><?= h(t('admin.questions.title', [], $lang)) ?></h2>
         <p class="sub">Modifier / supprimer (creation via import uniquement)</p>
       </div>
       <div class="admin-head-actions">
@@ -653,11 +637,11 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     <section class="admin-section-panel admin-section-panel-accent">
     <div class="admin-panel-toolbar">
       <div>
-        <h3 class="h1" style="margin:0;">Gestion du catalogue</h3>
+        <h3 class="h1"><?= h(t('admin.questions.catalog_title', [], $lang)) ?></h3>
         <p class="sub" style="margin:6px 0 0;">Recherche, navigation et analyse de la banque de questions.</p>
       </div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        <a class="btn ghost" href="<?= h(questions_export_url($_GET)) ?>">Exporter CSV</a>
+        <a class="btn ghost" href="<?= h(questions_export_url($_GET)) ?>"><?= h(t('admin.common.export_csv', [], $lang)) ?></a>
         <a class="btn admin-primary-action-btn" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">+ Importer</a>
       </div>
     </div>
@@ -674,7 +658,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       </div>
       <div class="filters-actions">
         <button class="btn" type="submit">Rechercher</button>
-        <a class="btn ghost" href="/admin/questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
+        <a class="btn ghost" href="/admin/questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
       </div>
     </form>
 
@@ -745,14 +729,14 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     <section class="admin-section-panel">
     <div class="section-head admin-section-head">
       <div>
-        <h3 class="h1">Liste des questions</h3>
+        <h3 class="h1"><?= h(t('admin.questions.list_title', [], $lang)) ?></h3>
         <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
       </div>
     </div>
 
     <div class="table-wrap admin-table-panel">
       <?php if (!$questions): ?>
-        <p class="empty-state">Aucune question.</p>
+        <p class="empty-state"><?= h(t('admin.questions.none', [], $lang)) ?></p>
       <?php else: ?>
         <table class="table questions-table questions-admin-table">
           <thead>

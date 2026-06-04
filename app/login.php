@@ -45,20 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="utf-8">
   <title><?= h(t('login.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
   <div class="card login-card">
     <div class="login-topbar">
-      <select id="login-lang" class="input lang-select"
-              onchange="window.location.href='/login.php?lang=' + encodeURIComponent(this.value);">
-        <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-        <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-        <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-        <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-      </select>
+      <?php render_flag_lang_picker($lang, "'/login.php?lang={lang}'"); ?>
     </div>
 
     <div class="login-brand">

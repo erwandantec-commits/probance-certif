@@ -8,41 +8,6 @@ require_once __DIR__ . '/../utils.php';
 $pdo = db();
 $activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 
-function package_edit_questions_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'questions'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
-
-function package_edit_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  $key = 'pkg:' . $column;
-  if (isset($cache[$key])) {
-    return $cache[$key];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$key] = ((int)$st->fetchColumn() > 0);
-  return $cache[$key];
-}
-
 function package_edit_filter_url(int $id, array $needs, array $needLevels): string {
   $needs = array_values(array_unique(array_filter(array_map(
     static fn($v) => normalize_question_need((string)$v),
@@ -166,7 +131,7 @@ function package_edit_rule_templates_for_program(PDO $pdo, int $activeProgramId,
       WHERE ppl.program_id = ?
     ");
     $stmt->execute([$activeProgramId]);
-  } elseif (package_edit_package_column_exists($pdo, 'program_id')) {
+  } elseif (table_column_exists($pdo, 'packages', 'program_id')) {
     $stmt = $pdo->prepare("
       SELECT UPPER(TRIM(name)) AS package_name
       FROM packages
@@ -486,14 +451,14 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $stmt = $pdo->prepare("SELECT * FROM packages WHERE id=?");
 $stmt->execute([$id]);
 $pk = $stmt->fetch();
-$hasNameColorColumn = package_edit_package_column_exists($pdo, 'name_color_hex');
-$hasRulesColumn = package_edit_package_column_exists($pdo, 'selection_rules_json');
-$hasProfileColumn = package_edit_package_column_exists($pdo, 'profile');
-$hasDisplayOrderColumn = package_edit_package_column_exists($pdo, 'display_order');
-$hasBadgeImageColumn = package_edit_package_column_exists($pdo, 'badge_image_filename');
-$hasAntiRepeatSessionsColumn = package_edit_package_column_exists($pdo, 'anti_repeat_sessions');
-$hasCertValidityDaysColumn = package_edit_package_column_exists($pdo, 'cert_validity_days');
-$hasFailedCooldownDaysColumn = package_edit_package_column_exists($pdo, 'failed_cooldown_days');
+$hasNameColorColumn = table_column_exists($pdo, 'packages', 'name_color_hex');
+$hasRulesColumn = table_column_exists($pdo, 'packages', 'selection_rules_json');
+$hasProfileColumn = table_column_exists($pdo, 'packages', 'profile');
+$hasDisplayOrderColumn = table_column_exists($pdo, 'packages', 'display_order');
+$hasBadgeImageColumn = table_column_exists($pdo, 'packages', 'badge_image_filename');
+$hasAntiRepeatSessionsColumn = table_column_exists($pdo, 'packages', 'anti_repeat_sessions');
+$hasCertValidityDaysColumn = table_column_exists($pdo, 'packages', 'cert_validity_days');
+$hasFailedCooldownDaysColumn = table_column_exists($pdo, 'packages', 'failed_cooldown_days');
 $badgeImageOptions = package_edit_badge_file_options();
 $ruleTemplates = package_rule_templates();
 
@@ -517,7 +482,7 @@ if ($activeProgramId > 0) {
       echo "Not found";
       exit;
     }
-  } elseif (package_edit_package_column_exists($pdo, 'program_id')) {
+  } elseif (table_column_exists($pdo, 'packages', 'program_id')) {
     if ((int)($pk['program_id'] ?? 0) !== $activeProgramId) {
       http_response_code(404);
       echo "Not found";
@@ -951,13 +916,13 @@ $formDisplayOrder = isset($displayOrder) ? $displayOrder : (int)($pk['display_or
 $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((string)($pk['badge_image_filename'] ?? 'user-badge-blue.png'));
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Modifier pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>

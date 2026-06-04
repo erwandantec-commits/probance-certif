@@ -1,5 +1,71 @@
 <?php
 
+/**
+ * Renders a flag-only language picker dropdown.
+ * $jsUrlTemplate: JS string (single-quoted) where {lang} is replaced by the chosen lang code.
+ * Example: '/dashboard.php?lang={lang}'
+ * For complex URLs with PHP vars, pass a JS expression: '/exam.php?sid='+sid+'&lang={lang}'
+ */
+function render_flag_lang_picker(string $activeLang, string $jsUrlTemplate, string $pickerId = ''): void {
+  static $counter = 0;
+  $counter++;
+  $id = $pickerId ?: ('flagPicker' . $counter);
+  $flagMap = ['fr' => 'fr', 'en' => 'gb', 'es' => 'es', 'jp' => 'jp'];
+  $activeFlag = $flagMap[$activeLang] ?? 'fr';
+  echo '<div class="flag-lang-picker" id="' . h($id) . '">';
+  echo '<button class="flag-lang-picker-btn" type="button" aria-haspopup="true" aria-expanded="false">';
+  echo '<img src="https://flagcdn.com/20x15/' . $activeFlag . '.png" width="20" height="15" alt="' . h(strtoupper($activeLang)) . '" style="border-radius:2px;">';
+  echo '</button>';
+  echo '<div class="flag-lang-picker-dropdown" role="menu">';
+  foreach ($flagMap as $code => $flagCode) {
+    $isActive = $activeLang === $code;
+    $jsUrl = str_replace('{lang}', $code, $jsUrlTemplate);
+    echo '<button class="flag-lang-picker-option' . ($isActive ? ' is-active' : '') . '" type="button" role="menuitem" onclick="' . h('window.location.href=' . $jsUrl) . '">';
+    echo '<img src="https://flagcdn.com/20x15/' . $flagCode . '.png" width="20" height="15" alt="' . h(strtoupper($code)) . '" style="border-radius:2px;">';
+    echo '</button>';
+  }
+  echo '</div>';
+  echo '</div>';
+  echo '<script>(function(){';
+  echo 'var p=document.getElementById(' . json_encode($id) . ');';
+  echo 'if(!p)return;';
+  echo 'var btn=p.querySelector(".flag-lang-picker-btn");';
+  echo 'var dd=p.querySelector(".flag-lang-picker-dropdown");';
+  echo 'btn.addEventListener("click",function(e){e.stopPropagation();var o=dd.classList.toggle("is-open");btn.setAttribute("aria-expanded",o?"true":"false");});';
+  echo 'document.addEventListener("click",function(){dd.classList.remove("is-open");btn.setAttribute("aria-expanded","false");});';
+  echo '})();</script>';
+}
+
+function render_error_page(int $code, string $title, string $message, string $backUrl = '/'): never {
+  http_response_code($code);
+  $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+  $safeMessage = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+  $safeBack = htmlspecialchars($backUrl, ENT_QUOTES, 'UTF-8');
+  echo <<<HTML
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{$safeTitle}</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/assets/style.css?v=1">
+</head>
+<body>
+<div class="container">
+  <div class="card" style="text-align:center;margin-top:4rem;">
+    <p style="font-size:2.5rem;font-weight:700;color:var(--text-muted,#64748b)">{$code}</p>
+    <h1 class="h1" style="margin-bottom:.5rem">{$safeTitle}</h1>
+    <p class="sub" style="margin-bottom:1.5rem">{$safeMessage}</p>
+    <a class="btn ghost" href="{$safeBack}">&larr; Retour</a>
+  </div>
+</div>
+</body>
+</html>
+HTML;
+  exit;
+}
+
 function uuidv4(): string {
   $data = random_bytes(16);
   $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);

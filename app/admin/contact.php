@@ -18,23 +18,6 @@ if (empty($_SESSION['admin_users_csrf']) || !is_string($_SESSION['admin_users_cs
 }
 $userEditCsrfToken = (string)$_SESSION['admin_users_csrf'];
 
-function admin_contact_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
-
 function admin_contact_format_cert_expiry(?DateTimeImmutable $expiresAt, bool $isRevoked): string {
   if (!$expiresAt) {
     return '-';
@@ -141,7 +124,7 @@ if ($email === '') { http_response_code(400); echo "Missing email"; exit; }
 $sessionEndExpr = sessions_column_exists($pdo, 'ended_at')
   ? "COALESCE(s.ended_at, s.submitted_at, s.started_at)"
   : "COALESCE(s.submitted_at, s.started_at)";
-$hasCertValidityDaysColumn = admin_contact_package_column_exists($pdo, 'cert_validity_days');
+$hasCertValidityDaysColumn = table_column_exists($pdo, 'packages', 'cert_validity_days');
 $certValidityDaysSelect = $hasCertValidityDaysColumn
   ? "pk.cert_validity_days AS cert_validity_days"
   : "365 AS cert_validity_days";
@@ -246,7 +229,7 @@ if ($linkedUserId > 0 && auth_table_exists($pdo, 'user_program_access')) {
     }
   }
 }
-$hasDisplayOrderColumn = admin_contact_package_column_exists($pdo, 'display_order');
+$hasDisplayOrderColumn = table_column_exists($pdo, 'packages', 'display_order');
 $packageOrder = $hasDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id ASC";
 $packagesStmt = $pdo->query("SELECT pk.id, pk.name, pk.name_color_hex FROM packages pk WHERE pk.is_active=1 $packagesWhereSql $packageOrder");
 $packages = $packagesStmt->fetchAll() ?: [];
@@ -599,13 +582,13 @@ $editIsGlobalAdmin = $editRole === 'ADMIN';
 $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . urlencode($email)));
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Fiche utilisateur</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -619,7 +602,7 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('users'); ?>
-          <a class="btn ghost back-nav-btn" href="/admin/users.php">Retour</a>
+          <a class="btn ghost back-nav-btn" href="/admin/users.php"><?= h(t('admin.common.back', [], $lang)) ?></a>
         </div>
       </div>
 
@@ -764,7 +747,7 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                 </section>
               </div>
               <div class="users-edit-actions candidate-account-actions">
-                <button class="btn" type="submit">Enregistrer le compte</button>
+                <button class="btn" type="submit"><?= h(t('admin.contact.save_account', [], $lang)) ?></button>
               </div>
             </form>
           <?php else: ?>
@@ -1128,8 +1111,8 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
         </div>
 
         <div class="filters-actions">
-          <button class="btn" type="submit">Filtrer</button>
-          <a class="btn ghost" href="/admin/contact.php?email=<?= urlencode($contact['email']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
+          <button class="btn" type="submit"><?= h(t('admin.common.filter', [], $lang)) ?></button>
+          <a class="btn ghost" href="/admin/contact.php?email=<?= urlencode($contact['email']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
         </div>
       </form>
 

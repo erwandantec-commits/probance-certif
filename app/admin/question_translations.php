@@ -8,22 +8,6 @@ require_once __DIR__ . '/../utils.php';
 $pdo = db();
 ensure_question_translation_schema($pdo);
 ensure_program_source_language_schema($pdo);
-function question_translations_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
 $activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 $programSourceLang = program_source_lang($pdo, $activeProgramId);
 $translationLangs = question_translation_target_langs($programSourceLang);
@@ -316,13 +300,13 @@ function translation_export_url(int $activeProgramId): string {
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Couverture traductions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>

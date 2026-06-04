@@ -254,13 +254,13 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Packs</title>
+  <title><?= h(t('admin.packages.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -269,8 +269,8 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
           <p class="admin-page-eyebrow">Administration</p>
-          <h2 class="h1">Admin &middot; Packs</h2>
-          <p class="sub">Param&egrave;tres des packs</p>
+          <h2 class="h1"><?= h(t('admin.packages.title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.packages.subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>
@@ -303,7 +303,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <section class="admin-section-panel admin-section-panel-accent">
       <div class="admin-panel-toolbar">
         <div>
-          <h3 class="h1" style="margin:0;">Gestion des packs</h3>
+          <h3 class="h1"><?= h(t('admin.packages.manage_title', [], $lang)) ?></h3>
           <p class="sub" style="margin:6px 0 0;">Cr&eacute;ation, ordre d'affichage, activation et disponibilit&eacute; des packs.</p>
         </div>
         <a class="btn admin-primary-action-btn" href="/admin/pack_create.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">+ Cr&eacute;er un pack</a>
@@ -313,7 +313,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <section class="admin-section-panel">
       <div class="section-head admin-section-head">
         <div>
-          <h3 class="h1">Catalogue des packs</h3>
+          <h3 class="h1"><?= h(t('admin.packages.catalog_title', [], $lang)) ?></h3>
         </div>
       </div>
       <div class="table-wrap admin-table-panel">

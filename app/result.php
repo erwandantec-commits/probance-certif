@@ -11,30 +11,14 @@ header('Expires: 0');
 $pdo = db();
 $lang = get_lang();
 
-function result_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
 
-$resultBadgeImageSelect = result_package_column_exists($pdo, 'badge_image_filename')
+$resultBadgeImageSelect = table_column_exists($pdo, 'packages', 'badge_image_filename')
   ? ", pk.badge_image_filename AS package_badge_image"
   : ", NULL AS package_badge_image";
-$resultProfileSelect = result_package_column_exists($pdo, 'profile')
+$resultProfileSelect = table_column_exists($pdo, 'packages', 'profile')
   ? ", pk.profile AS package_profile"
   : ", NULL AS package_profile";
-$resultCertValidityDaysSelect = result_package_column_exists($pdo, 'cert_validity_days')
+$resultCertValidityDaysSelect = table_column_exists($pdo, 'packages', 'cert_validity_days')
   ? ", pk.cert_validity_days AS package_cert_validity_days"
   : ", 365 AS package_cert_validity_days";
 
@@ -306,13 +290,7 @@ if ($canShowReview) {
   <div class="container">
     <div class="card">
       <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
-        <select id="result-lang" class="input lang-select"
-                onchange="window.location.href='/result.php?sid=<?= h(urlencode($sid)) ?>&lang=' + encodeURIComponent(this.value);">
-          <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-          <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-          <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-          <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-        </select>
+        <?php render_flag_lang_picker($lang, "'/result.php?sid=" . urlencode($sid) . "&lang={lang}'"); ?>
       </div>
 
       <div class="header">
@@ -410,14 +388,14 @@ if ($canShowReview) {
               }
               $selectedInputType = $selectedCorrectCount > 1 ? 'checkbox' : 'radio';
             ?>
-            <div id="review-detail" class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border); margin-bottom:14px;">
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div id="review-detail" class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border); margin-bottom:14px; position:relative; padding-right:48px;">
+              <a class="btn ghost icon-btn review-detail-close" href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>" aria-label="<?= h(t('result.back', [], $lang)) ?>" title="<?= h(t('result.back', [], $lang)) ?>" style="position:absolute; top:12px; right:12px; background:rgba(251,146,60,0.12); border-color:rgba(251,146,60,0.35); color:#c2540a; flex-shrink:0;">
+                <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M6.7 5.3a1 1 0 0 1 1.4 0L12 9.17l3.9-3.88a1 1 0 1 1 1.4 1.42L13.42 10.6l3.88 3.9a1 1 0 0 1-1.42 1.4L12 12.01l-3.9 3.88a1 1 0 0 1-1.4-1.42l3.87-3.88-3.88-3.9a1 1 0 0 1 0-1.4Z" fill="currentColor"/>
+                </svg>
+              </a>
+              <div>
                 <p style="margin:0; font-size:16px;"><b>#<?= (int)$selectedReviewItem['position'] ?></b> <?= h(localize_text((string)$selectedReviewItem['text'], $lang)) ?></p>
-                <a class="btn ghost icon-btn" href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>" aria-label="<?= h(t('result.back', [], $lang)) ?>" title="<?= h(t('result.back', [], $lang)) ?>">
-                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M6.7 5.3a1 1 0 0 1 1.4 0L12 9.17l3.9-3.88a1 1 0 1 1 1.4 1.42L13.42 10.6l3.88 3.9a1 1 0 0 1-1.42 1.4L12 12.01l-3.9 3.88a1 1 0 0 1-1.4-1.42l3.87-3.88-3.88-3.9a1 1 0 0 1 0-1.4Z" fill="currentColor"/>
-                  </svg>
-                </a>
               </div>
               <div style="margin-top:12px;">
                 <?php if (!$selectedReviewOptions): ?>

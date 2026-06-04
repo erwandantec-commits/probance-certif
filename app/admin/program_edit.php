@@ -24,18 +24,10 @@ function admin_program_edit_redirect(string $url): void {
   exit;
 }
 
-function admin_program_edit_package_column_exists(PDO $pdo, string $column): bool {
-  return auth_column_exists($pdo, 'packages', $column);
-}
-
-function admin_program_edit_questions_column_exists(PDO $pdo, string $column): bool {
-  return auth_column_exists($pdo, 'questions', $column);
-}
-
 function admin_program_edit_available_question_counts(PDO $pdo, int $programId): array {
   $counts = [];
   $where = [];
-  if (admin_program_edit_questions_column_exists($pdo, 'is_active')) {
+  if (table_column_exists($pdo, 'questions', 'is_active')) {
     $where[] = 'q.is_active = 1';
   }
   if ($programId > 0 && auth_program_question_links_enabled($pdo)) {
@@ -130,10 +122,10 @@ if ($programId <= 0) {
   admin_program_edit_redirect('/admin/programs.php?error=' . urlencode('Programme invalide.'));
 }
 
-$hasProfileColumn = admin_program_edit_package_column_exists($pdo, 'profile');
-$hasNameColorColumn = admin_program_edit_package_column_exists($pdo, 'name_color_hex');
-$hasSelectionRulesColumn = admin_program_edit_package_column_exists($pdo, 'selection_rules_json');
-$hasProgramIdColumn = admin_program_edit_package_column_exists($pdo, 'program_id');
+$hasProfileColumn = table_column_exists($pdo, 'packages', 'profile');
+$hasNameColorColumn = table_column_exists($pdo, 'packages', 'name_color_hex');
+$hasSelectionRulesColumn = table_column_exists($pdo, 'packages', 'selection_rules_json');
+$hasProgramIdColumn = table_column_exists($pdo, 'packages', 'program_id');
 $hasProgramPackageLinksTable = auth_program_package_links_enabled($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -362,13 +354,13 @@ if ($hasProgramPackageLinksTable) {
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Edition programme</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>

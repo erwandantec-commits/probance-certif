@@ -479,7 +479,7 @@ $backToTopLabel = $lang === 'jp' ? 'Top' : $backToTopLabel;
   <meta charset="utf-8">
   <title><?= h($helpTitle) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -487,13 +487,7 @@ $backToTopLabel = $lang === 'jp' ? 'Top' : $backToTopLabel;
   <div class="doc-topbar">
     <div class="doc-topbar-spacer"></div>
     <div class="doc-topbar-lang">
-      <label class="lang-select-label doc-lang-label" for="help-lang"><?= h($languageLabel) ?></label>
-      <select id="help-lang" class="input lang-select doc-lang-select" onchange="window.location.href='/help.php?lang=' + encodeURIComponent(this.value);">
-        <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-        <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-        <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-        <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-      </select>
+      <?php render_flag_lang_picker($lang, "'/help.php?lang={lang}'"); ?>
     </div>
   </div>
   <div class="card dashboard-card doc-shell doc-hero">

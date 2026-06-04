@@ -204,18 +204,6 @@ function load_input_rows(array $file): array {
   throw new RuntimeException("Format non supporte: .$ext (attendu: .csv ou .xlsx).");
 }
 
-function db_column_exists(PDO $pdo, string $table, string $column): bool {
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = ?
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$table, $column]);
-  return ((int)$st->fetchColumn() > 0);
-}
-
 function db_column_nullable(PDO $pdo, string $table, string $column): bool {
   $st = $pdo->prepare("
     SELECT IS_NULLABLE
@@ -682,7 +670,7 @@ function run_import(PDO $pdo, array $prepared, array $report, string $importMode
     return $report;
   }
 
-  $hasOpenToClientColumn = db_column_exists($pdo, 'questions', 'open_to_client');
+  $hasOpenToClientColumn = table_column_exists($pdo, 'questions', 'open_to_client');
   if ($hasOpenToClientColumn) {
     $insertQ = $pdo->prepare("
       INSERT INTO questions(
@@ -890,11 +878,11 @@ $state = $_SESSION[$stateKey];
 
 $schemaErrors = [];
 foreach (['external_id', 'package_id', 'text', 'need', 'knowledge_required_csv', 'level', 'question_type', 'allow_skip', 'theme', 'category', 'profile', 'explanation', 'meta_json', 'updated_at'] as $col) {
-  if (!db_column_exists($pdo, 'questions', $col)) {
+  if (!table_column_exists($pdo, 'questions', $col)) {
     $schemaErrors[] = "Colonne manquante dans questions: $col";
   }
 }
-if (db_column_exists($pdo, 'questions', 'package_id') && !db_column_nullable($pdo, 'questions', 'package_id')) {
+if (table_column_exists($pdo, 'questions', 'package_id') && !db_column_nullable($pdo, 'questions', 'package_id')) {
   $schemaErrors[] = "questions.package_id est NOT NULL. Lance les migrations SQL du projet.";
 }
 
@@ -1086,13 +1074,13 @@ function import_lang_label(string $lang): string {
 
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Import questions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -1148,7 +1136,7 @@ function import_lang_label(string $lang): string {
         <?php if ($lastAction === 'verify' && empty($report['errors'])): ?>
           <div class="admin-notice is-ok" style="margin-top:10px;">
             V&eacute;rification OK: <?= (int)$validPercent ?>% lignes valides (<?= (int)$validLines ?>/<?= (int)$readLines ?>).
-            Vous pouvez cliquer sur <b>Importer les lignes valides</b>.
+            Vous pouvez cliquer sur <b><?= h(t('admin.import.do_import', [], $lang)) ?></b>.
           </div>
         <?php endif; ?>
         <?php if (!empty($report['errors'])): ?>
@@ -1174,7 +1162,7 @@ function import_lang_label(string $lang): string {
               </p>
             </div>
             <div class="import-actions">
-              <button class="btn" type="submit">Importer les lignes valides</button>
+              <button class="btn" type="submit"><?= h(t('admin.import.do_import', [], $lang)) ?></button>
             </div>
           </form>
         <?php endif; ?>
@@ -1279,7 +1267,7 @@ function import_lang_label(string $lang): string {
         </div>
         <div class="import-actions">
           <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>>V&eacute;rifier les donn&eacute;es</button>
-          <a class="btn ghost" href="/admin/import_questions.php?cancel_import=1<?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>">Annuler l'import</a>
+          <a class="btn ghost" href="/admin/import_questions.php?cancel_import=1<?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.import.cancel', [], $lang)) ?></a>
         </div>
       </form>
     <?php endif; ?>

@@ -217,13 +217,13 @@ $stats = $pdo->query("
 
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Sessions</title>
+  <title><?= h(t('admin.sessions.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -232,8 +232,8 @@ $stats = $pdo->query("
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
           <p class="admin-page-eyebrow">Administration</p>
-          <h2 class="h1">Admin &middot; Sessions</h2>
-          <p class="sub">Pilotage des sessions et Certifications</p>
+          <h2 class="h1"><?= h(t('admin.sessions.title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.sessions.subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('sessions'); ?>
@@ -242,19 +242,19 @@ $stats = $pdo->query("
 
       <div class="admin-stats-grid">
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Sessions actives</span>
+          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_active', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['active_count'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Certifications reussies</span>
+          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_passed', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['passed_exam_count'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Sessions terminees</span>
+          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_terminated', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['terminated_count'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Sessions expirees</span>
+          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_expired', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['expired_count'] ?></strong>
         </article>
       </div>
@@ -263,30 +263,30 @@ $stats = $pdo->query("
       <section class="admin-section-panel admin-section-panel-accent">
       <div class="section-head admin-section-head">
         <div>
-          <h3 class="h1">Filtres de recherche</h3>
-          <p class="sub">Affinez la vue des sessions, exports et suivis d'examen.</p>
+          <h3 class="h1"><?= h(t('admin.sessions.filters_title', [], $lang)) ?></h3>
+          <p class="sub"><?= h(t('admin.sessions.filters_subtitle', [], $lang)) ?></p>
         </div>
       </div>
 
       <form method="get" class="filters-grid sessions-filters admin-panel-surface">
         <div>
-          <label class="label" for="search">Email</label>
+          <label class="label" for="search"><?= h(t('admin.common.email', [], $lang)) ?></label>
           <input class="input" id="search" type="text" name="search" value="<?= h($search) ?>" placeholder="Email...">
         </div>
 
         <div>
-          <label class="label" for="type">Type</label>
+          <label class="label" for="type"><?= h(t('admin.sessions.filter_type', [], $lang)) ?></label>
           <select class="input" id="type" name="type">
-            <option value="ALL" <?= $type==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>>Exam</option>
-            <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>>Test</option>
+            <option value="ALL" <?= $type==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="EXAM" <?= $type==='EXAM'?'selected':'' ?>><?= h(t('admin.sessions.type_exam', [], $lang)) ?></option>
+            <option value="TRAINING" <?= $type==='TRAINING'?'selected':'' ?>><?= h(t('admin.sessions.type_training', [], $lang)) ?></option>
           </select>
         </div>
 
         <div>
-          <label class="label" for="package">Pack</label>
+          <label class="label" for="package"><?= h(t('admin.sessions.filter_pack', [], $lang)) ?></label>
           <select class="input" id="package" name="package">
-            <option value="ALL" <?= $package==='ALL'?'selected':'' ?>>Tous</option>
+            <option value="ALL" <?= $package==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
             <?php foreach ($packages as $pkg): ?>
               <option value="<?= (int)$pkg['id'] ?>" <?= $package===(string)$pkg['id']?'selected':'' ?>>
                 <?= h($pkg['name']) ?>
@@ -296,28 +296,28 @@ $stats = $pdo->query("
         </div>
 
         <div>
-          <label class="label" for="status">Statut</label>
+          <label class="label" for="status"><?= h(t('admin.common.status', [], $lang)) ?></label>
           <select class="input" id="status" name="status">
-            <option value="ALL" <?= $status==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="ACTIVE" <?= $status==='ACTIVE'?'selected':'' ?>>En cours</option>
-            <option value="TERMINATED" <?= $status==='TERMINATED'?'selected':'' ?>>Termin&eacute;</option>
-            <option value="EXPIRED" <?= $status==='EXPIRED'?'selected':'' ?>>Expir&eacute;</option>
+            <option value="ALL" <?= $status==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="ACTIVE" <?= $status==='ACTIVE'?'selected':'' ?>><?= h(t('admin.status.active', [], $lang)) ?></option>
+            <option value="TERMINATED" <?= $status==='TERMINATED'?'selected':'' ?>><?= h(t('admin.status.terminated', [], $lang)) ?></option>
+            <option value="EXPIRED" <?= $status==='EXPIRED'?'selected':'' ?>><?= h(t('admin.status.expired', [], $lang)) ?></option>
           </select>
         </div>
 
         <div>
-          <label class="label" for="result">R&eacute;sultat</label>
+          <label class="label" for="result"><?= h(t('admin.sessions.filter_result', [], $lang)) ?></label>
           <select class="input" id="result" name="result">
-            <option value="ALL" <?= $result==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="PASSED" <?= $result==='PASSED'?'selected':'' ?>>R&eacute;ussi</option>
-            <option value="FAILED" <?= $result==='FAILED'?'selected':'' ?>>Echou&eacute;</option>
+            <option value="ALL" <?= $result==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="PASSED" <?= $result==='PASSED'?'selected':'' ?>><?= h(t('admin.common.passed', [], $lang)) ?></option>
+            <option value="FAILED" <?= $result==='FAILED'?'selected':'' ?>><?= h(t('admin.common.failed', [], $lang)) ?></option>
           </select>
         </div>
 
       <div class="filters-actions">
-          <button class="btn" type="submit">Filtrer</button>
-          <a class="btn ghost" href="/admin/index.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
-          <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
+          <button class="btn" type="submit"><?= h(t('admin.common.filter', [], $lang)) ?></button>
+          <a class="btn ghost" href="/admin/index.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
+          <button class="btn ghost" type="submit" name="export" value="1"><?= h(t('admin.common.export_csv', [], $lang)) ?></button>
         </div>
       </form>
       </section>
@@ -325,14 +325,14 @@ $stats = $pdo->query("
       <section class="admin-section-panel">
       <div class="section-head admin-section-head">
         <div>
-          <h3 class="h1">Liste des sessions</h3>
-          <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> r&eacute;sultats)</p>
+          <h3 class="h1"><?= h(t('admin.sessions.list_title', [], $lang)) ?></h3>
+          <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $page, 'total' => $totalPages, 'count' => $totalRows], $lang)) ?></p>
         </div>
       </div>
 
       <div class="table-wrap admin-table-panel">
         <?php if (!$sessions): ?>
-          <p class="empty-state">Aucune session trouv&eacute;e.</p>
+          <p class="empty-state"><?= h(t('admin.sessions.none', [], $lang)) ?></p>
         <?php else: ?>
           <table class="table questions-table sessions-table">
             <thead>
@@ -341,51 +341,35 @@ $stats = $pdo->query("
                   <?php
                     $qs = $_GET;
                     $qs['sort'] = 'started_at';
-
-                    if ($sort !== 'started_at') {
-                      $qs['dir'] = 'DESC';
-                    } else {
-                      $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC';
-                    }
-
+                    if ($sort !== 'started_at') { $qs['dir'] = 'DESC'; } else { $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC'; }
                     unset($qs['page']);
                     $url = '/admin/index.php?' . http_build_query($qs);
                   ?>
                   <a class="sort-link" href="<?= h($url) ?>">
-                    Date d&eacute;but
-                    <?php if ($sort === 'started_at'): ?>
-                      <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span>
-                    <?php endif; ?>
+                    <?= h(t('admin.sessions.col_started', [], $lang)) ?>
+                    <?php if ($sort === 'started_at'): ?><span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
 	                </th>
-	                <th>Date fin</th>
-	                <th>Email</th>
-	                <th>Type</th>
-                <th>Pack</th>
-                <th>Statut</th>
+	                <th><?= h(t('admin.sessions.col_ended', [], $lang)) ?></th>
+	                <th><?= h(t('admin.common.email', [], $lang)) ?></th>
+	                <th><?= h(t('admin.common.type', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.pack', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.status', [], $lang)) ?></th>
                 <th>
                   <?php
                     $qs = $_GET;
                     $qs['sort'] = 'score_percent';
-
-                    if ($sort !== 'score_percent') {
-                      $qs['dir'] = 'DESC';
-                    } else {
-                      $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC';
-                    }
-
+                    if ($sort !== 'score_percent') { $qs['dir'] = 'DESC'; } else { $qs['dir'] = ($dir === 'DESC') ? 'ASC' : 'DESC'; }
                     unset($qs['page']);
                     $url = '/admin/index.php?' . http_build_query($qs);
                   ?>
                   <a class="sort-link" href="<?= h($url) ?>">
-                    Score
-                    <?php if ($sort === 'score_percent'): ?>
-                      <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span>
-                    <?php endif; ?>
+                    <?= h(t('admin.common.score', [], $lang)) ?>
+                    <?php if ($sort === 'score_percent'): ?><span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
-                <th>R&eacute;sultat</th>
-                <th>Action</th>
+                <th><?= h(t('admin.common.result', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.action', [], $lang)) ?></th>
               </tr>
             </thead>
             <tbody>
@@ -403,27 +387,27 @@ $stats = $pdo->query("
 	                  <td>
                       <?php $isTimeout = strtoupper(trim((string)($s['termination_type'] ?? ''))) === 'TIMEOUT'; ?>
 	                    <?php if ($s['status'] === 'TERMINATED' && !$isTimeout): ?>
-	                      <span class="badge ok">Termin&eacute;</span>
+	                      <span class="badge ok"><?= h(t('admin.status.terminated', [], $lang)) ?></span>
 	                    <?php elseif ($s['status'] === 'EXPIRED' || $isTimeout): ?>
-	                      <span class="badge bad">Expir&eacute;e</span>
+	                      <span class="badge bad"><?= h(t('admin.status.expired', [], $lang)) ?></span>
 	                    <?php else: ?>
-	                      <span class="badge">En cours</span>
+	                      <span class="badge"><?= h(t('admin.status.active', [], $lang)) ?></span>
 	                    <?php endif; ?>
 	                  </td>
                   <td><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></td>
                   <td>
                     <?php if (admin_session_has_result($s)): ?>
                       <?php if ((int)$s['passed'] === 1): ?>
-                        <span class="badge ok">R&eacute;ussi</span>
+                        <span class="badge ok"><?= h(t('admin.common.passed', [], $lang)) ?></span>
                       <?php else: ?>
-                        <span class="badge bad">Echou&eacute;</span>
+                        <span class="badge bad"><?= h(t('admin.common.failed', [], $lang)) ?></span>
                       <?php endif; ?>
                     <?php else: ?>
                       -
                     <?php endif; ?>
                   </td>
                   <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/index.php'))) ?>" aria-label="Voir le detail" title="Voir le detail">
+                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/index.php'))) ?>" aria-label="<?= h(t('admin.common.view_detail', [], $lang)) ?>" title="<?= h(t('admin.common.view_detail', [], $lang)) ?>"
                       <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                       </svg>

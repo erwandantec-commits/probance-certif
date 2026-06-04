@@ -143,13 +143,13 @@ $rows = $pdo->query("
 ")->fetchAll() ?: [];
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Programmes</title>
+  <title><?= h(t('admin.programs.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -158,7 +158,7 @@ $rows = $pdo->query("
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
           <p class="admin-page-eyebrow">Administration</p>
-          <h2 class="h1">Admin &middot; Programmes</h2>
+          <h2 class="h1"><?= h(t('admin.programs.title', [], $lang)) ?></h2>
           <p class="sub">Cibles de certification et contexte de travail de l'administration.</p>
         </div>
         <div class="admin-head-actions">
@@ -187,7 +187,7 @@ $rows = $pdo->query("
           <section class="admin-section-panel admin-section-panel-accent">
             <div class="section-head admin-section-head">
               <div>
-                <h3 class="h1">Creer un programme</h3>
+                <h3 class="h1"><?= h(t('admin.programs.create_title', [], $lang)) ?></h3>
               </div>
             </div>
 
@@ -221,23 +221,23 @@ $rows = $pdo->query("
         <section class="admin-section-panel">
           <div class="section-head admin-section-head">
             <div>
-              <h3 class="h1">Programmes existants</h3>
+              <h3 class="h1"><?= h(t('admin.programs.list_title', [], $lang)) ?></h3>
             </div>
           </div>
 
           <div class="table-wrap admin-table-panel">
             <?php if (!$rows): ?>
-              <p class="empty-state">Aucun programme pour le moment.</p>
+              <p class="empty-state"><?= h(t('admin.programs.none', [], $lang)) ?></p>
             <?php else: ?>
               <table class="table questions-table packages-table">
                 <thead>
                   <tr>
                     <th>Nom</th>
-                    <th>Source</th>
-                    <th>Packs</th>
-                    <th>Utilisateurs</th>
-                    <th>Statut</th>
-                    <th>Actions</th>
+                    <th><?= h(t('admin.programs.col_source', [], $lang)) ?></th>
+                    <th><?= h(t('admin.programs.col_packs', [], $lang)) ?></th>
+                    <th><?= h(t('admin.programs.col_users', [], $lang)) ?></th>
+                    <th><?= h(t('admin.common.status', [], $lang)) ?></th>
+                    <th><?= h(t('admin.common.actions', [], $lang)) ?></th>
                   </tr>
                 </thead>
                 <tbody>

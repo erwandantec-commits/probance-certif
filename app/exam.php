@@ -17,9 +17,7 @@ $sid = $_GET['sid'] ?? '';
 $p = (int)($_GET['p'] ?? 1);
 $checked = ($_GET['checked'] ?? '') === '1';
 if (!$sid) {
-  http_response_code(400);
-  echo h(t('exam.missing_sid', [], $lang));
-  exit;
+  render_error_page(400, 'Paramètre manquant', 'Identifiant de session manquant.', '/dashboard.php');
 }
 
 $stmt = $pdo->prepare("
@@ -31,9 +29,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$sid]);
 $sess = $stmt->fetch();
 if (!$sess) {
-  http_response_code(404);
-  echo h(t('exam.session_not_found', [], $lang));
-  exit;
+  render_error_page(404, 'Session introuvable', 'Cette session n\'existe pas.', '/dashboard.php');
 }
 
 function exam_redirect_to_submit(string $sid, string $lang): void {
@@ -103,9 +99,7 @@ $qstmt = $pdo->prepare("
 $qstmt->execute([$sid, $p]);
 $q = $qstmt->fetch();
 if (!$q) {
-  http_response_code(404);
-  echo h(t('exam.question_not_found', [], $lang));
-  exit;
+  render_error_page(404, 'Question introuvable', 'Cette question n\'existe plus dans la session.', '/dashboard.php');
 }
 
 $qid = (int)$q['id'];
@@ -342,20 +336,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="utf-8">
   <title>Exam</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
   <div class="card">
-	    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
-	      <select id="exam-lang" class="input lang-select"
-	              onchange="window.location.href='/exam.php?sid=<?= h(urlencode($sid)) ?>&p=<?= (int)$p ?>&lang=' + encodeURIComponent(this.value) + '<?= $showFeedback ? '&checked=1' : '' ?>';">
-	        <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-	        <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-	        <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-	        <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-      </select>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
+      <?php render_flag_lang_picker($lang, "'/exam.php?sid=" . urlencode($sid) . "&p=" . (int)$p . "&lang={lang}" . ($showFeedback ? '&checked=1' : '') . "'"); ?>
     </div>
 
     <div class="header">

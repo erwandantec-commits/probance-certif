@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/utils.php';
+require_once __DIR__ . '/config.php';
 
 $pdo = db();
 $message = '';
@@ -8,15 +9,27 @@ $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $email = trim($_POST['email'] ?? '');
 
+  // Rate limit: max 3 requests per email per hour
+  $rateSt = $pdo->prepare("
+    SELECT COUNT(*) FROM password_resets pr
+    JOIN users u ON u.id = pr.user_id
+    WHERE u.email = ? AND pr.created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)
+  ");
+  $rateSt->execute([$email]);
+  $recentCount = (int)$rateSt->fetchColumn();
+
   $stmt = $pdo->prepare("SELECT id FROM users WHERE email=?");
   $stmt->execute([$email]);
   $user = $stmt->fetch();
 
-  if ($user) {
+  if ($user && $recentCount < 3) {
+
     $userId = (int)$user['id'];
     $token = bin2hex(random_bytes(32));
-    $tokenHash = password_hash($token, PASSWORD_DEFAULT);
+    $tokenHash = hash('sha256', $token);
     $expires = (new DateTime('+1 hour'))->format('Y-m-d H:i:s');
+
+    $pdo->prepare("DELETE FROM password_resets WHERE user_id = ?")->execute([$userId]);
 
     $ins = $pdo->prepare("
       INSERT INTO password_resets(user_id, token_hash, expires_at)

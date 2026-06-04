@@ -36,13 +36,13 @@ $emailControlProgramIds = auth_user_email_control_program_ids($pdo);
 $emailControlAllowedDomains = implode("\n", auth_user_email_control_allowed_domains($pdo));
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Administration globale</title>
+  <title><?= h(t('admin.settings.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -60,7 +60,7 @@ $emailControlAllowedDomains = implode("\n", auth_user_email_control_allowed_doma
       </div>
 
       <?php if ($saved): ?>
-        <div class="admin-notice is-ok">Parametres enregistres.</div>
+        <div class="admin-notice is-ok"><?= h(t('admin.settings.saved', [], $lang)) ?></div>
       <?php endif; ?>
       <?php if ($error !== ''): ?>
         <div class="admin-notice is-bad"><?= h($error) ?></div>
@@ -135,7 +135,7 @@ $emailControlAllowedDomains = implode("\n", auth_user_email_control_allowed_doma
               </div>
             </div>
             <div class="users-create-actions">
-              <button class="btn" type="submit">Enregistrer</button>
+              <button class="btn" type="submit"><?= h(t('admin.common.save', [], $lang)) ?></button>
             </div>
           </form>
         </section>

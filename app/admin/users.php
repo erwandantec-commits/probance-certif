@@ -816,13 +816,13 @@ function admin_users_sort_link(array $qs, string $key): string {
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Utilisateurs</title>
+  <title><?= h(t('admin.users.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -831,8 +831,8 @@ function admin_users_sort_link(array $qs, string $key): string {
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
           <p class="admin-page-eyebrow">Administration</p>
-          <h2 class="h1">Admin &middot; Utilisateurs</h2>
-          <p class="sub">Gestion des comptes, rôles et habilitations administration</p>
+          <h2 class="h1"><?= h(t('admin.users.title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.users.subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('users'); ?>
@@ -847,19 +847,19 @@ function admin_users_sort_link(array $qs, string $key): string {
 
       <div class="admin-stats-grid">
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Total comptes</span>
+          <span class="admin-stat-label"><?= h(t('admin.users.stat_total', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['total_users'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Administrateurs</span>
+          <span class="admin-stat-label"><?= h(t('admin.users.stat_admins', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['total_admins'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Owners</span>
+          <span class="admin-stat-label"><?= h(t('admin.users.stat_owners', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['total_owners'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Users</span>
+          <span class="admin-stat-label"><?= h(t('admin.users.stat_users', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)$stats['total_standard'] ?></strong>
         </article>
       </div>
@@ -882,7 +882,7 @@ function admin_users_sort_link(array $qs, string $key): string {
       <div class="users-create<?= $openCreate ? ' is-open' : '' ?>" id="users-create-panel" <?= $openCreate ? '' : 'hidden' ?>>
         <div class="section-head admin-section-head">
           <div>
-            <h3 class="h1 users-create-title">Créer un utilisateur</h3>
+            <h3 class="h1"><?= h(t('admin.users.create_title', [], $lang)) ?></h3>
             <p class="sub">Crée un compte et définit les programmes qu'il pourra consulter.</p>
           </div>
         </div>
@@ -951,7 +951,7 @@ function admin_users_sort_link(array $qs, string $key): string {
           </div>
           <div class="users-create-actions">
             <button class="btn" type="submit">Créer utilisateur</button>
-            <button class="btn ghost" type="button" id="users-create-cancel-btn">Annuler</button>
+            <button class="btn ghost" type="button" id="users-create-cancel-btn"><?= h(t('admin.common.cancel', [], $lang)) ?></button>
           </div>
         </form>
       </div>
@@ -961,7 +961,7 @@ function admin_users_sort_link(array $qs, string $key): string {
       <section class="admin-section-panel">
       <div class="section-head admin-section-head">
         <div>
-          <h3 class="h1">Annuaire des utilisateurs</h3>
+          <h3 class="h1"><?= h(t('admin.users.directory_title', [], $lang)) ?></h3>
           <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> résultats)</p>
         </div>
       </div>
@@ -985,14 +985,14 @@ function admin_users_sort_link(array $qs, string $key): string {
           </select>
         </div>
         <div class="filters-actions">
-          <button class="btn" type="submit">Filtrer</button>
-          <a class="btn ghost" href="/admin/users.php">Reset</a>
+          <button class="btn" type="submit"><?= h(t('admin.common.filter', [], $lang)) ?></button>
+          <a class="btn ghost" href="/admin/users.php"><?= h(t('admin.common.reset', [], $lang)) ?></a>
         </div>
       </form>
 
       <div class="table-wrap admin-table-panel">
         <?php if (!$users): ?>
-          <p class="empty-state">Aucun utilisateur trouvé.</p>
+          <p class="empty-state"><?= h(t('admin.users.none', [], $lang)) ?></p>
         <?php else: ?>
           <table class="table questions-table users-directory-table">
             <colgroup>
@@ -1197,7 +1197,7 @@ function admin_users_sort_link(array $qs, string $key): string {
                           <?php endif; ?>
                         </div>
                         <div class="users-edit-actions">
-                          <button class="btn" type="submit">Enregistrer</button>
+                          <button class="btn" type="submit"><?= h(t('admin.common.save', [], $lang)) ?></button>
                           <a class="btn ghost" href="<?= h($closeLink) ?>">Fermer</a>
                         </div>
                       </form>

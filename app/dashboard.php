@@ -18,29 +18,13 @@ $accessiblePrograms = auth_accessible_programs($pdo, $user);
 $activeProgramId = auth_candidate_program_context($pdo, $user, $requestedProgramId > 0 ? $requestedProgramId : null);
 $restrictToNoProgramAccess = auth_table_exists($pdo, 'programs') && auth_table_exists($pdo, 'user_program_access') && !$accessiblePrograms;
 
-function dashboard_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
 
-$hasPackageProfileColumn = dashboard_package_column_exists($pdo, 'profile');
-$hasPackageDisplayOrderColumn = dashboard_package_column_exists($pdo, 'display_order');
-$hasPackageBadgeImageColumn = dashboard_package_column_exists($pdo, 'badge_image_filename');
-$hasPackageCertValidityDaysColumn = dashboard_package_column_exists($pdo, 'cert_validity_days');
-$hasPackageFailedCooldownDaysColumn = dashboard_package_column_exists($pdo, 'failed_cooldown_days');
-$hasPackageProgramColumn = dashboard_package_column_exists($pdo, 'program_id');
+$hasPackageProfileColumn = table_column_exists($pdo, 'packages', 'profile');
+$hasPackageDisplayOrderColumn = table_column_exists($pdo, 'packages', 'display_order');
+$hasPackageBadgeImageColumn = table_column_exists($pdo, 'packages', 'badge_image_filename');
+$hasPackageCertValidityDaysColumn = table_column_exists($pdo, 'packages', 'cert_validity_days');
+$hasPackageFailedCooldownDaysColumn = table_column_exists($pdo, 'packages', 'failed_cooldown_days');
+$hasPackageProgramColumn = table_column_exists($pdo, 'packages', 'program_id');
 $hasProgramPackageLinksTable = auth_program_package_links_enabled($pdo);
 
 $errKey = trim((string)($_GET['err_key'] ?? ''));
@@ -553,7 +537,7 @@ function dash_remaining_label(int $seconds): string {
   <meta charset="utf-8">
   <title><?= h(t('dash.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -589,13 +573,7 @@ function dash_remaining_label(int $seconds): string {
             </form>
           <?php endif; ?>
           <div class="lang-switch">
-            <select id="dash-lang" class="input lang-select"
-                    onchange="window.location.href='/dashboard.php?lang=' + encodeURIComponent(this.value) + '<?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>';">
-              <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-              <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-              <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-              <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-            </select>
+            <?php render_flag_lang_picker($lang, "'/dashboard.php?lang={lang}" . ($activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '') . "'"); ?>
           </div>
           <?php if (user_can_access_reporting_area($user)): ?>
             <a class="btn ghost dashboard-admin-btn" href="/admin/">
@@ -674,7 +652,7 @@ function dash_remaining_label(int $seconds): string {
               <?= h(localize_text((string)$card['package_name'], $lang)) ?>
             </div>
             <?php if ((string)($card['package_profile'] ?? '') !== ''): ?>
-              <div class="dashboard-cert-card-meta"><b>Profil:</b> <?= h(localize_text((string)$card['package_profile'], $lang)) ?></div>
+              <div class="dashboard-cert-card-meta"><b><?= h(t('dash.certifications.profile', [], $lang)) ?>:</b> <?= h(localize_text((string)$card['package_profile'], $lang)) ?></div>
             <?php endif; ?>
             <div class="dashboard-cert-card-meta"><?= h(t('dash.certifications.obtained_on', [], $lang)) ?>: <?= h(date('d/m/Y', strtotime((string)$card['started_at']))) ?></div>
             <?php if ((string)$card['expires_at'] !== ''): ?>

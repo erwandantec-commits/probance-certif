@@ -163,41 +163,50 @@ function render_admin_tabs(string $active = ''): void
   $candidateTab = ['key' => 'candidate', 'href' => '/dashboard.php', 'label' => 'Espace candidat'];
   $helpTab = ['key' => 'help', 'href' => '/admin/help.php', 'label' => 'Documentation'];
   $logoutTab = ['key' => 'logout', 'href' => '/logout.php', 'label' => 'D&eacute;connexion', 'extra_class' => 'admin-logout-btn'];
+  $navLang = function_exists('get_lang') ? get_lang() : 'fr';
   $reportingTabs = [
-    ['key' => 'sessions', 'href' => '/admin/index.php', 'label' => 'Sessions'],
-    ['key' => 'certifications', 'href' => '/admin/certifications.php', 'label' => 'Certifications'],
+    ['key' => 'sessions', 'href' => '/admin/index.php', 'label' => h(t('admin.nav.sessions', [], $navLang))],
+    ['key' => 'certifications', 'href' => '/admin/certifications.php', 'label' => h(t('admin.nav.certifications', [], $navLang))],
   ];
-  $managementTabs = [
-  ];
+  $managementTabs = [];
   if (user_can_access_admin_area($user)) {
-    $managementTabs[] = ['key' => 'users', 'href' => '/admin/users.php', 'label' => 'Utilisateurs'];
+    $managementTabs[] = ['key' => 'users', 'href' => '/admin/users.php', 'label' => h(t('admin.nav.users', [], $navLang))];
   }
   $globalAdminTabs = [];
   if (user_can_manage_program_catalog($user)) {
-    $globalAdminTabs[] = ['key' => 'programs', 'href' => '/admin/programs.php', 'label' => 'Programmes'];
+    $globalAdminTabs[] = ['key' => 'programs', 'href' => '/admin/programs.php', 'label' => h(t('admin.nav.programs', [], $navLang))];
   }
   if (user_has_role($user, 'ADMIN')) {
-    $globalAdminTabs[] = ['key' => 'global_settings', 'href' => '/admin/global_settings.php', 'label' => 'Param&egrave;tres'];
+    $globalAdminTabs[] = ['key' => 'global_settings', 'href' => '/admin/global_settings.php', 'label' => h(t('admin.nav.settings', [], $navLang))];
   }
   $contentTabs = user_can_access_admin_area($user)
     ? [
-        ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => 'Packs'],
-        ['key' => 'questions', 'href' => '/admin/questions.php', 'label' => 'Questions'],
-        ['key' => 'translations', 'href' => '/admin/question_translations.php', 'label' => 'Traductions'],
-        ['key' => 'performance', 'href' => '/admin/question_performance.php', 'label' => 'Analyse'],
+        ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => h(t('admin.nav.packages', [], $navLang))],
+        ['key' => 'questions', 'href' => '/admin/questions.php', 'label' => h(t('admin.nav.questions', [], $navLang))],
+        ['key' => 'translations', 'href' => '/admin/question_translations.php', 'label' => h(t('admin.nav.translations', [], $navLang))],
+        ['key' => 'performance', 'href' => '/admin/question_performance.php', 'label' => h(t('admin.nav.performance', [], $navLang))],
       ]
     : [];
 
+  $adminLang = function_exists('get_lang') ? get_lang() : 'fr';
+  $currentUri = (string)($_SERVER['REQUEST_URI'] ?? '/admin/index.php');
+  $uriParts = parse_url($currentUri);
+  $uriPath = (string)($uriParts['path'] ?? '/admin/index.php');
+  $uriQuery = [];
+  if (!empty($uriParts['query'])) {
+    parse_str((string)$uriParts['query'], $uriQuery);
+  }
+
   echo '<nav class="admin-tabs" aria-label="Navigation administration">';
   echo '<a class="btn ghost admin-tab admin-tab-candidate" href="' . $candidateTab['href'] . '">';
-  echo '<span class="admin-tab-label">' . $candidateTab['label'] . '</span>';
+  echo '<span class="admin-tab-label">' . h(t('admin.nav.candidate_space', [], $adminLang)) . '</span>';
   echo '</a>';
   echo '<div class="admin-tabs-quick-actions">';
   echo '<a class="btn ghost admin-tab admin-quick-action admin-logout-btn" href="' . h((string)$logoutTab['href']) . '">';
   echo '<span class="admin-tab-icon">' . admin_tab_icon_svg('logout') . '</span>';
-  echo '<span class="admin-tab-label">Deconnexion</span>';
+  echo '<span class="admin-tab-label">' . h(t('admin.nav.logout', [], $adminLang)) . '</span>';
   echo '</a>';
-  echo '<a class="btn ghost dashboard-help-btn admin-quick-action admin-help-icon-btn" href="' . h((string)$helpTab['href']) . '" aria-label="Documentation" title="Documentation">';
+  echo '<a class="btn ghost dashboard-help-btn admin-quick-action admin-help-icon-btn" href="' . h((string)$helpTab['href']) . '" aria-label="' . h(t('admin.nav.documentation', [], $adminLang)) . '" title="' . h(t('admin.nav.documentation', [], $adminLang)) . '">';
   echo '<svg class="help-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">';
   echo '<circle cx="12" cy="12" r="8.3"/>';
   echo '<path d="M9.4 9.35a2.6 2.6 0 1 1 5.05.87c0 1.72-2.45 2.47-2.45 4.08"/>';
@@ -207,19 +216,58 @@ function render_admin_tabs(string $active = ''): void
   echo '</div>';
   echo '<div class="admin-tabs-main">';
   if (!empty($globalAdminTabs)) {
-    render_admin_tab_group('Administration', 'global_settings', $globalAdminTabs, $active);
+    render_admin_tab_group(t('admin.nav.group_admin', [], $navLang), 'global_settings', $globalAdminTabs, $active);
   }
+  echo '<div class="admin-nav-divider" aria-hidden="true"></div>';
+  echo '<div class="admin-nav-context">';
   render_admin_program_switcher();
   if (user_can_access_reporting_area($user) && $reportingTabs) {
-    render_admin_tab_group('Suivi', 'sessions', $reportingTabs, $active);
+    render_admin_tab_group(t('admin.nav.group_reporting', [], $navLang), 'sessions', $reportingTabs, $active);
   }
   if ($managementTabs) {
-    render_admin_tab_group('Gestion', 'users', $managementTabs, $active);
+    render_admin_tab_group(t('admin.nav.group_management', [], $navLang), 'users', $managementTabs, $active);
   }
   if ($contentTabs) {
-    render_admin_tab_group('Contenu', 'packages', $contentTabs, $active);
+    render_admin_tab_group(t('admin.nav.group_content', [], $navLang), 'packages', $contentTabs, $active);
   }
   echo '</div>';
+  echo '</div>';
+
+  // Language picker — ancré en bas de la sidebar
+  $flagMap = ['fr' => 'fr', 'en' => 'gb', 'es' => 'es', 'jp' => 'jp'];
+  $activeFlag = $flagMap[$adminLang] ?? 'fr';
+  echo '<div class="admin-lang-picker" id="adminLangPicker">';
+  echo '<button class="admin-lang-picker-btn" id="adminLangPickerBtn" type="button" aria-haspopup="true" aria-expanded="false">';
+  echo '<img src="https://flagcdn.com/20x15/' . $activeFlag . '.png" width="20" height="15" alt="' . h(strtoupper($adminLang)) . '" style="border-radius:2px;">';
+  echo '</button>';
+  echo '<div class="admin-lang-picker-dropdown" id="adminLangPickerDropdown" role="menu">';
+  foreach ($flagMap as $code => $flagCode) {
+    $q = $uriQuery;
+    $q['lang'] = $code;
+    $href = $uriPath . '?' . http_build_query($q);
+    $isActive = $adminLang === $code;
+    echo '<a class="admin-lang-picker-option' . ($isActive ? ' is-active' : '') . '" href="' . h($href) . '" role="menuitem">';
+    echo '<img src="https://flagcdn.com/20x15/' . $flagCode . '.png" width="20" height="15" alt="' . h(strtoupper($code)) . '" style="border-radius:2px;">';
+    echo '</a>';
+  }
+  echo '</div>';
+  echo '</div>';
+
   echo '</nav>';
-  echo "<script>document.body.classList.add('admin-with-sidebar');</script>";
+  echo "<script>document.body.classList.add('admin-with-sidebar');
+(function(){
+  var btn=document.getElementById('adminLangPickerBtn');
+  var dd=document.getElementById('adminLangPickerDropdown');
+  if(!btn||!dd)return;
+  btn.addEventListener('click',function(e){
+    e.stopPropagation();
+    var open=dd.classList.toggle('is-open');
+    btn.setAttribute('aria-expanded',open?'true':'false');
+  });
+  document.addEventListener('click',function(){
+    dd.classList.remove('is-open');
+    btn.setAttribute('aria-expanded','false');
+  });
+})();
+</script>";
 }
