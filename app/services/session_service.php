@@ -57,6 +57,154 @@ function table_column_exists(PDO $pdo, string $table, string $column): bool {
   return $cache[$cacheKey];
 }
 
+function session_question_snapshots_enabled(PDO $pdo): bool {
+  return table_column_exists($pdo, 'session_questions', 'question_text_snapshot')
+    && table_column_exists($pdo, 'session_questions', 'correct_option_labels_snapshot')
+    && table_column_exists($pdo, 'session_questions', 'answer_status_snapshot');
+}
+
+function answer_option_snapshots_enabled(PDO $pdo): bool {
+  return table_column_exists($pdo, 'answer_options', 'session_question_id')
+    && table_column_exists($pdo, 'answer_options', 'option_label_snapshot')
+    && table_column_exists($pdo, 'answer_options', 'option_text_snapshot');
+}
+
+function session_question_picked_labels_expr(PDO $pdo, string $sessionQuestionAlias = 'sq'): string {
+  if (!table_column_exists($pdo, 'answer_options', 'session_question_id')) {
+    return "
+      (
+        SELECT GROUP_CONCAT(qo2.label ORDER BY qo2.label SEPARATOR ',')
+        FROM answer_options ao
+        JOIN question_options qo2 ON qo2.id = ao.option_id
+        WHERE ao.session_id = {$sessionQuestionAlias}.session_id
+          AND ao.question_id = {$sessionQuestionAlias}.question_id
+      )
+    ";
+  }
+  return "
+    (
+      SELECT GROUP_CONCAT(
+        COALESCE(NULLIF(TRIM(ao.option_label_snapshot), ''), qo2.label)
+        ORDER BY COALESCE(NULLIF(TRIM(ao.option_label_snapshot), ''), qo2.label)
+        SEPARATOR ','
+      )
+      FROM answer_options ao
+      LEFT JOIN question_options qo2 ON qo2.id = ao.option_id
+      WHERE ao.session_question_id = {$sessionQuestionAlias}.id
+         OR (
+           ao.session_question_id IS NULL
+           AND ao.session_id = {$sessionQuestionAlias}.session_id
+           AND ao.question_id = {$sessionQuestionAlias}.question_id
+         )
+    )
+  ";
+}
+
+function build_session_question_answer_status(string $pickedLabels, string $correctLabels): string {
+  if ($pickedLabels === '') {
+    return 'UNANSWERED';
+  }
+  return ($pickedLabels === $correctLabels) ? 'OK' : 'KO';
+}
+
+function session_question_snapshot_payload(PDO $pdo, int $questionId): ?array {
+  $st = $pdo->prepare("
+    SELECT
+      q.id,
+      q.external_id,
+      q.text,
+      q.explanation,
+      q.question_type,
+      q.allow_skip,
+      q.updated_at,
+      (
+        SELECT GROUP_CONCAT(qo.label ORDER BY qo.label SEPARATOR ',')
+        FROM question_options qo
+        WHERE qo.question_id = q.id
+          AND qo.is_correct = 1
+      ) AS correct_option_labels_snapshot
+    FROM questions q
+    WHERE q.id = ?
+    LIMIT 1
+  ");
+  $st->execute([$questionId]);
+  $row = $st->fetch();
+  return $row ?: null;
+}
+
+function create_session_question(PDO $pdo, string $sessionId, int $questionId, int $position): int {
+  if (!session_question_snapshots_enabled($pdo)) {
+    $ins = $pdo->prepare("INSERT INTO session_questions(session_id, question_id, position) VALUES(?,?,?)");
+    $ins->execute([$sessionId, $questionId, $position]);
+    return (int)$pdo->lastInsertId();
+  }
+
+  $snapshot = session_question_snapshot_payload($pdo, $questionId);
+  if (!$snapshot) {
+    throw new RuntimeException('Question snapshot not found for question #' . $questionId);
+  }
+
+  $ins = $pdo->prepare("
+    INSERT INTO session_questions(
+      session_id,
+      question_id,
+      position,
+      question_external_id_snapshot,
+      question_text_snapshot,
+      question_explanation_snapshot,
+      question_type_snapshot,
+      allow_skip_snapshot,
+      correct_option_labels_snapshot,
+      question_updated_at_snapshot,
+      answer_status_snapshot
+    )
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)
+  ");
+  $ins->execute([
+    $sessionId,
+    $questionId,
+    $position,
+    $snapshot['external_id'] !== null ? (int)$snapshot['external_id'] : null,
+    (string)$snapshot['text'],
+    $snapshot['explanation'] !== null ? (string)$snapshot['explanation'] : null,
+    (string)($snapshot['question_type'] ?? 'MULTI'),
+    (int)($snapshot['allow_skip'] ?? 0),
+    (string)($snapshot['correct_option_labels_snapshot'] ?? ''),
+    $snapshot['updated_at'] !== null ? (string)$snapshot['updated_at'] : null,
+    'UNANSWERED',
+  ]);
+  return (int)$pdo->lastInsertId();
+}
+
+function refresh_session_question_answer_status(PDO $pdo, int $sessionQuestionId): string {
+  if ($sessionQuestionId <= 0 || !session_question_snapshots_enabled($pdo)) {
+    return 'UNANSWERED';
+  }
+
+  $st = $pdo->prepare("
+    SELECT
+      sq.id,
+      COALESCE(sq.correct_option_labels_snapshot, '') AS correct_labels,
+      " . session_question_picked_labels_expr($pdo, 'sq') . " AS picked_labels
+    FROM session_questions sq
+    WHERE sq.id = ?
+    LIMIT 1
+  ");
+  $st->execute([$sessionQuestionId]);
+  $row = $st->fetch();
+  if (!$row) {
+    return 'UNANSWERED';
+  }
+
+  $pickedLabels = trim((string)($row['picked_labels'] ?? ''));
+  $correctLabels = trim((string)($row['correct_labels'] ?? ''));
+  $status = build_session_question_answer_status($pickedLabels, $correctLabels);
+
+  $up = $pdo->prepare("UPDATE session_questions SET answer_status_snapshot=? WHERE id=?");
+  $up->execute([$status, $sessionQuestionId]);
+  return $status;
+}
+
 function compute_package_selection_target(array $pkg, int $eligibleCount): int {
   $mode = strtoupper(trim((string)($pkg['selection_mode'] ?? 'COUNT')));
   if ($mode === 'PERCENT') {
@@ -76,6 +224,58 @@ function compute_package_selection_target(array $pkg, int $eligibleCount): int {
     $count = 1;
   }
   return $count;
+}
+
+function session_package_program_ids(PDO $pdo, int $packageId): array {
+  if ($packageId <= 0) {
+    return [];
+  }
+
+  if (function_exists('auth_package_program_ids')) {
+    return auth_package_program_ids($pdo, $packageId, true);
+  }
+
+  if (table_exists($pdo, 'program_package_links')) {
+    $st = $pdo->prepare("
+      SELECT program_id
+      FROM program_package_links
+      WHERE package_id = ?
+        AND is_active = 1
+      ORDER BY program_id ASC
+    ");
+    $st->execute([$packageId]);
+    return array_values(array_filter(array_map(static fn($value): int => (int)$value, $st->fetchAll(PDO::FETCH_COLUMN) ?: []), static fn(int $value): bool => $value > 0));
+  }
+
+  if (table_column_exists($pdo, 'packages', 'program_id')) {
+    $st = $pdo->prepare("SELECT program_id FROM packages WHERE id = ? LIMIT 1");
+    $st->execute([$packageId]);
+    $programId = (int)($st->fetchColumn() ?: 0);
+    return $programId > 0 ? [$programId] : [];
+  }
+
+  return [];
+}
+
+function session_question_program_scope(PDO $pdo, int $packageId, string $questionAlias = 'q'): array {
+  $questionAlias = preg_replace('/[^a-zA-Z0-9_]/', '', $questionAlias) ?: 'q';
+  if (table_exists($pdo, 'program_question_links')) {
+    $programIds = session_package_program_ids($pdo, $packageId);
+    if ($programIds) {
+      $placeholders = implode(',', array_fill(0, count($programIds), '?'));
+      return [
+        "EXISTS (
+          SELECT 1
+          FROM program_question_links pql_session_scope
+          WHERE pql_session_scope.question_id = {$questionAlias}.id
+            AND pql_session_scope.program_id IN ($placeholders)
+        )",
+        $programIds,
+      ];
+    }
+  }
+
+  return ["{$questionAlias}.package_id = ?", [$packageId]];
 }
 
 function recent_question_ids_for_user_package(PDO $pdo, int $userId, int $packageId, int $sessionLimit = 4): array {
@@ -194,12 +394,8 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
 
   $hasNeed = table_column_exists($pdo, 'questions', 'need');
   $hasLevel = table_column_exists($pdo, 'questions', 'level');
-  $antiRepeatSessions = (int)($pkg['anti_repeat_sessions'] ?? 4);
-  if ($antiRepeatSessions < 0) {
-    $antiRepeatSessions = 0;
-  } elseif ($antiRepeatSessions > 20) {
-    $antiRepeatSessions = 20;
-  }
+  [$questionScopeSql, $questionScopeParams] = session_question_program_scope($pdo, $packageId, 'q');
+  $antiRepeatSessions = 1;
   $recentExcludedQids = $antiRepeatSessions > 0
     ? recent_question_ids_for_user_package($pdo, $userId, $packageId, $antiRepeatSessions)
     : [];
@@ -219,12 +415,12 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
           break;
         }
 
-        $need = strtoupper(trim((string)($bucket['need'] ?? '')));
+        $need = normalize_question_need((string)($bucket['need'] ?? ''));
         $levels = $bucket['levels'] ?? [];
         $take = (int)($bucket['take'] ?? 0);
         $targetTotal = (int)($bucket['target_total'] ?? 0);
 
-        if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels) || $take <= 0) {
+        if ($need === '' || !is_array($levels)) {
           continue;
         }
 
@@ -235,6 +431,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
         }
 
         $remaining = $max - count($qids);
+        if ($take <= 0) {
+          $take = $remaining;
+        }
         if ($take > $remaining) {
           $take = $remaining;
         }
@@ -258,8 +457,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
           JOIN question_options qo ON qo.question_id = q.id
           WHERE q.need = ?
             AND q.level IN ($inLevels)
+            AND $questionScopeSql
         ";
-        $params = array_merge([$need], $levels);
+        $params = array_merge([$need], $levels, $questionScopeParams);
 
         $excludedNow = array_values(array_unique(array_merge($qids, $recentExcludedQids)));
         if (!empty($excludedNow)) {
@@ -290,8 +490,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
             JOIN question_options qo ON qo.question_id = q.id
             WHERE q.need = ?
               AND q.level IN ($inLevels)
+              AND $questionScopeSql
           ";
-          $paramsFill = array_merge([$need], $levels);
+          $paramsFill = array_merge([$need], $levels, $questionScopeParams);
           if (!empty($qids)) {
             $inExcludeFill = implode(',', array_fill(0, count($qids), '?'));
             $sqlFill .= " AND q.id NOT IN ($inExcludeFill)";
@@ -329,9 +530,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
     SELECT q.id
     FROM questions q
     JOIN question_options qo ON qo.question_id = q.id
-    WHERE q.package_id = ?
+    WHERE $questionScopeSql
   ";
-  $params = [$packageId];
+  $params = $questionScopeParams;
   if (!empty($recentExcludedQids)) {
     $inExclude = implode(',', array_fill(0, count($recentExcludedQids), '?'));
     $sql .= " AND q.id NOT IN ($inExclude)";
@@ -353,9 +554,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
       SELECT q.id
       FROM questions q
       JOIN question_options qo ON qo.question_id = q.id
-      WHERE q.package_id = ?
+      WHERE $questionScopeSql
     ";
-    $paramsFill = [$packageId];
+    $paramsFill = $questionScopeParams;
     if (!empty($qids)) {
       $inExcludeFill = implode(',', array_fill(0, count($qids), '?'));
       $sqlFill .= " AND q.id NOT IN ($inExcludeFill)";
@@ -399,30 +600,66 @@ function compute_score_percent_from_raw(int $rawScore, int $maxPoints): float {
 }
 
 function compute_session_score_snapshot(PDO $pdo, string $sessionId): array {
-  // Max is the sum of all correct options (+1 each).
+  // Max is 1 point per question in the session.
   $maxStmt = $pdo->prepare("
-    SELECT COALESCE(SUM(CASE WHEN qo.is_correct=1 THEN 1 ELSE 0 END), 0) AS max_points
+    SELECT COUNT(*) AS max_points
     FROM session_questions sq
-    JOIN question_options qo ON qo.question_id = sq.question_id
     WHERE sq.session_id=?
   ");
   $maxStmt->execute([$sessionId]);
   $maxPoints = (int)($maxStmt->fetch()['max_points'] ?? 0);
 
-  // Raw score follows business rules aligned with correction feedback:
-  // correct = +1, wrong = 0, unanswered = 0.
+  if (session_question_snapshots_enabled($pdo)) {
+    $rawStmt = $pdo->prepare("
+      SELECT COUNT(*) AS raw_score
+      FROM session_questions
+      WHERE session_id=?
+        AND answer_status_snapshot='OK'
+    ");
+    $rawStmt->execute([$sessionId]);
+    $rawScore = (int)($rawStmt->fetch()['raw_score'] ?? 0);
+
+    $scorePercent = compute_score_percent_from_raw($rawScore, $maxPoints);
+
+    return [
+      'raw_score' => $rawScore,
+      'max_points' => $maxPoints,
+      'score_percent' => $scorePercent,
+    ];
+  }
+
+  // Raw score follows exact-match business rules:
+  // +1 if all and only correct answers are selected for a question, otherwise 0.
   $rawStmt = $pdo->prepare("
     SELECT COALESCE(SUM(
       CASE
-        WHEN qo.is_correct = 1 THEN 1
+        WHEN COALESCE(ans.selected_correct_count, 0) = qstats.correct_count
+         AND COALESCE(ans.selected_total_count, 0) = qstats.correct_count
+        THEN 1
         ELSE 0
       END
     ), 0) AS raw_score
-    FROM answer_options ao
-    JOIN question_options qo ON qo.id = ao.option_id
-    WHERE ao.session_id=?
+    FROM (
+      SELECT
+        sq.question_id,
+        COUNT(CASE WHEN qo.is_correct = 1 THEN 1 END) AS correct_count
+      FROM session_questions sq
+      JOIN question_options qo ON qo.question_id = sq.question_id
+      WHERE sq.session_id=?
+      GROUP BY sq.question_id
+    ) qstats
+    LEFT JOIN (
+      SELECT
+        ao.question_id,
+        COUNT(*) AS selected_total_count,
+        COUNT(CASE WHEN qo.is_correct = 1 THEN 1 END) AS selected_correct_count
+      FROM answer_options ao
+      JOIN question_options qo ON qo.id = ao.option_id
+      WHERE ao.session_id=?
+      GROUP BY ao.question_id
+    ) ans ON ans.question_id = qstats.question_id
   ");
-  $rawStmt->execute([$sessionId]);
+  $rawStmt->execute([$sessionId, $sessionId]);
   $rawScore = (int)($rawStmt->fetch()['raw_score'] ?? 0);
 
   $scorePercent = compute_score_percent_from_raw($rawScore, $maxPoints);
@@ -581,5 +818,46 @@ function certification_status_from_last_success(
     'status_label' => 'Certifié',
     'status_class' => 'pill success',
     'expires_at' => $expires,
+  ];
+}
+
+function failed_exam_cooldown_status_from_last_failure(
+  ?string $lastFailedAt,
+  ?DateTimeImmutable $now = null,
+  int $cooldownDays = 0
+): array {
+  if ($lastFailedAt === null || trim($lastFailedAt) === '' || $cooldownDays <= 0) {
+    return [
+      'status_key' => 'AVAILABLE',
+      'available_at' => null,
+      'remaining_days' => 0,
+    ];
+  }
+
+  if ($cooldownDays > 3650) {
+    $cooldownDays = 3650;
+  }
+
+  $now = $now ?: new DateTimeImmutable('today');
+  $last = new DateTimeImmutable($lastFailedAt);
+  $availableAt = $last->modify('+' . $cooldownDays . ' days');
+
+  if ($availableAt <= $now) {
+    return [
+      'status_key' => 'AVAILABLE',
+      'available_at' => $availableAt,
+      'remaining_days' => 0,
+    ];
+  }
+
+  $remainingDays = (int)$now->diff($availableAt)->format('%a');
+  if ($remainingDays < 1) {
+    $remainingDays = 1;
+  }
+
+  return [
+    'status_key' => 'COOLDOWN',
+    'available_at' => $availableAt,
+    'remaining_days' => $remainingDays,
   ];
 }

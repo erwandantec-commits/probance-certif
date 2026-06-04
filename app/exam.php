@@ -6,19 +6,18 @@ require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/services/session_service.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 $pdo = db();
 $lang = get_lang();
-$viewer = current_user();
-$isAdminViewer = ($viewer && (($viewer['role'] ?? 'USER') === 'ADMIN'));
 
 $sid = $_GET['sid'] ?? '';
 $p = (int)($_GET['p'] ?? 1);
 $checked = ($_GET['checked'] ?? '') === '1';
 if (!$sid) {
-  http_response_code(400);
-  echo h(t('exam.missing_sid', [], $lang));
-  exit;
+  render_error_page(400, 'Paramètre manquant', 'Identifiant de session manquant.', '/dashboard.php');
 }
 
 $stmt = $pdo->prepare("
@@ -30,8 +29,11 @@ $stmt = $pdo->prepare("
 $stmt->execute([$sid]);
 $sess = $stmt->fetch();
 if (!$sess) {
-  http_response_code(404);
-  echo h(t('exam.session_not_found', [], $lang));
+  render_error_page(404, 'Session introuvable', 'Cette session n\'existe pas.', '/dashboard.php');
+}
+
+function exam_redirect_to_submit(string $sid, string $lang): void {
+  header("Location: /submit.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
   exit;
 }
 
@@ -89,7 +91,7 @@ if ($p > $total) {
 }
 
 $qstmt = $pdo->prepare("
-  SELECT q.id, q.text, q.explanation, q.question_type, q.allow_skip
+  SELECT sq.id AS session_question_id, q.id, q.text, q.explanation, q.question_type, q.allow_skip
   FROM session_questions sq
   JOIN questions q ON q.id = sq.question_id
   WHERE sq.session_id=? AND sq.position=?
@@ -97,18 +99,19 @@ $qstmt = $pdo->prepare("
 $qstmt->execute([$sid, $p]);
 $q = $qstmt->fetch();
 if (!$q) {
-  http_response_code(404);
-  echo h(t('exam.question_not_found', [], $lang));
-  exit;
+  render_error_page(404, 'Question introuvable', 'Cette question n\'existe plus dans la session.', '/dashboard.php');
 }
 
 $qid = (int)$q['id'];
+$sessionQuestionId = (int)($q['session_question_id'] ?? 0);
+$q['text'] = translated_question_field($pdo, $qid, $lang, 'question_text', (string)($q['text'] ?? ''));
+$q['explanation'] = translated_question_field($pdo, $qid, $lang, 'explanation', (string)($q['explanation'] ?? ''));
 $questionExplanation = trim(localize_text((string)($q['explanation'] ?? ''), $lang));
 $qType = (string)($q['question_type'] ?? 'MULTI');
 if (!in_array($qType, ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
   $qType = 'MULTI';
 }
-$allowSkip = (int)($q['allow_skip'] ?? 1) === 1;
+$allowSkip = (int)($q['allow_skip'] ?? 0) === 1;
 $isTraining = (($sess['session_type'] ?? 'EXAM') === 'TRAINING');
 $showFeedback = $isTraining && $checked;
 
@@ -120,6 +123,10 @@ $optStmt = $pdo->prepare("
 ");
 $optStmt->execute([$qid]);
 $options = $optStmt->fetchAll();
+foreach ($options as &$optionRow) {
+  $optionRow['option_text'] = translated_option_text($pdo, (int)($optionRow['id'] ?? 0), $lang, (string)($optionRow['option_text'] ?? ''));
+}
+unset($optionRow);
 if (count($options) < 2) {
   header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
   exit;
@@ -136,24 +143,54 @@ foreach ($options as $o) {
     $correctIds[] = (int)$o['id'];
   }
 }
+$effectiveQType = $qType;
+if ($qType !== 'TRUE_FALSE') {
+  $effectiveQType = count($correctIds) === 1 ? 'SINGLE' : 'MULTI';
+}
+$questionTypeHintKey = match ($effectiveQType) {
+  'MULTI' => 'exam.answer_mode_multi',
+  'SINGLE' => 'exam.answer_mode_single',
+  default => '',
+};
 sort($selectedIds);
 sort($correctIds);
 $isQuestionCorrect = ($selectedIds === $correctIds);
+$hasAnyCorrectSelection = false;
+$hasAnyWrongSelection = false;
+if ($effectiveQType === 'MULTI' && $selectedIds !== []) {
+  foreach ($selectedIds as $selectedId) {
+    if (in_array($selectedId, $correctIds, true)) {
+      $hasAnyCorrectSelection = true;
+    } else {
+      $hasAnyWrongSelection = true;
+    }
+  }
+}
+$isIncompleteTrainingAnswer = $showFeedback && $isTraining && $effectiveQType === 'MULTI' && !$isQuestionCorrect && $hasAnyCorrectSelection && !$hasAnyWrongSelection;
+$feedbackClass = $isQuestionCorrect ? 'exam-feedback exam-feedback-ok' : ($isIncompleteTrainingAnswer ? 'exam-feedback exam-feedback-partial' : 'exam-feedback exam-feedback-bad');
+$feedbackKey = $isQuestionCorrect ? 'exam.feedback.correct' : ($isIncompleteTrainingAnswer ? 'exam.feedback.partial' : 'exam.feedback.incorrect');
 
 $expiresTs = strtotime((string)$sess['started_at']) + (max(1, (int)$sess['duration_limit_minutes']) * 60);
 $remainingSeconds = max(0, $expiresTs - time());
 $formError = '';
 
+if ($remainingSeconds <= 0 || session_is_expired($sess)) {
+  exam_redirect_to_submit($sid, $lang);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $lang = get_lang();
+  if ($remainingSeconds <= 0 || session_is_expired($sess)) {
+    exam_redirect_to_submit($sid, $lang);
+  }
   $navigationOnlyFromFeedback =
     $showFeedback &&
-    (isset($_POST['next']) || ($isAdminViewer && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
+    (isset($_POST['next']) || ($isTraining && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
   $mustAnswerValidationError = false;
 
   if ($isTraining && isset($_POST['check'])) {
     $hasAnswer = false;
-    if ($qType === 'MULTI') {
+    if ($effectiveQType === 'MULTI') {
       $posted = $_POST['answer'] ?? [];
       $hasAnswer = is_array($posted) && count($posted) > 0;
     } else {
@@ -175,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (isset($_POST['skip']) && $allowSkip && !$isTraining) {
         $picked = [];
       } else {
-        if ($qType === 'MULTI') {
+        if ($effectiveQType === 'MULTI') {
           $picked = $_POST['answer'] ?? [];
           if (!is_array($picked)) {
             $picked = [];
@@ -190,13 +227,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $valid[(int)$o['id']] = true;
         }
 
-        $insert = $pdo->prepare("INSERT INTO answer_options(session_id, question_id, option_id) VALUES(?,?,?)");
+        $insert = answer_option_snapshots_enabled($pdo)
+          ? $pdo->prepare("
+              INSERT INTO answer_options(
+                session_id,
+                session_question_id,
+                question_id,
+                option_id,
+                option_label_snapshot,
+                option_text_snapshot
+              )
+              VALUES(?,?,?,?,?,?)
+            ")
+          : $pdo->prepare("INSERT INTO answer_options(session_id, question_id, option_id) VALUES(?,?,?)");
         foreach ($picked as $oid) {
           $oid = (int)$oid;
           if (!isset($valid[$oid])) {
             continue;
           }
-          $insert->execute([$sid, $qid, $oid]);
+          if (answer_option_snapshots_enabled($pdo)) {
+            $matchedOption = null;
+            foreach ($options as $optionRow) {
+              if ((int)($optionRow['id'] ?? 0) === $oid) {
+                $matchedOption = $optionRow;
+                break;
+              }
+            }
+            if ($matchedOption === null) {
+              continue;
+            }
+            $insert->execute([
+              $sid,
+              $sessionQuestionId > 0 ? $sessionQuestionId : null,
+              $qid,
+              $oid,
+              (string)($matchedOption['label'] ?? ''),
+              (string)($matchedOption['option_text'] ?? ''),
+            ]);
+          } else {
+            $insert->execute([$sid, $qid, $oid]);
+          }
         }
       }
 
@@ -207,10 +277,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Keep a live score snapshot during the session.
+    if ($sessionQuestionId > 0) {
+      refresh_session_question_answer_status($pdo, $sessionQuestionId);
+    }
     refresh_active_session_score($pdo, $sid);
   }
 
-  if ($isAdminViewer && isset($_POST['pause'])) {
+  if ($isTraining && isset($_POST['pause'])) {
     if ($hasPausedRemaining) {
       $savePause = $pdo->prepare("
         UPDATE sessions
@@ -259,23 +332,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Exam</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
   <div class="card">
-	    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
-	      <select id="exam-lang" class="input lang-select"
-	              onchange="window.location.href='/exam.php?sid=<?= h(urlencode($sid)) ?>&p=<?= (int)$p ?>&lang=' + encodeURIComponent(this.value) + '<?= $showFeedback ? '&checked=1' : '' ?>';">
-	        <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-	        <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-	        <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-	        <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-      </select>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
+      <?php render_flag_lang_picker($lang, "'/exam.php?sid=" . urlencode($sid) . "&p=" . (int)$p . "&lang={lang}" . ($showFeedback ? '&checked=1' : '') . "'"); ?>
     </div>
 
     <div class="header">
@@ -291,6 +359,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 	      <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border);">
 	        <p style="font-size:18px; margin-top:0;"><b><?= h(localize_text((string)$q['text'], $lang)) ?></b></p>
+          <?php if ($questionTypeHintKey !== ''): ?>
+            <p class="small" style="margin-top:8px;"><?= h(t($questionTypeHintKey, [], $lang)) ?></p>
+          <?php endif; ?>
 
           <?php if ($formError !== ''): ?>
             <p class="error"><?= h($formError) ?></p>
@@ -299,7 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	        <?php foreach ($options as $o):
 	          $oid = (int)$o['id'];
 	          $isChecked = isset($selectedMap[$oid]);
-		          $isMulti = ($qType === 'MULTI');
+		          $isMulti = ($effectiveQType === 'MULTI');
             $isCorrectOption = (int)($o['is_correct'] ?? 0) === 1;
             $optionClass = 'exam-option';
             if ($showFeedback) {
@@ -325,8 +396,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	        <?php endforeach; ?>
 
           <?php if ($showFeedback): ?>
-            <p class="<?= $isQuestionCorrect ? 'exam-feedback exam-feedback-ok' : 'exam-feedback exam-feedback-bad' ?>">
-              <?= h($isQuestionCorrect ? t('exam.feedback.correct', [], $lang) : t('exam.feedback.incorrect', [], $lang)) ?>
+            <p class="<?= h($feedbackClass) ?>">
+              <?= h(t($feedbackKey, [], $lang)) ?>
             </p>
             <?php if ($questionExplanation !== ''): ?>
               <div class="exam-explanation">
@@ -336,34 +407,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
           <?php endif; ?>
 
-	        <?php if ($allowSkip && !$showFeedback && !$isTraining): ?>
-	          <button class="btn ghost" name="skip" value="1" style="margin-top:6px;"><?= h(t('exam.skip', [], $lang)) ?></button>
-	        <?php endif; ?>
 	      </div>
 
 	      <div class="exam-actions" style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
           <?php if ($isTraining): ?>
             <?php if (!$showFeedback): ?>
-              <button type="submit" class="btn" name="check" value="1">
+              <button type="submit" class="btn" id="exam-primary-submit" name="check" value="1">
                 <?= h(t('exam.validate', [], $lang)) ?>
               </button>
             <?php elseif ((int)$p < (int)$total): ?>
               <button type="submit" class="btn" name="next" value="1">
                 <?= h(t('exam.next', [], $lang)) ?> &rarr;
               </button>
+            <?php else: ?>
+              <button type="submit" class="btn" id="exam-primary-submit" name="finish" value="1">
+                <?= h(t('exam.validate', [], $lang)) ?>
+              </button>
             <?php endif; ?>
           <?php else: ?>
             <?php if ((int)$p < (int)$total): ?>
-              <button type="submit" class="btn" name="next" value="1">
+              <button type="submit" class="btn" id="exam-primary-submit" name="next" value="1">
                 <?= h(t('exam.validate', [], $lang)) ?>
               </button>
             <?php else: ?>
-              <button type="submit" class="btn" name="finish" value="1">
+              <button type="submit" class="btn" id="exam-primary-submit" name="finish" value="1">
                 <?= h(t('exam.validate', [], $lang)) ?>
               </button>
             <?php endif; ?>
           <?php endif; ?>
-          <?php if ($isAdminViewer): ?>
+          <?php if ($isTraining): ?>
 	        <button class="btn ghost" type="submit" name="pause" value="1" formnovalidate><?= h(t('exam.pause', [], $lang)) ?></button>
           <?php endif; ?>
 
@@ -380,24 +452,149 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </button>
 	      </div>
 
-      <p class="small" style="margin-top:12px;"><?= h(t('exam.score_hint', [], $lang)) ?></p>
     </form>
   </div>
 </div>
 
 <script>
+  window.__examIntentionalNavigation = false;
+
   (function () {
+    var isExamSession = <?= json_encode(!$isTraining) ?>;
+    var leaveEndpoint = '/session_leave.php';
+    var leaveConfirmMessage = <?= json_encode(t('exam.leave_confirm_exam', [], $lang)) ?>;
+    var leaveNoticeMessage = <?= json_encode(t('exam.leave_notice_exam', [], $lang)) ?>;
+    var dashboardUrl = '/dashboard.php?lang=' + encodeURIComponent(<?= json_encode($lang) ?>) + '&err=' + encodeURIComponent(leaveNoticeMessage);
+    var leaveHandled = false;
     var form = document.getElementById('exam-form');
     if (!form) return;
+    var primarySubmit = document.getElementById('exam-primary-submit');
+    var langSelect = document.getElementById('exam-lang');
+    var answerInputs = Array.prototype.slice.call(form.querySelectorAll('input[name="answer"], input[name="answer[]"]'));
+
+    function markIntentionalNavigation() {
+      window.__examIntentionalNavigation = true;
+    }
+
+    function sendLeaveSignal(force) {
+      if (!isExamSession || leaveHandled) return Promise.resolve();
+      if (!force && window.__examIntentionalNavigation) return Promise.resolve();
+      leaveHandled = true;
+
+      try {
+        var payload = new FormData();
+        payload.append('sid', <?= json_encode($sid) ?>);
+
+        return fetch(leaveEndpoint, {
+          method: 'POST',
+          body: payload,
+          credentials: 'same-origin',
+          keepalive: true
+        }).catch(function () {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+
+      return Promise.resolve();
+    }
+
+    function notifyExamLeave() {
+      if (!isExamSession || window.__examIntentionalNavigation || leaveHandled) return;
+
+      if (navigator.sendBeacon) {
+        try {
+          var payload = new FormData();
+          payload.append('sid', <?= json_encode($sid) ?>);
+          leaveHandled = true;
+          navigator.sendBeacon(leaveEndpoint, payload);
+          return;
+        } catch (e) {
+          leaveHandled = false;
+        }
+      }
+
+      sendLeaveSignal(false);
+    }
+
+    function leaveExamAndGo(targetUrl) {
+      if (!isExamSession) {
+        window.location.replace(targetUrl);
+        return;
+      }
+
+      markIntentionalNavigation();
+      Promise.resolve(sendLeaveSignal(true)).finally(function () {
+        window.location.replace(targetUrl);
+      });
+    }
+
+    function syncPrimarySubmitState() {
+      if (!primarySubmit) return;
+      var hasCheckedAnswer = answerInputs.some(function (input) {
+        return input.checked;
+      });
+      primarySubmit.disabled = !hasCheckedAnswer;
+    }
+
+    if (primarySubmit && answerInputs.length > 0 && !primarySubmit.disabled) {
+      syncPrimarySubmitState();
+      answerInputs.forEach(function (input) {
+        input.addEventListener('change', syncPrimarySubmitState);
+      });
+    }
 
     form.addEventListener('submit', function (e) {
       var submitter = e.submitter;
       if (!submitter) return;
+      markIntentionalNavigation();
       if (submitter.name !== 'abandon') return;
 
       var message = submitter.getAttribute('data-confirm-message') || 'Confirmer ?';
       if (!window.confirm(message)) {
+        window.__examIntentionalNavigation = false;
         e.preventDefault();
+      }
+    });
+
+    if (langSelect) {
+      langSelect.addEventListener('change', markIntentionalNavigation);
+    }
+
+    if (isExamSession) {
+      try {
+        window.history.pushState({ examGuard: true }, '', window.location.href);
+      } catch (e) {
+        // Ignore history guard failures.
+      }
+    }
+
+    window.addEventListener('beforeunload', function (e) {
+      if (!isExamSession || window.__examIntentionalNavigation) return;
+      e.preventDefault();
+      e.returnValue = leaveConfirmMessage;
+      return leaveConfirmMessage;
+    });
+
+    window.addEventListener('popstate', function () {
+      if (!isExamSession || window.__examIntentionalNavigation) return;
+
+      var confirmed = window.confirm(leaveConfirmMessage);
+      if (!confirmed) {
+        try {
+          window.history.pushState({ examGuard: true }, '', window.location.href);
+        } catch (e) {
+          // Ignore history guard failures.
+        }
+        return;
+      }
+
+      leaveExamAndGo(dashboardUrl);
+    });
+
+    window.addEventListener('pagehide', notifyExamLeave);
+    window.addEventListener('pageshow', function (e) {
+      if (e.persisted) {
+        window.location.reload();
       }
     });
   })();
@@ -409,7 +606,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     document.getElementById('t').textContent =
       "<?= h(t('exam.timer_prefix', [], $lang)) ?>: " + m + "<?= h(t('exam.min', [], $lang)) ?> " + (s < 10 ? "0" : "") + s + "<?= h(t('exam.sec', [], $lang)) ?>";
     remaining--;
-    if (remaining < 0) location.href = "/submit.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h($lang) ?>";
+    if (remaining < 0) {
+      window.__examIntentionalNavigation = true;
+      location.href = "/submit.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h($lang) ?>";
+    }
   }
   tick();
   setInterval(tick, 1000);

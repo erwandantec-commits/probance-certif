@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../auth.php';
 
-// On appelle simplement la fonction déjà définie
-require_admin();
+if (!isset($lang)) {
+  $lang = get_lang();
+}

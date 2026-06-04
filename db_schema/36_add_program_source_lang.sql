@@ -1,0 +1,2 @@
+ALTER TABLE programs
+  ADD COLUMN IF NOT EXISTS source_lang VARCHAR(5) NOT NULL DEFAULT 'fr' AFTER description;

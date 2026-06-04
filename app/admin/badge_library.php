@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+require_admin_area();
 require_once __DIR__ . '/../utils.php';
 
 function badge_library_return_path(string $raw): string {
@@ -103,12 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $options = badge_library_options();
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Bibliotheque badges</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -160,7 +161,7 @@ $options = badge_library_options();
         </div>
         <div class="users-create-actions">
           <button class="btn" type="submit" name="upload_badge" value="1">Televerser et utiliser</button>
-          <a class="btn ghost" href="<?= htmlspecialchars((string)$returnPath, ENT_QUOTES, 'UTF-8') ?>">Retour</a>
+          <a class="btn ghost back-nav-btn" href="<?= htmlspecialchars((string)$returnPath, ENT_QUOTES, 'UTF-8') ?>">Retour</a>
         </div>
       </form>
     </div>

@@ -4,6 +4,8 @@ require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
 
+header('Content-Type: text/html; charset=UTF-8');
+
 $pdo = db();
 $lang = get_lang();
 
@@ -41,8 +43,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $pdo->beginTransaction();
       try {
-        $ins = $pdo->prepare("INSERT INTO users(email, password_hash, name, role) VALUES(?, ?, ?, 'USER')");
-        $ins->execute([$email, $hash, $fullName]);
+        $organizationId = auth_find_or_create_organization_for_email($pdo, $email);
+        if ($organizationId <= 0) {
+          throw new RuntimeException('organization_create_failed');
+        }
+        $emailControlError = auth_validate_user_email($pdo, $email, false, []);
+        if ($emailControlError !== null) {
+          throw new RuntimeException($emailControlError);
+        }
+
+        $userSql = auth_column_exists($pdo, 'users', 'organization_id')
+          ? "INSERT INTO users(email, password_hash, name, role, organization_id) VALUES(?, ?, ?, 'USER', ?)"
+          : "INSERT INTO users(email, password_hash, name, role) VALUES(?, ?, ?, 'USER')";
+        $ins = $pdo->prepare($userSql);
+        $params = auth_column_exists($pdo, 'users', 'organization_id')
+          ? [$email, $hash, $fullName, $organizationId]
+          : [$email, $hash, $fullName];
+        $ins->execute($params);
         $uid = (int)$pdo->lastInsertId();
 
         $contactUpsert = $pdo->prepare("
@@ -69,7 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pdo->inTransaction()) {
           $pdo->rollBack();
         }
-        $error = "Impossible de creer le compte pour l'instant.";
+        $errorMessage = trim($e->getMessage());
+        $error = str_starts_with($errorMessage, "L'email doit utiliser")
+          ? $errorMessage
+          : "Impossible de creer le compte pour l'instant.";
       }
     }
   }
@@ -78,23 +98,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title><?= h(t('register.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
   <div class="card login-card">
     <div class="login-topbar">
-      <select id="register-lang" class="input lang-select"
-              onchange="window.location.href='/register.php?lang=' + encodeURIComponent(this.value);">
-        <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-        <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-        <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-        <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-      </select>
+      <?php render_flag_lang_picker($lang, "'/register.php?lang={lang}'"); ?>
     </div>
 
     <div class="login-brand">

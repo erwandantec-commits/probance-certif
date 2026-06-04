@@ -1,29 +1,16 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+require_team_reporting();
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
 require_once __DIR__ . '/_nav.php';
 $pdo = db();
+$adminUser = current_user() ?? ['role' => 'USER'];
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+$canMutateReporting = user_can_access_admin_area($adminUser);
 
-function certifications_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
 
 $email = trim((string)($_GET['email'] ?? ''));
 $packageId = (int)($_GET['package_id'] ?? 0);
@@ -32,8 +19,11 @@ if (!in_array($certStatus, ['ALL', 'CERTIFIED', 'SOON', 'EXPIRED', 'REVOKED'], t
   $certStatus = 'ALL';
 }
 
-$packages = $pdo->query("SELECT id, name, name_color_hex FROM packages ORDER BY id DESC")->fetchAll();
-$hasCertValidityDaysColumn = certifications_package_column_exists($pdo, 'cert_validity_days');
+$packagesWhereSql = $activeProgramId > 0
+  ? ('WHERE ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
+$packages = $pdo->query("SELECT pk.id, pk.name, pk.name_color_hex FROM packages pk $packagesWhereSql ORDER BY pk.id DESC")->fetchAll();
+$hasCertValidityDaysColumn = table_column_exists($pdo, 'packages', 'cert_validity_days');
 $certValidityDaysSelect = $hasCertValidityDaysColumn
   ? "pk.cert_validity_days AS cert_validity_days"
   : "365 AS cert_validity_days";
@@ -48,6 +38,9 @@ $where = [
   "s.passed=1",
 ];
 $params = [];
+if ($activeProgramId > 0) {
+  $where[] = auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false);
+}
 
 if ($email !== '') {
   $where[] = "c.email LIKE ?";
@@ -182,7 +175,15 @@ foreach ($rawRows as $r) {
 }
 
 usort($rows, static function (array $a, array $b): int {
-  return strcmp($a['expires_at'], $b['expires_at']);
+  $dateCmp = strcmp((string)$b['last_cert_date'], (string)$a['last_cert_date']);
+  if ($dateCmp !== 0) {
+    return $dateCmp;
+  }
+  $emailCmp = strcasecmp((string)$a['email'], (string)$b['email']);
+  if ($emailCmp !== 0) {
+    return $emailCmp;
+  }
+  return strcasecmp((string)$a['package_name'], (string)$b['package_name']);
 });
 
 foreach ($rows as &$row) {
@@ -213,39 +214,67 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 }
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Certifications</title>
+  <title><?= h(t('admin.certs.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
   <div class="container admin-container">
-    <div class="card admin-card">
-      <div class="admin-head">
+    <div class="card admin-card admin-page-shell">
+      <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <h2 class="h1">Admin &middot; Certifications</h2>
-          <p class="sub">Vue des Certifications et de leurs &eacute;ch&eacute;ances</p>
+          <p class="admin-page-eyebrow">Administration</p>
+          <h2 class="h1"><?= h(t('admin.certs.title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.certs.subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('certifications'); ?>
         </div>
       </div>
 
-      <hr class="separator">
+      <div class="admin-stats-grid">
+        <article class="admin-stat-card">
+          <span class="admin-stat-label"><?= h(t('admin.certs.stat_certified', [], $lang)) ?></span>
+          <strong class="admin-stat-value"><?= (int)$stats['CERTIFIED'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label"><?= h(t('admin.certs.stat_soon', [], $lang)) ?></span>
+          <strong class="admin-stat-value"><?= (int)$stats['SOON'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label"><?= h(t('admin.certs.stat_expired', [], $lang)) ?></span>
+          <strong class="admin-stat-value"><?= (int)$stats['EXPIRED'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label"><?= h(t('admin.certs.stat_revoked', [], $lang)) ?></span>
+          <strong class="admin-stat-value"><?= (int)$stats['REVOKED'] ?></strong>
+        </article>
+      </div>
 
-      <form method="get" class="filters-grid">
+      <div class="admin-page-layout">
+      <section class="admin-section-panel admin-section-panel-accent">
+      <div class="section-head admin-section-head">
         <div>
-          <label class="label" for="email">Email</label>
+          <h3 class="h1"><?= h(t('admin.certs.filters_title', [], $lang)) ?></h3>
+          <p class="sub"><?= h(t('admin.certs.filters_subtitle', [], $lang)) ?></p>
+        </div>
+      </div>
+
+      <form method="get" class="filters-grid admin-panel-surface">
+        <div>
+          <label class="label" for="email"><?= h(t('admin.common.email', [], $lang)) ?></label>
           <input class="input" id="email" name="email" type="text" value="<?= htmlspecialchars((string)$email, ENT_QUOTES, 'UTF-8') ?>" placeholder="Email...">
         </div>
 
         <div>
-          <label class="label" for="package_id">Pack</label>
+          <label class="label" for="package_id"><?= h(t('admin.common.pack', [], $lang)) ?></label>
 	          <select class="input" id="package_id" name="package_id" data-package-colors="off">
-	            <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>>Tous</option>
+	            <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
 	            <?php foreach ($packages as $p): ?>
 	              <option value="<?= (int)$p['id'] ?>" <?= $packageId === (int)$p['id'] ? 'selected' : '' ?>>
 	                <?= h($p['name']) ?>
@@ -255,35 +284,35 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
         </div>
 
         <div>
-          <label class="label" for="cert_status">Statut</label>
+          <label class="label" for="cert_status"><?= h(t('admin.common.status', [], $lang)) ?></label>
           <select class="input" id="cert_status" name="cert_status">
-            <option value="ALL" <?= $certStatus === 'ALL' ? 'selected' : '' ?>>Tous</option>
-            <option value="CERTIFIED" <?= $certStatus === 'CERTIFIED' ? 'selected' : '' ?>>Certifi&eacute;s</option>
-            <option value="SOON" <?= $certStatus === 'SOON' ? 'selected' : '' ?>>Expire bient&ocirc;t</option>
-            <option value="EXPIRED" <?= $certStatus === 'EXPIRED' ? 'selected' : '' ?>>Expir&eacute;s</option>
-            <option value="REVOKED" <?= $certStatus === 'REVOKED' ? 'selected' : '' ?>>R&eacute;voqu&eacute;es</option>
+            <option value="ALL" <?= $certStatus === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="CERTIFIED" <?= $certStatus === 'CERTIFIED' ? 'selected' : '' ?>><?= h(t('admin.certs.status_certified', [], $lang)) ?></option>
+            <option value="SOON" <?= $certStatus === 'SOON' ? 'selected' : '' ?>><?= h(t('admin.certs.status_soon', [], $lang)) ?></option>
+            <option value="EXPIRED" <?= $certStatus === 'EXPIRED' ? 'selected' : '' ?>><?= h(t('admin.certs.status_expired', [], $lang)) ?></option>
+            <option value="REVOKED" <?= $certStatus === 'REVOKED' ? 'selected' : '' ?>><?= h(t('admin.certs.status_revoked', [], $lang)) ?></option>
           </select>
         </div>
 
         <div class="filters-actions">
-          <button class="btn" type="submit">Filtrer</button>
-          <a class="btn ghost" href="/admin/certifications.php">Reset</a>
-          <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
+          <button class="btn" type="submit"><?= h(t('admin.common.filter', [], $lang)) ?></button>
+          <a class="btn ghost" href="/admin/certifications.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
+          <button class="btn ghost" type="submit" name="export" value="1"><?= h(t('admin.common.export_csv', [], $lang)) ?></button>
         </div>
       </form>
+      </section>
 
-      <div class="row sessions-stats">
-        <span class="badge ok">Certifi&eacute;s: <?= (int)$stats['CERTIFIED'] ?></span>
-        <span class="badge">Expire bient&ocirc;t: <?= (int)$stats['SOON'] ?></span>
-        <span class="badge bad">Expir&eacute;s: <?= (int)$stats['EXPIRED'] ?></span>
-        <span class="badge muted-dark">R&eacute;voqu&eacute;es: <?= (int)$stats['REVOKED'] ?></span>
+      <section class="admin-section-panel">
+      <div class="section-head admin-section-head">
+        <div>
+          <h3 class="h1"><?= h(t('admin.certs.list_title', [], $lang)) ?></h3>
+          <p class="sub sessions-meta"><?= (int)count($rows) ?> <?= h(t('admin.common.result', [], $lang)) ?>(s)</p>
+        </div>
       </div>
 
-      <p class="sub sessions-meta"><?= count($rows) ?> r&eacute;sultat(s)</p>
-
-      <div class="table-wrap">
+      <div class="table-wrap admin-table-panel">
         <?php if (!$rows): ?>
-          <p class="empty-state">Aucune certification trouv&eacute;e.</p>
+          <p class="empty-state"><?= h(t('admin.certs.none', [], $lang)) ?></p>
         <?php else: ?>
           <table class="table certifications-table">
             <colgroup>
@@ -296,19 +325,19 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
             </colgroup>
             <thead>
               <tr>
-                <th>Email</th>
-                <th>Pack</th>
-                <th>Derni&egrave;re r&eacute;ussite</th>
-                <th>Expire le</th>
-                <th>Statut</th>
-                <th>Action</th>
+                <th><?= h(t('admin.common.email', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.pack', [], $lang)) ?></th>
+                <th><?= h(t('admin.certs.col_last_success', [], $lang)) ?></th>
+                <th><?= h(t('admin.certs.col_expires', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.status', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.action', [], $lang)) ?></th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($rows as $r): ?>
                 <tr>
                   <td>
-                    <a href="/admin/contact.php?email=<?= urlencode($r['email']) ?>">
+                    <a href="/admin/contact.php?email=<?= urlencode($r['email']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>">
                       <?= h($r['email']) ?>
                     </a>
                   </td>
@@ -318,7 +347,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                   <td><span class="<?= h($r['status_class']) ?>"><?= h($r['status_label']) ?></span></td>
                   <td class="actions-cell">
 	                    <?php if ((string)($r['last_session_id'] ?? '') !== ''): ?>
-	                      <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= urlencode((string)$r['last_session_id']) ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/certifications.php'))) ?>" aria-label="Voir le detail" title="Voir le detail">
+	                      <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= urlencode((string)$r['last_session_id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/certifications.php'))) ?>" aria-label="Voir le detail" title="Voir le detail">
 	                        <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                          <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
 	                        </svg>
@@ -326,12 +355,19 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 	                    <?php endif; ?>
                     <?php if (!$hasRevocationsTable): ?>
                       <?php if ((string)($r['last_session_id'] ?? '') === ''): ?>-<?php endif; ?>
+                    <?php elseif (!$canMutateReporting): ?>
+                      <?php if ((string)($r['last_session_id'] ?? '') === ''): ?>-<?php endif; ?>
                     <?php elseif ($r['status_key'] === 'REVOKED'): ?>
-                      <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
-                         onclick="return confirm('Retirer la r&eacute;vocation de cette certification ?');">R&eacute;tablir</a>
+                      <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
+                         onclick="return confirm('<?= h(t('admin.certs.restore', [], $lang)) ?> ?');"><?= h(t('admin.certs.restore', [], $lang)) ?></a>
                     <?php else: ?>
-                      <a class="btn ghost cert-action-revoke" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
-                         onclick="return confirm('Revoquer cette certification ?');">Revoquer</a>
+                      <a class="btn ghost icon-btn danger" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
+                         aria-label="<?= h(t('admin.certs.revoke', [], $lang)) ?>" title="<?= h(t('admin.certs.revoke', [], $lang)) ?>"
+                         onclick="return confirm('<?= h(t('admin.certs.revoke', [], $lang)) ?> ?');">
+                        <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M6.7 5.3 12 10.6l5.3-5.3 1.4 1.4L13.4 12l5.3 5.3-1.4 1.4L12 13.4l-5.3 5.3-1.4-1.4L10.6 12 5.3 6.7z"/>
+                        </svg>
+                      </a>
                     <?php endif; ?>
                   </td>
                 </tr>
@@ -339,6 +375,8 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
             </tbody>
           </table>
         <?php endif; ?>
+      </div>
+      </section>
       </div>
     </div>
   </div>

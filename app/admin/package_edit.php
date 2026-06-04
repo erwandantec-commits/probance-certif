@@ -1,65 +1,38 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 $pdo = db();
-
-function package_edit_questions_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  if (isset($cache[$column])) {
-    return $cache[$column];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'questions'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$column] = ((int)$st->fetchColumn() > 0);
-  return $cache[$column];
-}
-
-function package_edit_package_column_exists(PDO $pdo, string $column): bool {
-  static $cache = [];
-  $key = 'pkg:' . $column;
-  if (isset($cache[$key])) {
-    return $cache[$key];
-  }
-  $st = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'packages'
-      AND COLUMN_NAME = ?
-  ");
-  $st->execute([$column]);
-  $cache[$key] = ((int)$st->fetchColumn() > 0);
-  return $cache[$key];
-}
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 
 function package_edit_filter_url(int $id, array $needs, array $needLevels): string {
-  $needs = array_values(array_unique(array_map(
-    static fn($v) => strtoupper(trim((string)$v)),
+  $needs = array_values(array_unique(array_filter(array_map(
+    static fn($v) => normalize_question_need((string)$v),
     $needs
-  )));
-  $needs = array_values(array_filter($needs, static fn($v) => in_array($v, ['PONE', 'PHM', 'PPM'], true)));
+  ), static fn($v) => $v !== '')));
 
   $cleanNeedLevels = [];
   foreach ($needLevels as $pair) {
-    $pair = strtoupper(trim((string)$pair));
-    if (!preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
+    $pair = trim((string)$pair);
+    if (!preg_match('/^(.+):([1-3])$/', $pair, $matches)) {
       continue;
     }
-    $cleanNeedLevels[] = $pair;
+    $need = normalize_question_need($matches[1]);
+    if ($need === '') {
+      continue;
+    }
+    $cleanNeedLevels[] = $need . ':' . (int)$matches[2];
   }
   $cleanNeedLevels = array_values(array_unique($cleanNeedLevels));
 
   $qs = ['id' => $id];
+  $programId = (int)($_GET['program_id'] ?? 0);
+  if ($programId > 0) {
+    $qs['program_id'] = $programId;
+  }
   if (!empty($needs)) {
     $qs['needs'] = $needs;
   }
@@ -90,8 +63,8 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PHM', 'levels' => [1], 'take' => 40],
         ['need' => 'PONE', 'levels' => [3], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 3],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
     'BLACK' => [
@@ -99,9 +72,9 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PHM', 'levels' => [2, 3], 'take' => 30],
         ['need' => 'PHM', 'levels' => [1], 'take' => 40, 'target_total' => 40],
-        ['need' => 'PONE', 'levels' => [3], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 3, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PONE', 'levels' => [3], 'take' => 3, 'target_total' => 10],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 3],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
     'SILVER' => [
@@ -109,11 +82,11 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PPM', 'levels' => [1], 'take' => 40],
         ['need' => 'PHM', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [1], 'take' => 5, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PONE', 'levels' => [3], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [2], 'take' => 2],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [1], 'take' => 5],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
     'GOLD' => [
@@ -121,15 +94,128 @@ function package_rule_templates(): array {
       'buckets' => [
         ['need' => 'PPM', 'levels' => [2, 3], 'take' => 30],
         ['need' => 'PPM', 'levels' => [1], 'take' => 40, 'target_total' => 40],
-        ['need' => 'PHM', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [3], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [2], 'take' => 2, 'target_total' => 50],
-        ['need' => 'PHM', 'levels' => [1], 'take' => 5, 'target_total' => 50],
-        ['need' => 'PONE', 'levels' => [1], 'take' => 10, 'target_total' => 50],
+        ['need' => 'PHM', 'levels' => [3], 'take' => 2, 'target_total' => 10],
+        ['need' => 'PONE', 'levels' => [3], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [2], 'take' => 2],
+        ['need' => 'PONE', 'levels' => [2], 'take' => 2],
+        ['need' => 'PHM', 'levels' => [1], 'take' => 5],
+        ['need' => 'PONE', 'levels' => [1], 'take' => 10],
       ],
     ],
   ];
+}
+
+function package_edit_program_question_scope_sql(PDO $pdo, int $activeProgramId): string {
+  if ($activeProgramId <= 0 || !auth_table_exists($pdo, 'program_question_links')) {
+    return '';
+  }
+
+  return "EXISTS (
+    SELECT 1
+    FROM program_question_links pql
+    WHERE pql.question_id = q.id
+      AND pql.program_id = " . (int)$activeProgramId . "
+  )";
+}
+
+function package_edit_rule_templates_for_program(PDO $pdo, int $activeProgramId, array $ruleTemplates): array {
+  if ($activeProgramId <= 0) {
+    return $ruleTemplates;
+  }
+
+  if (auth_program_package_links_enabled($pdo)) {
+    $stmt = $pdo->prepare("
+      SELECT UPPER(TRIM(pk.name)) AS package_name
+      FROM packages pk
+      JOIN program_package_links ppl ON ppl.package_id = pk.id
+      WHERE ppl.program_id = ?
+    ");
+    $stmt->execute([$activeProgramId]);
+  } elseif (table_column_exists($pdo, 'packages', 'program_id')) {
+    $stmt = $pdo->prepare("
+      SELECT UPPER(TRIM(name)) AS package_name
+      FROM packages
+      WHERE program_id = ?
+    ");
+    $stmt->execute([$activeProgramId]);
+  } else {
+    return $ruleTemplates;
+  }
+
+  $allowedNames = [];
+  foreach (($stmt ? $stmt->fetchAll() : []) as $row) {
+    $name = (string)($row['package_name'] ?? '');
+    if ($name !== '') {
+      $allowedNames[$name] = true;
+    }
+  }
+
+  return array_intersect_key($ruleTemplates, $allowedNames);
+}
+
+function package_edit_known_needs(PDO $pdo, array $ruleTemplates, array $ruleRows = [], int $activeProgramId = 0): array {
+  $needs = [];
+
+  foreach ($ruleTemplates as $template) {
+    foreach (($template['buckets'] ?? []) as $bucket) {
+      $need = normalize_question_need((string)($bucket['need'] ?? ''));
+      if ($need !== '') {
+        $needs[$need] = true;
+      }
+    }
+  }
+
+  $programQuestionScopeSql = package_edit_program_question_scope_sql($pdo, $activeProgramId);
+  $whereSql = "WHERE q.need IS NOT NULL AND TRIM(q.need) <> ''";
+  if ($programQuestionScopeSql !== '') {
+    $whereSql .= " AND $programQuestionScopeSql";
+  }
+
+  $st = $pdo->query("
+    SELECT DISTINCT TRIM(need) AS need_name
+    FROM questions q
+    $whereSql
+    ORDER BY need_name ASC
+  ");
+  foreach (($st ? $st->fetchAll() : []) as $row) {
+    $need = normalize_question_need((string)($row['need_name'] ?? ''));
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+
+  return array_keys($needs);
+}
+
+function package_edit_available_question_counts(PDO $pdo, int $activeProgramId = 0): array {
+  $counts = [];
+  $programQuestionScopeSql = package_edit_program_question_scope_sql($pdo, $activeProgramId);
+  $programWhereSql = $programQuestionScopeSql !== '' ? "AND $programQuestionScopeSql" : "";
+  $st = $pdo->query("
+    SELECT q.need, q.level, COUNT(*) c
+    FROM questions q
+    WHERE EXISTS (
+      SELECT 1
+      FROM question_options qo
+      WHERE qo.question_id = q.id
+      GROUP BY qo.question_id
+      HAVING COUNT(*) >= 2
+    )
+    $programWhereSql
+    GROUP BY q.need, q.level
+  ");
+  foreach (($st ? $st->fetchAll() : []) as $row) {
+    $need = normalize_question_need((string)($row['need'] ?? ''));
+    $level = (int)($row['level'] ?? 0);
+    if ($need === '' || $level < 1 || $level > 3) {
+      continue;
+    }
+    if (!isset($counts[$need])) {
+      $counts[$need] = [1 => 0, 2 => 0, 3 => 0];
+    }
+    $counts[$need][$level] = (int)($row['c'] ?? 0);
+  }
+  return $counts;
 }
 
 function package_rules_to_rows(array $rules): array {
@@ -138,12 +224,12 @@ function package_rules_to_rows(array $rules): array {
   if (!is_array($buckets)) {
     return $rows;
   }
+  $previousTargetTotal = 0;
   foreach ($buckets as $bucket) {
-    $need = strtoupper(trim((string)($bucket['need'] ?? '')));
+    $need = normalize_question_need((string)($bucket['need'] ?? ''));
     $levels = $bucket['levels'] ?? [];
-    $take = (int)($bucket['take'] ?? 0);
     $targetTotal = (int)($bucket['target_total'] ?? 0);
-    if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || !is_array($levels) || $take <= 0) {
+    if ($need === '' || !is_array($levels)) {
       continue;
     }
     $selectedLevels = [];
@@ -158,33 +244,51 @@ function package_rules_to_rows(array $rules): array {
       continue;
     }
     sort($selectedLevels);
+    $targetStep = $targetTotal;
+    if ($targetStep > 0 && $targetStep >= $previousTargetTotal) {
+      $targetStep -= $previousTargetTotal;
+    }
     $rows[] = [
       'need' => $need,
       'levels' => $selectedLevels,
-      'take' => $take,
-      'target_total' => $targetTotal > 0 ? $targetTotal : 0,
+      'target_total' => $targetStep > 0 ? $targetStep : 0,
     ];
+    if ($targetTotal > 0) {
+      $previousTargetTotal = $targetTotal;
+    }
   }
   return $rows;
 }
 
+function package_rule_rows_with_cumulative_targets(array $rows): array {
+  $out = [];
+  $runningTarget = 0;
+  foreach ($rows as $row) {
+    $targetStep = max(0, (int)($row['target_total'] ?? 0));
+    if ($targetStep > 0) {
+      $runningTarget += $targetStep;
+    }
+    $row['target_total'] = $runningTarget;
+    $out[] = $row;
+  }
+  return $out;
+}
+
 function package_rule_rows_from_post(): array {
   $needs = $_POST['rule_need'] ?? [];
-  $takes = $_POST['rule_take'] ?? [];
   $targets = $_POST['rule_target_total'] ?? [];
   $level1 = $_POST['rule_level_1'] ?? [];
   $level2 = $_POST['rule_level_2'] ?? [];
   $level3 = $_POST['rule_level_3'] ?? [];
 
-  if (!is_array($needs) || !is_array($takes) || !is_array($targets)) {
+  if (!is_array($needs) || !is_array($targets)) {
     return [];
   }
 
   $rows = [];
   $total = count($needs);
   for ($i = 0; $i < $total; $i++) {
-    $need = strtoupper(trim((string)($needs[$i] ?? '')));
-    $take = (int)($takes[$i] ?? 0);
+    $need = normalize_question_need((string)($needs[$i] ?? ''));
     $targetTotal = (int)($targets[$i] ?? 0);
     $levels = [];
 
@@ -198,14 +302,13 @@ function package_rule_rows_from_post(): array {
       $levels[] = 3;
     }
 
-    if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+    if ($need === '' || !$levels) {
       continue;
     }
 
     $rows[] = [
       'need' => $need,
       'levels' => $levels,
-      'take' => $take,
       'target_total' => $targetTotal > 0 ? $targetTotal : 0,
     ];
   }
@@ -214,12 +317,12 @@ function package_rule_rows_from_post(): array {
 }
 
 function package_rule_rows_to_json(array $rows, int $selectionCount): string {
+  $rows = package_rule_rows_with_cumulative_targets($rows);
   $buckets = [];
   foreach ($rows as $row) {
     $bucket = [
       'need' => (string)$row['need'],
       'levels' => array_values(array_map('intval', $row['levels'] ?? [])),
-      'take' => (int)$row['take'],
     ];
     $targetTotal = (int)($row['target_total'] ?? 0);
     if ($targetTotal > 0) {
@@ -232,6 +335,27 @@ function package_rule_rows_to_json(array $rows, int $selectionCount): string {
     'max' => $selectionCount,
     'buckets' => $buckets,
   ], JSON_UNESCAPED_UNICODE);
+}
+
+function package_edit_validate_rule_rows(array $rows, int $selectionCount): string {
+  $targetSum = 0;
+  foreach ($rows as $idx => $row) {
+    $line = $idx + 1;
+    $targetTotal = (int)($row['target_total'] ?? 0);
+
+    if ($targetTotal < 0 || $targetTotal > $selectionCount) {
+      return "Cible cumulee invalide ligne {$line} (0 a {$selectionCount}).";
+    }
+
+    if ($targetTotal > 0) {
+      $targetSum += $targetTotal;
+      if ($targetSum > $selectionCount) {
+        return "Cible cumulee totale invalide (0 a {$selectionCount}).";
+      }
+    }
+  }
+
+  return '';
 }
 
 function package_edit_badge_file_options(): array {
@@ -260,8 +384,8 @@ if (!is_array($rawNeeds)) {
 }
 $filterNeeds = [];
 foreach ($rawNeeds as $needRaw) {
-  $need = strtoupper(trim((string)$needRaw));
-  if (in_array($need, ['PONE', 'PHM', 'PPM'], true)) {
+  $need = normalize_question_need((string)$needRaw);
+  if ($need !== '') {
     $filterNeeds[] = $need;
   }
 }
@@ -287,26 +411,26 @@ if (!is_array($rawNeedLevels)) {
 }
 $filterNeedLevels = [];
 foreach ($rawNeedLevels as $pairRaw) {
-  $pair = strtoupper(trim((string)$pairRaw));
-  if (preg_match('/^(PONE|PHM|PPM):([1-3])$/', $pair)) {
-    $filterNeedLevels[] = $pair;
+  $pair = trim((string)$pairRaw);
+  if (preg_match('/^(.+):([1-3])$/', $pair, $matches)) {
+    $need = normalize_question_need($matches[1]);
+    if ($need !== '') {
+      $filterNeedLevels[] = $need . ':' . (int)$matches[2];
+    }
   }
 }
 $filterNeedLevels = array_values(array_unique($filterNeedLevels));
 
 // backward compatibility with old single filter params
 $legacyNeed = strtoupper(trim((string)($_GET['need'] ?? '')));
-if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true) && empty($filterNeeds)) {
+$legacyNeed = normalize_question_need($legacyNeed);
+if ($legacyNeed !== '' && empty($filterNeeds)) {
   $filterNeeds[] = $legacyNeed;
 }
 $legacyLevel = (int)($_GET['level'] ?? 0);
 if ($legacyLevel >= 1 && $legacyLevel <= 3 && empty($filterNeedLevels)) {
-  if ($legacyNeed !== '' && in_array($legacyNeed, ['PONE', 'PHM', 'PPM'], true)) {
+  if ($legacyNeed !== '') {
     $filterNeedLevels[] = $legacyNeed . ':' . $legacyLevel;
-  } else {
-    foreach (['PONE', 'PHM', 'PPM'] as $legacyAnyNeed) {
-      $filterNeedLevels[] = $legacyAnyNeed . ':' . $legacyLevel;
-    }
   }
 }
 if (empty($filterNeedLevels) && !empty($filterNeeds) && !empty($legacyFilterLevels)) {
@@ -327,22 +451,48 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $stmt = $pdo->prepare("SELECT * FROM packages WHERE id=?");
 $stmt->execute([$id]);
 $pk = $stmt->fetch();
-$hasNameColorColumn = package_edit_package_column_exists($pdo, 'name_color_hex');
-$hasRulesColumn = package_edit_package_column_exists($pdo, 'selection_rules_json');
-$hasProfileColumn = package_edit_package_column_exists($pdo, 'profile');
-$hasDisplayOrderColumn = package_edit_package_column_exists($pdo, 'display_order');
-$hasBadgeImageColumn = package_edit_package_column_exists($pdo, 'badge_image_filename');
-$hasAntiRepeatSessionsColumn = package_edit_package_column_exists($pdo, 'anti_repeat_sessions');
-$hasCertValidityDaysColumn = package_edit_package_column_exists($pdo, 'cert_validity_days');
+$hasNameColorColumn = table_column_exists($pdo, 'packages', 'name_color_hex');
+$hasRulesColumn = table_column_exists($pdo, 'packages', 'selection_rules_json');
+$hasProfileColumn = table_column_exists($pdo, 'packages', 'profile');
+$hasDisplayOrderColumn = table_column_exists($pdo, 'packages', 'display_order');
+$hasBadgeImageColumn = table_column_exists($pdo, 'packages', 'badge_image_filename');
+$hasAntiRepeatSessionsColumn = table_column_exists($pdo, 'packages', 'anti_repeat_sessions');
+$hasCertValidityDaysColumn = table_column_exists($pdo, 'packages', 'cert_validity_days');
+$hasFailedCooldownDaysColumn = table_column_exists($pdo, 'packages', 'failed_cooldown_days');
 $badgeImageOptions = package_edit_badge_file_options();
 $ruleTemplates = package_rule_templates();
-$packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
 
 if (!$pk) {
   http_response_code(404);
   echo "Not found";
   exit;
 }
+
+if ($activeProgramId > 0) {
+  if (auth_program_package_links_enabled($pdo)) {
+    $scopeStmt = $pdo->prepare("
+      SELECT COUNT(*)
+      FROM program_package_links
+      WHERE package_id = ?
+        AND program_id = ?
+    ");
+    $scopeStmt->execute([(int)$id, $activeProgramId]);
+    if ((int)($scopeStmt->fetchColumn() ?: 0) <= 0) {
+      http_response_code(404);
+      echo "Not found";
+      exit;
+    }
+  } elseif (table_column_exists($pdo, 'packages', 'program_id')) {
+    if ((int)($pk['program_id'] ?? 0) !== $activeProgramId) {
+      http_response_code(404);
+      echo "Not found";
+      exit;
+    }
+  }
+}
+
+$ruleTemplates = package_edit_rule_templates_for_program($pdo, $activeProgramId, $ruleTemplates);
+$packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
 
 $selectedTemplate = '';
 $packNameUpper = strtoupper(trim((string)($pk['name'] ?? '')));
@@ -367,7 +517,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_profile'])) {
     $profile = trim((string)$_GET['draft_profile']);
   }
-  $isActive = ((int)($_GET['draft_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
+  $isActive = (int)($pk['is_active'] ?? 1) === 1 ? 1 : 0;
 
   if (isset($_GET['draft_threshold']) && $_GET['draft_threshold'] !== '') {
     $threshold = (int)$_GET['draft_threshold'];
@@ -378,14 +528,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   if (isset($_GET['draft_cert_validity_days']) && $_GET['draft_cert_validity_days'] !== '') {
     $certValidityDays = (int)$_GET['draft_cert_validity_days'];
   }
+  if (isset($_GET['draft_failed_cooldown_days']) && $_GET['draft_failed_cooldown_days'] !== '') {
+    $failedCooldownDays = (int)$_GET['draft_failed_cooldown_days'];
+  }
   if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
     $count = (int)$_GET['draft_count'];
   }
-  if (isset($_GET['draft_anti_repeat']) && $_GET['draft_anti_repeat'] !== '') {
-    $antiRepeatSessions = (int)$_GET['draft_anti_repeat'];
-  }
   if (isset($threshold)) $threshold = max(0, min(100, (int)$threshold));
   if (isset($certValidityDays)) $certValidityDays = max(1, min(3650, (int)$certValidityDays));
+  if (isset($failedCooldownDays)) $failedCooldownDays = max(0, min(3650, (int)$failedCooldownDays));
   if (isset($duration)) $duration = max(1, min(600, (int)$duration));
   if (isset($count)) $count = max(1, min(200, (int)$count));
   if (isset($antiRepeatSessions)) $antiRepeatSessions = max(0, min(20, (int)$antiRepeatSessions));
@@ -413,8 +564,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
           if (!is_array($row)) {
             continue;
           }
-          $need = strtoupper(trim((string)($row['need'] ?? '')));
-          $take = (int)($row['take'] ?? 0);
+          $need = normalize_question_need((string)($row['need'] ?? ''));
           $targetTotal = (int)($row['target_total'] ?? 0);
           $levelsRaw = $row['levels'] ?? [];
           if (!is_array($levelsRaw)) {
@@ -430,13 +580,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
           $levels = array_values(array_unique($levels));
           sort($levels);
 
-          if (!in_array($need, ['PONE', 'PHM', 'PPM'], true) || $take <= 0 || !$levels) {
+          if ($need === '' || !$levels) {
             continue;
           }
           $parsedRows[] = [
             'need' => $need,
             'levels' => $levels,
-            'take' => $take,
             'target_total' => max(0, $targetTotal),
           ];
         }
@@ -464,28 +613,46 @@ if ($rulesRaw !== '') {
     }
   }
 }
-if (empty($allowedByNeed)) {
-  $allowedByNeed = [
-    'PONE' => [1 => true, 2 => true, 3 => true],
-    'PHM' => [1 => true, 2 => true, 3 => true],
-    'PPM' => [1 => true, 2 => true, 3 => true],
-  ];
+$knownNeeds = package_edit_known_needs($pdo, $ruleTemplates, $ruleRows, $activeProgramId);
+$knownNeedSet = array_fill_keys($knownNeeds, true);
+$ruleRows = array_values(array_filter($ruleRows, static function (array $row) use ($knownNeedSet): bool {
+  $need = normalize_question_need((string)($row['need'] ?? ''));
+  return $need !== '' && isset($knownNeedSet[$need]);
+}));
+foreach (array_keys($allowedByNeed) as $needName) {
+  if (!isset($knownNeedSet[$needName])) {
+    unset($allowedByNeed[$needName]);
+  }
 }
+if (empty($allowedByNeed)) {
+  foreach ($knownNeeds as $knownNeed) {
+    $allowedByNeed[$knownNeed] = [1 => true, 2 => true, 3 => true];
+  }
+}
+
+$availableQuestionCounts = package_edit_available_question_counts($pdo, $activeProgramId);
+foreach ($knownNeeds as $knownNeed) {
+  if (!isset($allowedByNeed[$knownNeed])) {
+    $allowedByNeed[$knownNeed] = [1 => true, 2 => true, 3 => true];
+  }
+}
+ksort($allowedByNeed);
+$defaultNeed = question_default_need($knownNeeds);
 
 $filterNeeds = array_values(array_filter(
   $filterNeeds,
   static fn(string $need): bool => isset($allowedByNeed[$need])
 ));
 
-$dist = [
-  'PONE' => [1 => 0, 2 => 0, 3 => 0],
-  'PHM' => [1 => 0, 2 => 0, 3 => 0],
-  'PPM' => [1 => 0, 2 => 0, 3 => 0],
-];
+$dist = [];
+foreach (array_keys($allowedByNeed) as $needName) {
+  $dist[$needName] = [1 => 0, 2 => 0, 3 => 0];
+}
 
 $distStmt = $pdo->prepare("
   SELECT need, knowledge_required_csv, level
-  FROM questions
+  FROM questions q
+  " . (package_edit_program_question_scope_sql($pdo, $activeProgramId) !== '' ? "WHERE " . package_edit_program_question_scope_sql($pdo, $activeProgramId) : "") . "
 ");
 $distStmt->execute();
 foreach ($distStmt->fetchAll() as $r) {
@@ -494,7 +661,7 @@ foreach ($distStmt->fetchAll() as $r) {
     continue;
   }
   $tokens = [];
-  $fallbackNeed = strtoupper((string)($r['need'] ?? 'PONE'));
+  $fallbackNeed = normalize_question_need((string)($r['need'] ?? ''));
   if (isset($dist[$fallbackNeed])) {
     $tokens[$fallbackNeed] = true;
   }
@@ -522,6 +689,10 @@ foreach ($allowedByNeed as $needKey => $levelsMap) {
   }
 }
 $eligibleSql = $eligibleWhereParts ? ('(' . implode(' OR ', $eligibleWhereParts) . ')') : '1=1';
+$programQuestionScopeSql = package_edit_program_question_scope_sql($pdo, $activeProgramId);
+if ($programQuestionScopeSql !== '') {
+  $eligibleSql = "($eligibleSql) AND $programQuestionScopeSql";
+}
 
 $qCountSql = "
   SELECT COUNT(*)
@@ -607,10 +778,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $name = trim((string)($_POST['name'] ?? (string)($pk['name'] ?? '')));
   $threshold = (int)($_POST['pass_threshold_percent'] ?? 80);
   $certValidityDays = (int)($_POST['cert_validity_days'] ?? (int)($pk['cert_validity_days'] ?? 365));
+  $failedCooldownDays = (int)($_POST['failed_cooldown_days'] ?? (int)($pk['failed_cooldown_days'] ?? 0));
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
   $count = (int)($_POST['selection_count'] ?? 5);
-  $antiRepeatSessions = (int)($_POST['anti_repeat_sessions'] ?? (int)($pk['anti_repeat_sessions'] ?? 4));
-  $isActive = ((int)($_POST['is_active'] ?? (int)($pk['is_active'] ?? 1)) === 1) ? 1 : 0;
+  $antiRepeatSessions = 1;
+  $isActive = ((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0;
   $profile = trim((string)($_POST['profile'] ?? ''));
   $displayOrder = (int)($_POST['display_order'] ?? (int)($pk['display_order'] ?? 100));
   $badgeImageFilename = trim((string)($_POST['badge_image_filename'] ?? $badgeImageFilename));
@@ -633,12 +805,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = "Seuil invalide";
   } elseif ($hasCertValidityDaysColumn && ($certValidityDays < 1 || $certValidityDays > 3650)) {
     $error = "Validite invalide (1 a 3650 jours)";
+  } elseif ($hasFailedCooldownDaysColumn && ($failedCooldownDays < 0 || $failedCooldownDays > 3650)) {
+    $error = "Delai apres echec invalide (0 a 3650 jours)";
   } elseif ($duration < 1 || $duration > 600) {
     $error = "Duree invalide";
   } elseif ($count < 1 || $count > 200) {
     $error = "Nombre de questions invalide";
-  } elseif ($hasAntiRepeatSessionsColumn && ($antiRepeatSessions < 0 || $antiRepeatSessions > 20)) {
-    $error = "Anti-repetition invalide (0 a 20 sessions)";
   } elseif ($hasDisplayOrderColumn && ($displayOrder < 0 || $displayOrder > 9999)) {
     $error = "Ordre d'affichage invalide";
   } elseif ($hasProfileColumn && (function_exists('mb_strlen') ? mb_strlen($profile) : strlen($profile)) > 255) {
@@ -647,6 +819,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = "Image de badge invalide";
   } elseif ($hasRulesColumn && !empty($ruleRows) && count($ruleRows) > 20) {
     $error = "Maximum 20 paliers de regles.";
+  } elseif (
+    $hasRulesColumn
+    && !empty($ruleRows)
+    && array_diff(
+      array_map(static fn(array $row): string => normalize_question_need((string)($row['need'] ?? '')), $ruleRows),
+      $knownNeeds
+    )
+  ) {
+    $error = "Categorie indisponible dans ce programme.";
+  } elseif (
+    $hasRulesColumn
+    && !empty($ruleRows)
+    && ($ruleError = package_edit_validate_rule_rows($ruleRows, $count)) !== ''
+  ) {
+    $error = $ruleError;
   } elseif ($hasNameColorColumn && $normalizedColor === null) {
     $error = "Couleur invalide";
   } else {
@@ -673,9 +860,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sets[] = 'cert_validity_days=?';
         $values[] = $certValidityDays;
       }
+      if ($hasFailedCooldownDaysColumn) {
+        $sets[] = 'failed_cooldown_days=?';
+        $values[] = $failedCooldownDays;
+      }
       if ($hasAntiRepeatSessionsColumn) {
         $sets[] = 'anti_repeat_sessions=?';
-        $values[] = $antiRepeatSessions;
+        $values[] = 1;
       }
       if ($hasNameColorColumn) {
         $sets[] = 'name_color_hex=?';
@@ -707,7 +898,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($error === '') {
-      header("Location: /admin/packages.php");
+      header("Location: /admin/packages.php" . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : ''));
       exit;
     }
   }
@@ -715,9 +906,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $formThreshold = isset($threshold) ? $threshold : (int)$pk['pass_threshold_percent'];
 $formCertValidityDays = isset($certValidityDays) ? $certValidityDays : (int)($pk['cert_validity_days'] ?? 365);
+$formFailedCooldownDays = isset($failedCooldownDays) ? $failedCooldownDays : (int)($pk['failed_cooldown_days'] ?? 0);
 $formDuration = isset($duration) ? $duration : (int)$pk['duration_limit_minutes'];
 $formCount = isset($count) ? $count : (int)$pk['selection_count'];
-$formAntiRepeatSessions = isset($antiRepeatSessions) ? $antiRepeatSessions : (int)($pk['anti_repeat_sessions'] ?? 4);
 $formIsActive = isset($isActive) ? $isActive : (((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0);
 $formName = isset($name) && $name !== '' ? $name : (string)($pk['name'] ?? '');
 $formProfile = isset($profile) ? $profile : (string)($pk['profile'] ?? '');
@@ -725,12 +916,13 @@ $formDisplayOrder = isset($displayOrder) ? $displayOrder : (int)($pk['display_or
 $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((string)($pk['badge_image_filename'] ?? 'user-badge-blue.png'));
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Modifier pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
@@ -782,13 +974,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     >
                   </div>
                 <?php endif; ?>
-                <div>
-                  <label class="label">Statut</label>
-                  <select class="input" name="is_active">
-                    <option value="1" <?= $formIsActive === 1 ? 'selected' : '' ?>>Actif</option>
-                    <option value="0" <?= $formIsActive === 0 ? 'selected' : '' ?>>Inactif</option>
-                  </select>
-                </div>
                 <?php if ($hasCertValidityDaysColumn): ?>
                   <div>
                     <label class="label">P&eacute;riode de validit&eacute; (jours)</label>
@@ -799,6 +984,20 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                       min="1"
                       max="3650"
                       value="<?= (int)$formCertValidityDays ?>"
+                      required
+                    >
+                  </div>
+                <?php endif; ?>
+                <?php if ($hasFailedCooldownDaysColumn): ?>
+                  <div>
+                    <label class="label">D&eacute;lai apr&egrave;s &eacute;chec (jours)</label>
+                    <input
+                      class="input"
+                      type="number"
+                      name="failed_cooldown_days"
+                      min="0"
+                      max="3650"
+                      value="<?= (int)$formFailedCooldownDays ?>"
                       required
                     >
                   </div>
@@ -845,28 +1044,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     required
                   >
                 </div>
-                <?php if ($hasAntiRepeatSessionsColumn): ?>
-                  <div>
-                    <label class="label">
-                      <span class="order-help-wrap">
-                        <span>Nombre de sessions</span>
-                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur les sessions anti-repetition">
-                          i
-                          <span class="order-help-bubble">Evite de reposer des questions vues dans les N dernieres sessions de ce pack pour cet utilisateur (toutes sessions confondues).</span>
-                        </span>
-                      </span>
-                    </label>
-                    <input
-                      class="input"
-                      type="number"
-                      name="anti_repeat_sessions"
-                      min="0"
-                      max="20"
-                      value="<?= (int)$formAntiRepeatSessions ?>"
-                      required
-                    >
-                  </div>
-                <?php endif; ?>
               </div>
             </article>
 
@@ -894,15 +1071,24 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   <div class="badge-picker-field">
                     <label class="label">Image du badge</label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($formBadgeImageFilename) ?>">
-                    <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id; ?>
-                    <?php if ($formBadgeImageFilename !== ''): ?>
-                      <a
-                        id="pack-edit-badge-picker"
-                        class="badge-current-link"
-                        data-base-return="<?= h($libraryReturn) ?>"
-                        href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
-                      >Cliquez pour changer l'image.</a>
-                    </div>
+                    <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id . ($activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : ''); ?>
+                    <a
+                      id="pack-edit-badge-picker"
+                      class="badge-current-link"
+                      data-base-return="<?= h($libraryReturn) ?>"
+                      href="/admin/badge_library.php?return=<?= h(urlencode($libraryReturn)) ?>"
+                    >
+                      <?php if ($formBadgeImageFilename !== ''): ?>
+                        <span class="badge-current">
+                          <img src="/assets/badges/<?= h(rawurlencode($formBadgeImageFilename)) ?>" alt="<?= h($formBadgeImageFilename) ?>">
+                          <span class="badge-current-meta"><?= h($formBadgeImageFilename) ?></span>
+                        </span>
+                      <?php else: ?>
+                        <span class="badge-current">
+                          <span class="badge-current-meta">Aucune image sélectionnée</span>
+                        </span>
+                      <?php endif; ?>
+                    </a>
                     <?php if (!$badgeImageOptions): ?>
                       <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
                     <?php endif; ?>
@@ -945,15 +1131,14 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
               <table class="table questions-table rules-table" id="rule-rows-table">
                 <thead>
                   <tr>
-                    <th>Connaissances requises</th>
+                    <th>Categorie</th>
                     <th>Niveaux</th>
-                    <th>Nb de questions (max)</th>
                     <th>
                       <span class="order-help-wrap">
-                        <span>Cible cumul&eacute;e</span>
+                        <span>Cumul vis&eacute;</span>
                         <span class="order-help-tip" tabindex="0" aria-label="Aide sur la cible cumulee">
                           i
-                          <span class="order-help-bubble">Stoppe le palier quand le total cumul&eacute; de questions atteint cette cible.</span>
+                          <span class="order-help-bubble">Chaque palier prend automatiquement toutes les questions correspondant &agrave; ses crit&egrave;res. Le cumul vis&eacute; permet de fixer le total souhait&eacute; atteint apr&egrave;s ce palier.</span>
                         </span>
                       </span>
                     </th>
@@ -971,8 +1156,8 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     <tr class="rule-row">
                       <td>
                         <select class="input rule-need" name="rule_need[]">
-                          <?php foreach (['PONE', 'PHM', 'PPM'] as $needOpt): ?>
-                            <option value="<?= h($needOpt) ?>" <?= ($row['need'] ?? '') === $needOpt ? 'selected' : '' ?>><?= h($needOpt) ?></option>
+                          <?php foreach ($knownNeeds as $needOpt): ?>
+                            <option value="<?= h($needOpt) ?>" <?= ((string)($row['need'] ?? '') === $needOpt) ? 'selected' : '' ?>><?= h($needOpt) ?></option>
                           <?php endforeach; ?>
                         </select>
                       </td>
@@ -984,20 +1169,39 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                         <input type="hidden" class="rule-level-3-input" value="<?= !empty($levelsMap[3]) ? '1' : '0' ?>">
                         <label class="rule-level-check"><input type="checkbox" class="rule-level-3-check" <?= !empty($levelsMap[3]) ? 'checked' : '' ?>> L3</label>
                       </td>
-                      <td><input class="input rule-take" type="number" name="rule_take[]" min="1" max="200" value="<?= (int)($row['take'] ?? 0) ?>"></td>
-                      <td><input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>"></td>
-                      <td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>
+                      <td>
+                        <div class="rule-target-cell">
+                          <input class="input rule-target-total" type="number" name="rule_target_total[]" min="0" max="200" value="<?= (int)($row['target_total'] ?? 0) ?>">
+                          <span class="rule-target-meta">max. 0</span>
+                        </div>
+                        <p class="rule-target-warning" hidden></p>
+                      </td>
+                      <td>
+                        <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier">
+                          <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
+                <tfoot>
+                  <tr class="rule-summary-row">
+                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label">R&eacute;capitulatif</span></td>
+                    <td class="rule-summary-value"><span id="rule-total-target" class="rule-summary-number">0</span></td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
+            <p class="rule-builder-warning" id="rule-builder-warning" hidden></p>
           </section>
         <?php endif; ?>
 
         <div style="margin-top:14px; display:flex; gap:10px;">
           <button class="btn" type="submit">Enregistrer</button>
-          <a class="btn ghost" href="/admin/packages.php">Annuler</a>
+          <a class="btn ghost" href="/admin/packages.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Annuler</a>
         </div>
       </form>
 
@@ -1005,14 +1209,14 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
       <h3 class="distribution-title">Questions du pack</h3>
       <div style="margin: 0 0 10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
+        <a class="btn ghost" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Importer questions</a>
       </div>
       <p class="small">
-        R&eacute;partition par connaissances requises et niveau (banque globale, utilis&eacute;e pour le tirage de ce pack).
+        R&eacute;partition par outil concern&eacute; et niveau (questions du programme courant, utilis&eacute;es pour le tirage de ce pack).
         <?php if (!empty($filterNeeds) || !empty($filterNeedLevels)): ?>
           <span class="small" style="margin-left:8px;">
             Filtre:
-            <b><?= h(!empty($filterNeeds) ? implode(', ', $filterNeeds) : 'Tous besoins') ?></b>
+            <b><?= h(!empty($filterNeeds) ? implode(', ', $filterNeeds) : 'Tous outils') ?></b>
             <?php if (!empty($filterNeedLevels)): ?>
               <?php
                 $pairLabels = [];
@@ -1023,14 +1227,13 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
               ?>
               <?= ' - ' . h(implode(', ', $pairLabels)) ?>
             <?php endif; ?>
-            <a href="/admin/package_edit.php?id=<?= (int)$id ?>" style="margin-left:8px;">Reset</a>
+            <a href="/admin/package_edit.php?id=<?= (int)$id ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>" style="margin-left:8px;">Reset</a>
           </span>
         <?php endif; ?>
       </p>
 
 	      <div class="distribution-grid" style="margin-top:10px;">
-	        <?php foreach (['PONE', 'PHM', 'PPM'] as $need): ?>
-          <?php if (!isset($allowedByNeed[$need])) continue; ?>
+	        <?php foreach (array_keys($allowedByNeed) as $need): ?>
           <?php
             $needIsActive = in_array($need, $filterNeeds, true);
             $nextNeeds = $filterNeeds;
@@ -1086,12 +1289,12 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         <?php if (!$questions): ?>
           <p class="empty-state">Aucune question dans la banque pour ce filtre.</p>
         <?php else: ?>
-          <table class="table questions-table package-questions-table">
+	          <table class="table questions-table package-questions-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>&Eacute;nonc&eacute;</th>
-	                <th>Connaissances requises</th>
+	                <th>Categorie</th>
 	                <th>Niveau</th>
                 <th>Type</th>
                 <th>Options</th>
@@ -1114,13 +1317,26 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   <td>
                     <?php
                       $qt = (string)($q['question_type'] ?? 'MULTI');
-                      echo h($qt === 'TRUE_FALSE' ? 'Vrai / Faux' : 'Choix multiple');
+                      echo h(match ($qt) {
+                        'TRUE_FALSE' => 'Vrai / Faux',
+                        'SINGLE' => 'Choix unique',
+                        default => 'Choix multiple',
+                      });
                     ?>
                   </td>
                   <td><?= (int)($q['option_count'] ?? 0) ?></td>
                   <td class="actions-cell">
-                    <a class="btn ghost" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?>">Modifier</a>
-                    <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?>"
+                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Modifier la question" title="Modifier la question">
+                      <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
+                      </svg>
+                    </a>
+                    <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+                      <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
+                      </svg>
+                    </a>
+                    <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
                        aria-label="Supprimer cette question"
                        title="Supprimer"
                        onclick="return confirm('Supprimer cette question ?');">
@@ -1204,20 +1420,17 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       var rows = [];
       body.querySelectorAll('.rule-row').forEach(function (row) {
         var need = row.querySelector('.rule-need');
-        var take = row.querySelector('.rule-take');
         var target = row.querySelector('.rule-target-total');
         var levels = [];
         if (row.querySelector('.rule-level-1-check:checked')) levels.push(1);
         if (row.querySelector('.rule-level-2-check:checked')) levels.push(2);
         if (row.querySelector('.rule-level-3-check:checked')) levels.push(3);
         var needVal = need ? String(need.value || '').trim().toUpperCase() : '';
-        var takeVal = take ? parseInt(String(take.value || '0'), 10) : 0;
         var targetVal = target ? parseInt(String(target.value || '0'), 10) : 0;
-        if (!needVal || !levels.length || !Number.isFinite(takeVal) || takeVal <= 0) return;
+        if (!needVal || !levels.length) return;
         rows.push({
           need: needVal,
           levels: levels,
-          take: takeVal,
           target_total: Number.isFinite(targetVal) && targetVal > 0 ? targetVal : 0
         });
       });
@@ -1231,12 +1444,11 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           var returnUrl = new URL(baseReturn, window.location.origin);
           returnUrl.searchParams.set('draft_name', editFieldValue('name'));
           returnUrl.searchParams.set('draft_profile', editFieldValue('profile'));
-          returnUrl.searchParams.set('draft_active', editFieldValue('is_active') || '1');
           returnUrl.searchParams.set('draft_threshold', editFieldValue('pass_threshold_percent') || String(<?= (int)$formThreshold ?>));
           returnUrl.searchParams.set('draft_cert_validity_days', editFieldValue('cert_validity_days') || String(<?= (int)$formCertValidityDays ?>));
+          returnUrl.searchParams.set('draft_failed_cooldown_days', editFieldValue('failed_cooldown_days') || String(<?= (int)$formFailedCooldownDays ?>));
           returnUrl.searchParams.set('draft_duration', editFieldValue('duration_limit_minutes') || String(<?= (int)$formDuration ?>));
           returnUrl.searchParams.set('draft_count', editFieldValue('selection_count') || String(<?= (int)$formCount ?>));
-          returnUrl.searchParams.set('draft_anti_repeat', editFieldValue('anti_repeat_sessions') || String(<?= (int)$formAntiRepeatSessions ?>));
           returnUrl.searchParams.set('draft_color', editFieldValue('name_color_hex') || '<?= h($packNameColor) ?>');
           returnUrl.searchParams.set('draft_template', editFieldValue('rule_template'));
           var draftRules = buildEditDraftRules();
@@ -1272,39 +1484,159 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
     <?php if ($hasRulesColumn): ?>
     var ruleTemplates = <?= json_encode($ruleTemplates, JSON_UNESCAPED_UNICODE) ?>;
+    var knownNeeds = <?= json_encode(array_values($knownNeeds), JSON_UNESCAPED_UNICODE) ?>;
+    var availableQuestionCounts = <?= json_encode($availableQuestionCounts, JSON_UNESCAPED_UNICODE) ?>;
     var tbody = document.getElementById('rule-rows-body');
     var addRowBtn = document.getElementById('add-rule-row');
     var applyTemplateBtn = document.getElementById('apply-rule-template');
     var templateSelect = document.getElementById('rule-template');
     var countInput = document.querySelector('input[name="selection_count"]');
     var form = document.querySelector('form[method="post"]');
+    var totalTargetEl = document.getElementById('rule-total-target');
+    var ruleBuilderWarningEl = document.getElementById('rule-builder-warning');
 
     function bindRowActions(row) {
       var removeBtn = row.querySelector('.rule-remove');
       if (removeBtn) {
         removeBtn.addEventListener('click', function () {
           row.remove();
+          syncRuleInputNames();
+          updateRuleTotals();
+          validateRuleTargets(false);
         });
       }
     }
 
+    function updateRuleTotals() {
+      if (!tbody) return;
+      var totalTarget = 0;
+      tbody.querySelectorAll('.rule-row').forEach(function (row) {
+        var targetInput = row.querySelector('.rule-target-total');
+        var targetVal = targetInput ? parseInt(String(targetInput.value || '0'), 10) : 0;
+        if (Number.isFinite(targetVal) && targetVal > 0) {
+          totalTarget += targetVal;
+        }
+      });
+      if (totalTargetEl) totalTargetEl.textContent = String(totalTarget);
+    }
+
+    function cloneAvailableCounts() {
+      var copy = {};
+      Object.keys(availableQuestionCounts || {}).forEach(function (need) {
+        var levels = availableQuestionCounts[need] || {};
+        copy[need] = {
+          1: parseInt(String(levels[1] || 0), 10) || 0,
+          2: parseInt(String(levels[2] || 0), 10) || 0,
+          3: parseInt(String(levels[3] || 0), 10) || 0
+        };
+      });
+      return copy;
+    }
+
+    function getRuleRowNeed(row) {
+      var needInput = row.querySelector('.rule-need');
+      return needInput ? String(needInput.value || '').trim().toUpperCase() : '';
+    }
+
+    function getRuleRowLevels(row) {
+      var levels = [];
+      if (row.querySelector('.rule-level-1-check:checked')) levels.push(1);
+      if (row.querySelector('.rule-level-2-check:checked')) levels.push(2);
+      if (row.querySelector('.rule-level-3-check:checked')) levels.push(3);
+      return levels;
+    }
+
+    function getRuleRowTargetValue(row) {
+      var targetInput = row.querySelector('.rule-target-total');
+      var raw = targetInput ? String(targetInput.value || '').trim() : '';
+      var targetVal = raw === '' ? 0 : parseInt(raw, 10);
+      if (!Number.isFinite(targetVal) || targetVal < 0) {
+        return 0;
+      }
+      return targetVal;
+    }
+
+    function setRuleRowAvailability(row, stepMax, requestedStep) {
+      var meta = row.querySelector('.rule-target-meta');
+      var warning = row.querySelector('.rule-target-warning');
+      var hasWarning = requestedStep > stepMax;
+      if (meta) {
+        meta.textContent = 'max. ' + stepMax;
+      }
+      row.classList.toggle('rule-row-warning', hasWarning);
+      if (warning) {
+        if (hasWarning) {
+          warning.textContent = 'Risque de questions insuffisantes : ' + requestedStep + ' demandée(s), ' + stepMax + ' disponible(s) pour ce palier.';
+          warning.hidden = false;
+        } else {
+          warning.textContent = '';
+          warning.hidden = true;
+        }
+      }
+      return hasWarning;
+    }
+
+    function updateRuleAvailabilityWarnings() {
+      if (!tbody) return;
+      var remainingByNeed = cloneAvailableCounts();
+      var hasAnyWarning = false;
+      tbody.querySelectorAll('.rule-row').forEach(function (row) {
+        var need = getRuleRowNeed(row);
+        var levels = getRuleRowLevels(row);
+        var requestedStep = getRuleRowTargetValue(row);
+        var stepMax = 0;
+
+        levels.forEach(function (level) {
+          if (!remainingByNeed[need]) {
+            return;
+          }
+          stepMax += parseInt(String(remainingByNeed[need][level] || 0), 10) || 0;
+        });
+
+        if (setRuleRowAvailability(row, stepMax, requestedStep)) {
+          hasAnyWarning = true;
+        }
+
+        var toConsume = Math.min(requestedStep, stepMax);
+        levels.forEach(function (level) {
+          if (!remainingByNeed[need] || toConsume <= 0) {
+            return;
+          }
+          var available = parseInt(String(remainingByNeed[need][level] || 0), 10) || 0;
+          var consumed = Math.min(available, toConsume);
+          remainingByNeed[need][level] = available - consumed;
+          toConsume -= consumed;
+        });
+      });
+
+      if (ruleBuilderWarningEl) {
+        if (hasAnyWarning) {
+          ruleBuilderWarningEl.textContent = 'Certaines lignes demandent plus de questions que le stock actuellement disponible en base.';
+          ruleBuilderWarningEl.hidden = false;
+        } else {
+          ruleBuilderWarningEl.textContent = '';
+          ruleBuilderWarningEl.hidden = true;
+        }
+      }
+    }
+
     function buildRowHtml(data) {
-      var need = data.need || 'PONE';
-      var take = data.take || 1;
+      var need = String(data.need || <?= json_encode($defaultNeed, JSON_UNESCAPED_UNICODE) ?>);
       var targetTotal = data.target_total || 0;
       var levels = Array.isArray(data.levels) ? data.levels : [1];
       var hasL1 = levels.indexOf(1) !== -1;
       var hasL2 = levels.indexOf(2) !== -1;
       var hasL3 = levels.indexOf(3) !== -1;
+      var needOptions = knownNeeds.map(function (needOpt) {
+        var escapedValue = String(needOpt).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var selected = needOpt === need ? ' selected' : '';
+        return '<option value="' + escapedValue + '"' + selected + '>' + escapedValue + '</option>';
+      }).join('');
 
       return '' +
         '<tr class="rule-row">' +
           '<td>' +
-            '<select class="input rule-need">' +
-              '<option value="PONE"' + (need === 'PONE' ? ' selected' : '') + '>PONE</option>' +
-              '<option value="PHM"' + (need === 'PHM' ? ' selected' : '') + '>PHM</option>' +
-              '<option value="PPM"' + (need === 'PPM' ? ' selected' : '') + '>PPM</option>' +
-            '</select>' +
+            '<select class="input rule-need">' + needOptions + '</select>' +
           '</td>' +
           '<td class="rule-levels-cell">' +
             '<input type="hidden" class="rule-level-1-input" value="' + (hasL1 ? '1' : '0') + '">' +
@@ -1314,9 +1646,14 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
             '<input type="hidden" class="rule-level-3-input" value="' + (hasL3 ? '1' : '0') + '">' +
             '<label class="rule-level-check"><input type="checkbox" class="rule-level-3-check"' + (hasL3 ? ' checked' : '') + '> L3</label>' +
           '</td>' +
-          '<td><input class="input rule-take" type="number" min="1" max="200" value="' + take + '"></td>' +
-          '<td><input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '"></td>' +
-          '<td><button class="btn ghost rule-remove rule-remove-btn" type="button">Supprimer</button></td>' +
+          '<td>' +
+            '<div class="rule-target-cell">' +
+              '<input class="input rule-target-total" type="number" min="0" max="200" value="' + targetTotal + '">' +
+              '<span class="rule-target-meta">max. 0</span>' +
+            '</div>' +
+            '<p class="rule-target-warning" hidden></p>' +
+          '</td>' +
+          '<td><button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier"><svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/></svg></button></td>' +
         '</tr>';
     }
 
@@ -1327,6 +1664,10 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       var row = wrap.firstElementChild;
       tbody.appendChild(row);
       bindRowActions(row);
+      syncRuleInputNames();
+      updateRuleTotals();
+      validateRuleTargets(false);
+      updateRuleAvailabilityWarnings();
     }
 
     function syncRuleInputNames() {
@@ -1334,7 +1675,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       var rows = tbody.querySelectorAll('.rule-row');
       rows.forEach(function (row, idx) {
         var need = row.querySelector('.rule-need');
-        var take = row.querySelector('.rule-take');
         var target = row.querySelector('.rule-target-total');
         var l1Input = row.querySelector('.rule-level-1-input');
         var l2Input = row.querySelector('.rule-level-2-input');
@@ -1344,7 +1684,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         var l3Check = row.querySelector('.rule-level-3-check');
 
         if (need) need.name = 'rule_need[' + idx + ']';
-        if (take) take.name = 'rule_take[' + idx + ']';
         if (target) target.name = 'rule_target_total[' + idx + ']';
         if (l1Input) {
           l1Input.name = 'rule_level_1[' + idx + ']';
@@ -1361,14 +1700,99 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       });
     }
 
+    function clearRuleTargetErrors() {
+      if (!tbody) return;
+      tbody.querySelectorAll('.rule-target-total').forEach(function (input) {
+        input.classList.remove('rule-target-invalid');
+      });
+    }
+
+    function validateRuleTargets(showPopup) {
+      if (!tbody) return true;
+      clearRuleTargetErrors();
+      updateRuleTotals();
+
+      var maxTotal = countInput ? parseInt(String(countInput.value || '0'), 10) : 0;
+      if (!Number.isFinite(maxTotal) || maxTotal < 1) {
+        maxTotal = 200;
+      }
+
+      var targetSum = 0;
+      var invalidInput = null;
+      var message = '';
+      var rows = tbody.querySelectorAll('.rule-row');
+      rows.forEach(function (row, idx) {
+        if (invalidInput) return;
+        var targetInput = row.querySelector('.rule-target-total');
+        if (!targetInput) return;
+
+        var raw = String(targetInput.value || '').trim();
+        var targetVal = raw === '' ? 0 : parseInt(raw, 10);
+        if (!Number.isFinite(targetVal)) {
+          targetVal = 0;
+        }
+
+        var line = idx + 1;
+        if (targetVal < 0 || targetVal > maxTotal) {
+          invalidInput = targetInput;
+          message = 'Cible cumulée invalide ligne ' + line + ' (0 à ' + maxTotal + ').';
+          return;
+        }
+
+        if (targetVal > 0) {
+          targetSum += targetVal;
+          if (targetSum > maxTotal) {
+            invalidInput = targetInput;
+            message = 'Cible cumulée totale invalide (0 à ' + maxTotal + ').';
+          }
+        }
+      });
+
+      if (invalidInput) {
+        invalidInput.classList.add('rule-target-invalid');
+        if (showPopup) {
+          window.alert(message);
+        }
+        return false;
+      }
+
+      return true;
+    }
+
     if (tbody) {
       tbody.querySelectorAll('.rule-row').forEach(bindRowActions);
       syncRuleInputNames();
+      updateRuleTotals();
+      validateRuleTargets(false);
+      updateRuleAvailabilityWarnings();
+      tbody.addEventListener('input', function (e) {
+        if (e.target && e.target.classList && (
+          e.target.classList.contains('rule-target-total') ||
+          e.target.classList.contains('rule-level-1-check') ||
+          e.target.classList.contains('rule-level-2-check') ||
+          e.target.classList.contains('rule-level-3-check') ||
+          e.target.classList.contains('rule-need')
+        )) {
+          validateRuleTargets(false);
+          updateRuleAvailabilityWarnings();
+        }
+      });
+      tbody.addEventListener('change', function (e) {
+        if (e.target && e.target.classList && (
+          e.target.classList.contains('rule-target-total') ||
+          e.target.classList.contains('rule-level-1-check') ||
+          e.target.classList.contains('rule-level-2-check') ||
+          e.target.classList.contains('rule-level-3-check') ||
+          e.target.classList.contains('rule-need')
+        )) {
+          updateRuleAvailabilityWarnings();
+        }
+      });
     }
 
     if (addRowBtn) {
       addRowBtn.addEventListener('click', function () {
-        addRuleRow({ need: 'PONE', levels: [1], take: 1, target_total: 0 });
+        addRuleRow({ need: <?= json_encode($defaultNeed, JSON_UNESCAPED_UNICODE) ?>, levels: [1], target_total: 0 });
       });
     }
 
@@ -1385,12 +1809,25 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           countInput.value = String(ruleTemplates[key].max);
         }
         syncRuleInputNames();
+        updateRuleTotals();
+        validateRuleTargets(false);
+        updateRuleAvailabilityWarnings();
+      });
+    }
+
+    if (countInput) {
+      countInput.addEventListener('input', function () {
+        validateRuleTargets(false);
+        updateRuleAvailabilityWarnings();
       });
     }
 
     if (form) {
-      form.addEventListener('submit', function () {
+      form.addEventListener('submit', function (e) {
         syncRuleInputNames();
+        if (!validateRuleTargets(true)) {
+          e.preventDefault();
+        }
       });
     }
 

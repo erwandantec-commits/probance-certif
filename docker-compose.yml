@@ -1,6 +1,8 @@
 services:
   db:
-    image: mariadb:11
+    build:
+      context: .
+      dockerfile: db/Dockerfile
     environment:
       MARIADB_ROOT_PASSWORD: root
       MARIADB_DATABASE: certif
@@ -11,6 +13,8 @@ services:
     volumes:
       - ./data:/var/lib/mysql
       - ./initdb:/docker-entrypoint-initdb.d
+      - ./db_schema:/db_schema:ro
+      - ./app/version.txt:/opt/certif/app/version.txt:ro
 
   web:
     build: .
@@ -18,8 +22,21 @@ services:
       - "8080:80"
     volumes:
       - ./app:/var/www/html
+      - ./docs:/opt/certif/docs:ro
+      - ./db_schema:/opt/certif/db_schema
     environment:
       ADMIN_PASSWORD: "Probance123!"
+      APP_BASE_URL: "http://localhost:8080"
+      DB_HOST: "db"
+      DB_PORT: "3306"
+      DB_NAME: "certif"
+      DB_USER: "certif_user"
+      DB_PASS: "certif_pass"
+      SMTP_HOST: "smtp-gw.company.lan"
+      SMTP_PORT: "25"
+      SMTP_FROM_EMAIL: "certif@company.tld"
+      SMTP_FROM_NAME: "Probance Certif Tool"
+      SMTP_USE_TLS: "0"
     depends_on:
       - db
 

@@ -4,6 +4,8 @@ require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
 
+header('Content-Type: text/html; charset=UTF-8');
+
 $pdo = db();
 $lang = get_lang();
 $errorKey = '';
@@ -29,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       'id' => (int)$u['id'],
       'email' => $u['email'],
       'name' => $u['name'],
-      'role' => $u['role'],
+      'role' => normalize_user_role((string)($u['role'] ?? 'USER')),
     ];
     header("Location: /dashboard.php?lang=" . urlencode($lang));
     exit;
@@ -39,23 +41,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title><?= h(t('login.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container">
   <div class="card login-card">
     <div class="login-topbar">
-      <select id="login-lang" class="input lang-select"
-              onchange="window.location.href='/login.php?lang=' + encodeURIComponent(this.value);">
-        <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-        <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-        <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-        <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-      </select>
+      <?php render_flag_lang_picker($lang, "'/login.php?lang={lang}'"); ?>
     </div>
 
     <div class="login-brand">

@@ -7,18 +7,18 @@ $token = $_GET['token'] ?? '';
 $error = '';
 $valid_user_id = null;
 
-if ($token) {
-  $stmt = $pdo->query("SELECT * FROM password_resets WHERE expires_at > NOW()");
-  foreach ($stmt as $row) {
-    if (password_verify($token, $row['token_hash'])) {
-      $valid_user_id = $row['user_id'];
-      break;
-    }
+if ($token !== '') {
+  $tokenHash = hash('sha256', $token);
+  $stmt = $pdo->prepare("SELECT user_id FROM password_resets WHERE token_hash = ? AND expires_at > NOW() LIMIT 1");
+  $stmt->execute([$tokenHash]);
+  $row = $stmt->fetch();
+  if ($row) {
+    $valid_user_id = $row['user_id'];
   }
 }
 
 if (!$valid_user_id) {
-  die("Lien invalide ou expiré.");
+  render_error_page(400, 'Lien invalide', 'Ce lien de réinitialisation est invalide ou a expiré.', '/forgot-password.php');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html>
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <link rel="stylesheet" href="/assets/style.css">
   <script src="/assets/theme-toggle.js?v=1"></script>
