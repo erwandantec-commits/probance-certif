@@ -1,12 +1,32 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
 $pdo = db();
+function question_performance_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+$packagesWhereSql = $activeProgramId > 0
+  ? ('WHERE ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
 
 $knowledgeRequired = trim((string)($_GET['knowledge_required'] ?? ''));
 $questionIdRaw = trim((string)($_GET['question_id'] ?? ''));
@@ -135,16 +155,20 @@ $dateTo = performance_parse_date($dateTo);
 $chartSelectedResponseCount = performance_parse_int($chartResponseCountRaw);
 $chartSelectedFailRate = performance_parse_percent($chartFailRateRaw);
 
-$packages = $pdo->query("SELECT id, name, name_color_hex FROM packages ORDER BY name ASC")->fetchAll() ?: [];
+$packages = $pdo->query("SELECT pk.id, pk.name, pk.name_color_hex FROM packages pk $packagesWhereSql ORDER BY pk.name ASC")->fetchAll() ?: [];
 $packageIds = array_map(fn($pkg) => (int)$pkg['id'], $packages);
 if ($packageId > 0 && !in_array($packageId, $packageIds, true)) {
   $packageId = 0;
 }
 
 $knowledgeRequiredRows = $pdo->query("
-  SELECT DISTINCT TRIM(knowledge_required_csv) AS knowledge_required_name
-  FROM questions
-  WHERE knowledge_required_csv IS NOT NULL AND TRIM(knowledge_required_csv) <> ''
+  SELECT DISTINCT TRIM(q.knowledge_required_csv) AS knowledge_required_name
+  FROM questions q
+  WHERE q.knowledge_required_csv IS NOT NULL
+    AND TRIM(q.knowledge_required_csv) <> ''
+    " . ($activeProgramId > 0 && auth_program_question_links_enabled($pdo)
+      ? "AND " . auth_program_question_scope_sql($pdo, $activeProgramId, 'q')
+      : "") . "
   ORDER BY knowledge_required_name ASC
 ")->fetchAll() ?: [];
 
@@ -177,6 +201,9 @@ if ($sessionType !== 'ALL') {
 if ($packageId > 0) {
   $where[] = "s.package_id = ?";
   $params[] = $packageId;
+}
+if ($activeProgramId > 0) {
+  $where[] = auth_program_package_scope_sql($pdo, $activeProgramId, 'pkf', false);
 }
 if ($dateFrom !== '') {
   $where[] = "s.started_at >= ?";
@@ -249,6 +276,7 @@ $perfFromSql = "
       $answerStatusExpr AS answer_status
     FROM session_questions sq
     JOIN sessions s ON s.id = sq.session_id
+    JOIN packages pkf ON pkf.id = s.package_id
     LEFT JOIN questions q0 ON q0.id = sq.question_id
     " . ($hasAnswerStatusSnapshot ? "" : "
     JOIN (
@@ -474,6 +502,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Analyse questions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -670,7 +699,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
       </div>
       <div class="filters-actions audit-config-actions">
         <button class="btn" type="submit">Appliquer</button>
-        <a class="btn ghost" href="/admin/question_performance.php">Reset</a>
+        <a class="btn ghost" href="/admin/question_performance.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
       </div>
     </form>
 
@@ -745,12 +774,12 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
                 <td><span class="badge ok"><?= h(number_format((float)$row['ok_rate'], 1, '.', '')) ?>%</span></td>
                 <td><span class="badge bad"><?= h(number_format((float)$row['fail_rate'], 1, '.', '')) ?>%</span></td>
                 <td class="actions-cell">
-                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$row['id'] ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Modifier la question" title="Modifier la question">
+                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$row['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Modifier la question" title="Modifier la question">
                     <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                     </svg>
                   </a>
-                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?>&session_type=<?= h(urlencode($sessionType)) ?>&date_from=<?= h(urlencode($dateFrom)) ?>&date_to=<?= h(urlencode($dateTo)) ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Zoom performance" title="Zoom performance">
+                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&session_type=<?= h(urlencode($sessionType)) ?>&date_from=<?= h(urlencode($dateFrom)) ?>&date_to=<?= h(urlencode($dateTo)) ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Zoom performance" title="Zoom performance">
                     <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
                     </svg>

@@ -1,10 +1,30 @@
 <?php
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/_auth.php';
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 require_once __DIR__ . '/../utils.php';
 
 $pdo = db();
+function questions_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+$hasPackageProgramColumn = questions_package_column_exists($pdo, 'program_id');
+$hasProgramQuestionLinksTable = auth_table_exists($pdo, 'program_question_links');
 $idFilterRaw = trim((string)($_GET['id_question'] ?? ''));
 $idFilter = ($idFilterRaw !== '' && preg_match('/^\d+$/', $idFilterRaw)) ? (int)$idFilterRaw : null;
 
@@ -99,62 +119,141 @@ if ($idFilter !== null) {
   $conds[] = 'q.external_id = ?';
   $params[] = $idFilter;
 }
+if ($activeProgramId > 0 && $hasProgramQuestionLinksTable) {
+  $conds[] = 'EXISTS (
+    SELECT 1
+    FROM program_question_links pql
+    WHERE pql.question_id = q.id
+      AND pql.program_id = ?
+  )';
+  $params[] = $activeProgramId;
+}
 
 $where = $conds ? ("WHERE " . implode(" AND ", $conds)) : "";
 
 $limit = 20;
 $page = max(1, (int)($_GET['page'] ?? 1));
 
-$countStmt = $pdo->prepare("SELECT COUNT(*) FROM questions q $where");
-$countStmt->execute($params);
-$totalQuestions = (int)$countStmt->fetchColumn();
+$packageWhereSql = $activeProgramId > 0
+  ? ('WHERE ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
+$packages = $pdo->query("
+  SELECT pk.id, pk.name, pk.name_color_hex, pk.selection_rules_json
+  FROM packages pk
+  $packageWhereSql
+  ORDER BY pk.name ASC
+")->fetchAll() ?: [];
+
+function questions_package_usage_definitions(array $packages): array {
+  $definitions = [];
+  foreach ($packages as $pkg) {
+    $packageId = (int)($pkg['id'] ?? 0);
+    if ($packageId <= 0) {
+      continue;
+    }
+    $definition = [
+      'id' => $packageId,
+      'name' => (string)($pkg['name'] ?? ''),
+      'color' => (string)($pkg['name_color_hex'] ?? ''),
+      'mode' => 'legacy',
+      'rules' => [],
+    ];
+    $rawRules = trim((string)($pkg['selection_rules_json'] ?? ''));
+    if ($rawRules !== '') {
+      $decoded = json_decode($rawRules, true);
+      $buckets = is_array($decoded) ? ($decoded['buckets'] ?? null) : null;
+      if (is_array($buckets) && !empty($buckets)) {
+        $compiledRules = [];
+        foreach ($buckets as $bucket) {
+          $need = normalize_question_need((string)($bucket['need'] ?? ''));
+          $levels = $bucket['levels'] ?? [];
+          if ($need === '' || !is_array($levels)) {
+            continue;
+          }
+          $levels = array_values(array_unique(array_filter(array_map('intval', $levels), static fn(int $level): bool => $level >= 1 && $level <= 9)));
+          if (!$levels) {
+            continue;
+          }
+          $compiledRules[] = [
+            'need' => $need,
+            'levels' => $levels,
+          ];
+        }
+        if ($compiledRules) {
+          $definition['mode'] = 'rules';
+          $definition['rules'] = $compiledRules;
+        }
+      }
+    }
+    $definitions[] = $definition;
+  }
+  return $definitions;
+}
+
+function questions_packages_for_question(array $question, array $packageDefinitions): array {
+  $matches = [];
+  $questionNeed = normalize_question_need((string)($question['need'] ?? ''));
+  $questionLevel = (int)($question['level'] ?? 0);
+  $questionPackageId = (int)($question['package_id'] ?? 0);
+  foreach ($packageDefinitions as $definition) {
+    if (($definition['mode'] ?? 'legacy') === 'rules') {
+      foreach (($definition['rules'] ?? []) as $rule) {
+        if ($questionNeed === (string)($rule['need'] ?? '') && in_array($questionLevel, $rule['levels'] ?? [], true)) {
+          $matches[] = $definition;
+          break;
+        }
+      }
+      continue;
+    }
+    if ($questionPackageId > 0 && $questionPackageId === (int)$definition['id']) {
+      $matches[] = $definition;
+    }
+  }
+  return $matches;
+}
+
+$packageDefinitions = questions_package_usage_definitions($packages);
+
+$stmt = $pdo->prepare("
+  SELECT
+    q.id, q.external_id, q.text, q.need, q.level, q.question_type, q.allow_skip, q.package_id,
+    (SELECT COUNT(*) FROM question_options qo WHERE qo.question_id=q.id) AS opt_count
+  FROM questions q
+  $where
+  ORDER BY q.id DESC
+");
+$i = 1;
+foreach ($params as $v) {
+  $stmt->bindValue($i++, $v);
+}
+$stmt->execute();
+$questionRows = $stmt->fetchAll() ?: [];
+
+$allFilteredQuestions = [];
+foreach ($questionRows as $row) {
+  $usedPackages = questions_packages_for_question($row, $packageDefinitions);
+  $row['_used_packages'] = $usedPackages;
+  $allFilteredQuestions[] = $row;
+}
+
+$totalQuestions = count($allFilteredQuestions);
 $totalPages = max(1, (int)ceil($totalQuestions / $limit));
 if ($page > $totalPages) {
   $page = $totalPages;
 }
 $offset = ($page - 1) * $limit;
-
-$stmt = $pdo->prepare("
-  SELECT
-    q.id, q.external_id, q.text, q.need, q.level, q.question_type, q.allow_skip,
-    COALESCE(p.name, '(Banque globale)') AS package_name,
-    (SELECT COUNT(*) FROM question_options qo WHERE qo.question_id=q.id) AS opt_count
-  FROM questions q
-  LEFT JOIN packages p ON p.id=q.package_id
-  $where
-  ORDER BY q.id DESC
-  LIMIT ? OFFSET ?
-");
-
-$i = 1;
-foreach ($params as $v) {
-  $stmt->bindValue($i++, $v);
-}
-$stmt->bindValue($i++, (int)$limit, PDO::PARAM_INT);
-$stmt->bindValue($i++, (int)$offset, PDO::PARAM_INT);
-$stmt->execute();
-$questions = $stmt->fetchAll();
+$questions = array_slice($allFilteredQuestions, $offset, $limit);
 
 $distribution = [];
-$distStmt = $pdo->query("
-  SELECT need, level, COUNT(*) c
-  FROM questions
-  GROUP BY need, level
-");
-foreach ($distStmt->fetchAll() as $row) {
+foreach ($allFilteredQuestions as $row) {
   $need = normalize_question_need((string)($row['need'] ?? ''));
   if ($need === '') {
     continue;
   }
-  $distribution[$need][(int)$row['level']] = (int)$row['c'];
+  $level = (int)($row['level'] ?? 0);
+  $distribution[$need][$level] = (int)($distribution[$need][$level] ?? 0) + 1;
 }
-$allNeeds = array_keys($distribution);
-foreach ($activeNeeds as $activeNeed) {
-  if (!in_array($activeNeed, $allNeeds, true)) {
-    $allNeeds[] = $activeNeed;
-  }
-}
-sort($allNeeds);
+$allNeeds = question_known_needs($pdo, array_keys($distribution));
 
 function package_label_style_local(string $packageName): string {
   $name = strtoupper(trim($packageName));
@@ -175,6 +274,10 @@ function package_label_style_local(string $packageName): string {
 
 function questions_filter_url(array $needs = [], array $needLevels = [], ?int $idFilter = null): string {
   $params = [];
+  $programId = (int)($_GET['program_id'] ?? 0);
+  if ($programId > 0) {
+    $params['program_id'] = $programId;
+  }
   $cleanNeeds = [];
   foreach ($needs as $need) {
     $need = normalize_question_need((string)$need);
@@ -229,6 +332,8 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       COALESCE(NULLIF(q.knowledge_required_csv, ''), q.need, '') AS category_export,
       q.theme,
       q.level AS question_level,
+      q.need AS question_need,
+      q.package_id AS question_package_id,
       (
         SELECT qt.question_text
         FROM question_translations qt
@@ -523,6 +628,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Questions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -552,7 +658,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       </div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <a class="btn ghost" href="<?= h(questions_export_url($_GET)) ?>">Exporter CSV</a>
-        <a class="btn admin-primary-action-btn" href="/admin/import_questions.php">+ Importer</a>
+        <a class="btn admin-primary-action-btn" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">+ Importer</a>
       </div>
     </div>
     <form method="get" class="filters-grid users-filters admin-panel-surface" style="margin-bottom:8px;">
@@ -568,63 +674,72 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
       </div>
       <div class="filters-actions">
         <button class="btn" type="submit">Rechercher</button>
-        <a class="btn ghost" href="/admin/questions.php">Reset</a>
+        <a class="btn ghost" href="/admin/questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
       </div>
     </form>
 
-    <div class="distribution-wrap">
-      <p class="distribution-title">R&eacute;partition actuelle</p>
-      <div class="distribution-grid">
-        <?php foreach ($allNeeds as $n): ?>
-          <?php
-            $needActive = in_array($n, $activeNeeds, true);
-            $nextNeeds = $activeNeeds;
-            if ($needActive) {
-              $nextNeeds = array_values(array_filter($nextNeeds, static fn($v) => $v !== $n));
-            } else {
-              $nextNeeds[] = $n;
-            }
-            $nextNeedLevels = $activeNeedLevels;
-            if ($needActive) {
-              $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => strpos($pair, $n . ':') !== 0));
-            }
-            $needUrl = questions_filter_url($nextNeeds, $nextNeedLevels, $idFilter);
-          ?>
-          <div class="distribution-card distribution-card-clickable"
-               data-filter-need-url="<?= h($needUrl) ?>"
-               role="link"
-               tabindex="0"
-               aria-label="<?= h(($needActive ? 'Retirer' : 'Ajouter') . ' le filtre ' . $n) ?>">
-            <p class="distribution-need">
-              <a class="distribution-need-link <?= $needActive ? 'is-active' : '' ?>"
-                 href="<?= h($needUrl) ?>">
-                <?= h($n) ?>
-              </a>
-            </p>
-            <div class="distribution-levels">
-              <?php for ($i = 1; $i <= 3; $i++):
-                $c = $distribution[$n][$i] ?? 0;
-                $pairKey = $n . ':' . $i;
-                $levelActive = !empty($activeNeedLevelMap[$n][$i]);
-                $nextNeedLevels = $activeNeedLevels;
-                if ($levelActive) {
-                  $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => $pair !== $pairKey));
-                } else {
-                  $nextNeedLevels[] = $pairKey;
-                }
-                $nextNeedsForLevel = array_values(array_filter($activeNeeds, static fn($needName) => $needName !== $n));
-                $levelUrl = questions_filter_url($nextNeedsForLevel, $nextNeedLevels, $idFilter);
-              ?>
-                <a class="distribution-chip distribution-chip-link <?= $levelActive ? 'is-active' : '' ?>"
-                   href="<?= h($levelUrl) ?>">
-                  L<?= $i ?> <b><?= $c ?></b>
+    <?php if ($totalQuestions > 0): ?>
+      <div class="distribution-wrap">
+        <p class="distribution-title">R&eacute;partition actuelle</p>
+        <div class="distribution-grid">
+          <?php foreach ($allNeeds as $n): ?>
+            <?php
+              $visibleCount = 0;
+              for ($levelIndex = 1; $levelIndex <= 3; $levelIndex++) {
+                $visibleCount += (int)($distribution[$n][$levelIndex] ?? 0);
+              }
+              if ($visibleCount <= 0) {
+                continue;
+              }
+              $needActive = in_array($n, $activeNeeds, true);
+              $nextNeeds = $activeNeeds;
+              if ($needActive) {
+                $nextNeeds = array_values(array_filter($nextNeeds, static fn($v) => $v !== $n));
+              } else {
+                $nextNeeds[] = $n;
+              }
+              $nextNeedLevels = $activeNeedLevels;
+              if ($needActive) {
+                $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => strpos($pair, $n . ':') !== 0));
+              }
+              $needUrl = questions_filter_url($nextNeeds, $nextNeedLevels, $idFilter);
+            ?>
+            <div class="distribution-card distribution-card-clickable"
+                 data-filter-need-url="<?= h($needUrl) ?>"
+                 role="link"
+                 tabindex="0"
+                 aria-label="<?= h(($needActive ? 'Retirer' : 'Ajouter') . ' le filtre ' . $n) ?>">
+              <p class="distribution-need">
+                <a class="distribution-need-link <?= $needActive ? 'is-active' : '' ?>"
+                   href="<?= h($needUrl) ?>">
+                  <?= h($n) ?>
                 </a>
-              <?php endfor; ?>
+              </p>
+              <div class="distribution-levels">
+                <?php for ($i = 1; $i <= 3; $i++):
+                  $c = $distribution[$n][$i] ?? 0;
+                  $pairKey = $n . ':' . $i;
+                  $levelActive = !empty($activeNeedLevelMap[$n][$i]);
+                  $nextNeedLevels = $activeNeedLevels;
+                  if ($levelActive) {
+                    $nextNeedLevels = array_values(array_filter($nextNeedLevels, static fn($pair) => $pair !== $pairKey));
+                  } else {
+                    $nextNeedLevels[] = $pairKey;
+                  }
+                  $nextNeedsForLevel = array_values(array_filter($activeNeeds, static fn($needName) => $needName !== $n));
+                  $levelUrl = questions_filter_url($nextNeedsForLevel, $nextNeedLevels, $idFilter);
+                ?>
+                  <a class="distribution-chip distribution-chip-link <?= $levelActive ? 'is-active' : '' ?>"
+                     href="<?= h($levelUrl) ?>">
+                    L<?= $i ?> <b><?= $c ?></b>
+                  </a>
+                <?php endfor; ?>
+              </div>
             </div>
-          </div>
-        <?php endforeach; ?>
+          <?php endforeach; ?>
+        </div>
       </div>
-    </div>
+    <?php endif; ?>
     </section>
 
     <section class="admin-section-panel">
@@ -648,6 +763,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
               <th>Niveau</th>
               <th>Type</th>
               <th>Options</th>
+              <?php if ($activeProgramId > 0): ?><th class="question-pack-count-col">Pack</th><?php endif; ?>
               <th>&Eacute;nonc&eacute;</th>
               <th>Action</th>
             </tr>
@@ -667,19 +783,28 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                   } ?>
                 </td>
 	                <td><?= (int)$q['opt_count'] ?></td>
+                <?php if ($activeProgramId > 0): ?>
+                  <td class="question-pack-count-col">
+                    <?php $usedPackages = is_array($q['_used_packages'] ?? null) ? $q['_used_packages'] : []; ?>
+                    <?php $usedPackageCount = count($usedPackages); ?>
+                    <span class="pill <?= $usedPackageCount > 0 ? 'info' : 'warning' ?>">
+                      <?= (int)$usedPackageCount ?> pack<?= $usedPackageCount > 1 ? 's' : '' ?>
+                    </span>
+                  </td>
+                <?php endif; ?>
                 <td><?= h(mb_strimwidth((string)$q['text'], 0, 90, '...', 'UTF-8')) ?></td>
 	                <td class="actions-cell">
-	                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?>" aria-label="Modifier la question" title="Modifier la question">
+	                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/questions.php'))) ?>" aria-label="Modifier la question" title="Modifier la question">
 	                    <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                      <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
 	                    </svg>
 	                  </a>
-	                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/questions.php'))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+	                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/questions.php'))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
 	                    <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                      <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
 	                    </svg>
 	                  </a>
-	                  <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?>"
+	                  <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
 	                     aria-label="Supprimer cette question"
 	                     title="Supprimer"
 	                     onclick="return confirm('Supprimer cette question ?');">

@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+require_admin_area();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 $pdo = db();
+$adminUser = current_user() ?? ['role' => 'USER'];
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 $created = ((string)($_GET['created'] ?? '') === '1');
 $deleted = ((string)($_GET['deleted'] ?? '') === '1');
 $deleteError = trim((string)($_GET['delete_error'] ?? ''));
@@ -28,33 +30,56 @@ $hasDisplayOrderColumn = (bool)$pdo->query("
     AND TABLE_NAME = 'packages'
     AND COLUMN_NAME = 'display_order'
 ")->fetchColumn();
+$hasProgramIdColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'program_id'
+")->fetchColumn();
+$hasProgramPackageLinksTable = auth_table_exists($pdo, 'program_package_links');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ((string)($_POST['action'] ?? '') === 'move_pack')) {
   if (!$hasDisplayOrderColumn) {
-    header('Location: /admin/packages.php?reorder_error=' . urlencode("Colonne display_order indisponible."));
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'reorder_error=' . urlencode("Colonne display_order indisponible."));
     exit;
   }
 
   $moveId = (int)($_POST['id'] ?? 0);
   $direction = strtolower(trim((string)($_POST['direction'] ?? '')));
   if ($moveId <= 0 || !in_array($direction, ['up', 'down'], true)) {
-    header('Location: /admin/packages.php?reorder_error=' . urlencode("Demande de tri invalide."));
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'reorder_error=' . urlencode("Demande de tri invalide."));
     exit;
   }
 
-  $ids = array_map(
-    static fn(array $row): int => (int)$row['id'],
-    $pdo->query("SELECT id FROM packages ORDER BY display_order ASC, id ASC")->fetchAll()
-  );
+  if ($hasProgramPackageLinksTable && $activeProgramId > 0) {
+    $idsStmt = $pdo->prepare("
+      SELECT pk.id
+      FROM packages pk
+      JOIN program_package_links ppl ON ppl.package_id = pk.id
+      WHERE ppl.program_id = ?
+      ORDER BY pk.display_order ASC, pk.id ASC
+    ");
+    $idsStmt->execute([$activeProgramId]);
+    $ids = array_map(static fn(array $row): int => (int)$row['id'], $idsStmt->fetchAll() ?: []);
+  } else {
+    $reorderWhere = ($hasProgramIdColumn && $activeProgramId > 0)
+      ? ('WHERE program_id = ' . (int)$activeProgramId)
+      : '';
+    $ids = array_map(
+      static fn(array $row): int => (int)$row['id'],
+      $pdo->query("SELECT id FROM packages $reorderWhere ORDER BY display_order ASC, id ASC")->fetchAll()
+    );
+  }
   $index = array_search($moveId, $ids, true);
   if ($index === false) {
-    header('Location: /admin/packages.php?reorder_error=' . urlencode("Pack introuvable."));
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'reorder_error=' . urlencode("Pack introuvable."));
     exit;
   }
 
   $target = ($direction === 'up') ? ($index - 1) : ($index + 1);
   if ($target < 0 || $target >= count($ids)) {
-    header('Location: /admin/packages.php');
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : ''));
     exit;
   }
 
@@ -66,13 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ((string)($_POST['action'] ?? '') =
       $up->execute([($pos + 1) * 10, (int)$id]);
     }
     $pdo->commit();
-    header('Location: /admin/packages.php?reordered=1');
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'reordered=1');
     exit;
   } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
       $pdo->rollBack();
     }
-    header('Location: /admin/packages.php?reorder_error=' . urlencode("Impossible de changer l'ordre des packs."));
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'reorder_error=' . urlencode("Impossible de changer l'ordre des packs."));
     exit;
   }
 }
@@ -80,30 +105,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ((string)($_POST['action'] ?? '') =
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ((string)($_POST['action'] ?? '') === 'toggle_active')) {
   $toggleId = (int)($_POST['id'] ?? 0);
   if ($toggleId <= 0) {
-    header('Location: /admin/packages.php?toggle_error=' . urlencode("Pack invalide."));
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'toggle_error=' . urlencode("Pack invalide."));
     exit;
   }
 
-  $toggleStmt = $pdo->prepare("
-    UPDATE packages
-    SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END
-    WHERE id = ?
-  ");
-
   try {
-    $toggleStmt->execute([$toggleId]);
-    header('Location: /admin/packages.php?toggled=1');
+    if ($hasProgramPackageLinksTable && $activeProgramId > 0) {
+      $toggleStmt = $pdo->prepare("
+        UPDATE program_package_links
+        SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END
+        WHERE program_id = ?
+          AND package_id = ?
+      ");
+      $toggleStmt->execute([$activeProgramId, $toggleId]);
+    } else {
+      $toggleStmt = $pdo->prepare("
+        UPDATE packages
+        SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END
+        WHERE id = ?
+      ");
+      $toggleStmt->execute([$toggleId]);
+    }
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'toggled=1');
     exit;
   } catch (Throwable $e) {
-    header('Location: /admin/packages.php?toggle_error=' . urlencode("Impossible de changer le statut du pack."));
+    header('Location: /admin/packages.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId . '&' : '?') . 'toggle_error=' . urlencode("Impossible de changer le statut du pack."));
     exit;
   }
 }
 
+$packagesFromSql = "FROM packages pk";
+if ($hasProgramPackageLinksTable && $activeProgramId > 0) {
+  $packagesFromSql .= " JOIN program_package_links ppl ON ppl.package_id = pk.id AND ppl.program_id = " . (int)$activeProgramId;
+} elseif ($hasProgramIdColumn && $activeProgramId > 0) {
+  $packagesFromSql .= " WHERE pk.program_id = " . (int)$activeProgramId;
+}
 $packagesOrderSql = $hasDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id ASC";
-$packages = $pdo->query("SELECT * FROM packages $packagesOrderSql")->fetchAll();
+$packagesSelectSql = "SELECT pk.*";
+if ($hasProgramPackageLinksTable && $activeProgramId > 0) {
+  $packagesSelectSql .= ", ppl.is_active AS program_link_is_active";
+}
+$packages = $pdo->query("$packagesSelectSql $packagesFromSql $packagesOrderSql")->fetchAll();
 
 $counts = [];
+$questionScopeWhere = ($activeProgramId > 0 && auth_program_question_links_enabled($pdo))
+  ? (" AND " . auth_program_question_scope_sql($pdo, $activeProgramId, 'q'))
+  : "";
 $cntStmt = $pdo->query("
   SELECT q.need, q.level, COUNT(*) c
   FROM questions q
@@ -114,6 +161,7 @@ $cntStmt = $pdo->query("
     GROUP BY qo.question_id
     HAVING COUNT(*) >= 2
   )
+  $questionScopeWhere
   GROUP BY q.need, q.level
 ");
 foreach ($cntStmt->fetchAll() as $r) {
@@ -124,10 +172,14 @@ foreach ($cntStmt->fetchAll() as $r) {
   $counts[$need][(int)$r['level']] = (int)$r['c'];
 }
 
+$legacyQuestionScopeWhere = ($activeProgramId > 0 && auth_program_question_links_enabled($pdo))
+  ? (" AND " . auth_program_question_scope_sql($pdo, $activeProgramId, 'questions'))
+  : "";
 $legacyStmt = $pdo->query("
   SELECT package_id, COUNT(*) c
   FROM questions
   WHERE package_id IS NOT NULL
+  $legacyQuestionScopeWhere
   GROUP BY package_id
 ");
 $legacyCounts = [];
@@ -204,6 +256,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Packs</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -253,7 +306,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
           <h3 class="h1" style="margin:0;">Gestion des packs</h3>
           <p class="sub" style="margin:6px 0 0;">Cr&eacute;ation, ordre d'affichage, activation et disponibilit&eacute; des packs.</p>
         </div>
-        <a class="btn admin-primary-action-btn" href="/admin/pack_create.php">+ Cr&eacute;er un pack</a>
+        <a class="btn admin-primary-action-btn" href="/admin/pack_create.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">+ Cr&eacute;er un pack</a>
       </div>
       </section>
 
@@ -318,7 +371,9 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                 <td><?= (int)$pk['duration_limit_minutes'] ?></td>
                 <td><?= (int)$pk['selection_count'] ?></td>
                 <td>
-                  <?php $isActive = ((int)($pk['is_active'] ?? 1) === 1); ?>
+                  <?php $isActive = ($hasProgramPackageLinksTable && $activeProgramId > 0)
+                    ? ((int)($pk['program_link_is_active'] ?? 1) === 1)
+                    : ((int)($pk['is_active'] ?? 1) === 1); ?>
                   <span class="pill <?= $isActive ? 'success' : 'warning' ?>">
                     <?= $isActive ? 'Actif' : 'Inactif' ?>
                   </span>
@@ -329,7 +384,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                   </span>
                 </td>
                 <td class="actions-cell">
-                  <a class="btn ghost icon-btn" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?>" aria-label="Modifier ce pack" title="Modifier ce pack">
+                  <a class="btn ghost icon-btn" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>" aria-label="Modifier ce pack" title="Modifier ce pack">
                     <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                     </svg>
@@ -344,7 +399,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                     </button>
                   </form>
                   <a class="btn ghost icon-btn danger"
-                     href="/admin/package_delete.php?id=<?= (int)$pk['id'] ?>"
+                     href="/admin/package_delete.php?id=<?= (int)$pk['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
                      aria-label="Supprimer ce pack"
                      title="Supprimer"
                      onclick="return confirm('Supprimer ce pack ? Cette action est irreversible et supprimera les donnees liees.');">

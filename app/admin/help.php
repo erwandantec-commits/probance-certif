@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/_auth.php';
+require_team_reporting();
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/_nav.php';
 
@@ -158,6 +159,7 @@ $guideHtml = app_markdown_to_html($guideMarkdown);
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Documentation</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">

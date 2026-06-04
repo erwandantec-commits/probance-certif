@@ -26,7 +26,7 @@ CREATE TABLE users (
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(190) NULL,
-  role ENUM('USER','ADMIN') NOT NULL DEFAULT 'USER',
+  role ENUM('USER','OWNER','ADMIN') NOT NULL DEFAULT 'USER',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -100,7 +100,7 @@ CREATE TABLE questions (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-  UNIQUE KEY uq_questions_external_id (external_id),
+  KEY idx_questions_external_id (external_id),
 
   CONSTRAINT fk_questions_package
     FOREIGN KEY (package_id) REFERENCES packages(id)

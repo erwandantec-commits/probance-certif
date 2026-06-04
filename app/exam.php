@@ -12,8 +12,6 @@ header('Expires: 0');
 
 $pdo = db();
 $lang = get_lang();
-$viewer = current_user();
-$isAdminViewer = ($viewer && (($viewer['role'] ?? 'USER') === 'ADMIN'));
 
 $sid = $_GET['sid'] ?? '';
 $p = (int)($_GET['p'] ?? 1);
@@ -193,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
   $navigationOnlyFromFeedback =
     $showFeedback &&
-    (isset($_POST['next']) || (($isTraining || $isAdminViewer) && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
+    (isset($_POST['next']) || ($isTraining && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
   $mustAnswerValidationError = false;
 
   if ($isTraining && isset($_POST['check'])) {
@@ -291,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     refresh_active_session_score($pdo, $sid);
   }
 
-  if (($isTraining || $isAdminViewer) && isset($_POST['pause'])) {
+  if ($isTraining && isset($_POST['pause'])) {
     if ($hasPausedRemaining) {
       $savePause = $pdo->prepare("
         UPDATE sessions
@@ -340,6 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Exam</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -448,7 +447,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </button>
             <?php endif; ?>
           <?php endif; ?>
-          <?php if ($isTraining || $isAdminViewer): ?>
+          <?php if ($isTraining): ?>
 	        <button class="btn ghost" type="submit" name="pause" value="1" formnovalidate><?= h(t('exam.pause', [], $lang)) ?></button>
           <?php endif; ?>
 
@@ -465,7 +464,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </button>
 	      </div>
 
-      <p class="small" style="margin-top:12px;"><?= h(t('exam.score_hint', [], $lang)) ?></p>
     </form>
   </div>
 </div>

@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html>
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <link rel="stylesheet" href="/assets/style.css">
   <script src="/assets/theme-toggle.js?v=1"></script>

@@ -26,9 +26,31 @@ if (!function_exists('config_app_version_value')) {
   }
 }
 
+if (!function_exists('config_running_in_container')) {
+  function config_running_in_container(): bool
+  {
+    return is_file('/.dockerenv');
+  }
+}
+
+if (!function_exists('config_default_db_host')) {
+  function config_default_db_host(): string
+  {
+    return config_running_in_container() ? 'db' : '127.0.0.1';
+  }
+}
+
+if (!function_exists('config_default_db_port')) {
+  function config_default_db_port(): string
+  {
+    return config_running_in_container() ? '3306' : '3307';
+  }
+}
+
 define('APP_VERSION', config_env_value('APP_VERSION', config_app_version_value()));
 define('APP_BASE_URL', rtrim(config_env_value('APP_BASE_URL', 'http://localhost:8080'), '/'));
-define('DB_HOST', config_env_value('DB_HOST', 'db'));
+define('DB_HOST', config_env_value('DB_HOST', config_default_db_host()));
+define('DB_PORT', (int)config_env_value('DB_PORT', config_default_db_port()));
 define('DB_NAME', config_env_value('DB_NAME', 'certif'));
 define('DB_USER', config_env_value('DB_USER', 'certif_user'));
 define('DB_PASS', config_env_value('DB_PASS', 'certif_pass'));

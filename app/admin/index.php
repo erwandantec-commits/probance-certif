@@ -1,11 +1,20 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+require_team_reporting();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 $pdo = db();
+$adminUser = current_user() ?? ['role' => 'USER'];
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+$hasProgramIdColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'program_id'
+")->fetchColumn();
 
 // Filtres (GET)
 $type   = strtoupper(trim($_GET['type'] ?? 'ALL'));
@@ -32,7 +41,10 @@ $allowedStatus = ['ALL', 'ACTIVE', 'TERMINATED', 'EXPIRED'];
 if (!in_array($type, $allowedTypes, true)) $type = 'ALL';
 if (!in_array($status, $allowedStatus, true)) $status = 'ALL';
 
-$packagesStmt = $pdo->query("SELECT id, name FROM packages ORDER BY name ASC");
+$packagesWhere = ($activeProgramId > 0)
+  ? ('WHERE ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
+$packagesStmt = $pdo->query("SELECT pk.id, pk.name FROM packages pk $packagesWhere ORDER BY pk.name ASC");
 $packages = $packagesStmt->fetchAll() ?: [];
 $packageIds = array_map(fn($pkg) => (string)$pkg['id'], $packages);
 if ($package !== 'ALL' && !in_array($package, $packageIds, true)) {
@@ -56,6 +68,9 @@ function admin_session_has_result(array $session): bool {
 // Construction WHERE + params
 $where = [];
 $params = [];
+if ($activeProgramId > 0) {
+  $where[] = auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false);
+}
 
 if ($type !== 'ALL') {
   $where[] = "s.session_type = ?";
@@ -89,6 +104,7 @@ $countSql = "
   SELECT COUNT(*)
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
+  JOIN packages pk ON pk.id = s.package_id
   $whereSql
 ";
 $countStmt = $pdo->prepare($countSql);
@@ -185,19 +201,25 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 }
 
 /* B - dashboard admin (stats) */
+$statsWhere = $activeProgramId > 0
+  ? ('WHERE ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
 $stats = $pdo->query("
   SELECT
-    SUM(status='ACTIVE') AS active_count,
-    SUM(status='TERMINATED') AS terminated_count,
-    SUM(status='EXPIRED') AS expired_count,
-    SUM(passed=1 AND status='TERMINATED' AND session_type='EXAM') AS passed_exam_count
-  FROM sessions
+    SUM(s.status='ACTIVE') AS active_count,
+    SUM(s.status='TERMINATED') AS terminated_count,
+    SUM(s.status='EXPIRED') AS expired_count,
+    SUM(s.passed=1 AND s.status='TERMINATED' AND s.session_type='EXAM') AS passed_exam_count
+  FROM sessions s
+  JOIN packages pk ON pk.id = s.package_id
+  $statsWhere
 ")->fetch();
 
 ?>
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Sessions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -294,7 +316,7 @@ $stats = $pdo->query("
 
       <div class="filters-actions">
           <button class="btn" type="submit">Filtrer</button>
-          <a class="btn ghost" href="/admin/index.php">Reset</a>
+          <a class="btn ghost" href="/admin/index.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
           <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
         </div>
       </form>
@@ -372,7 +394,7 @@ $stats = $pdo->query("
 	                  <td><?= h($s['started_at']) ?></td>
                     <td><?= $s['status'] === 'ACTIVE' ? '-' : h((string)($s['submitted_at'] ?? '-')) ?></td>
 	                  <td>
-	                    <a href="/admin/contact.php?email=<?= urlencode($s['email']) ?>">
+	                    <a href="/admin/contact.php?email=<?= urlencode($s['email']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>">
                       <?= h($s['email']) ?>
                     </a>
                   </td>
@@ -401,7 +423,7 @@ $stats = $pdo->query("
                     <?php endif; ?>
                   </td>
                   <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?>" aria-label="Voir le detail" title="Voir le detail">
+                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/index.php'))) ?>" aria-label="Voir le detail" title="Voir le detail">
                       <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                       </svg>

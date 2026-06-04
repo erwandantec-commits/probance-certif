@@ -1,11 +1,14 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+require_admin_area();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
+require_once __DIR__ . '/../auth.php';
 $pdo = db();
+$adminUser = current_user() ?? ['role' => 'USER'];
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 
 function pack_create_rule_templates(): array {
   return [
@@ -185,19 +188,83 @@ function pack_create_badge_file_options(): array {
   return array_values(array_unique($out));
 }
 
-function pack_create_known_needs(PDO $pdo): array {
-  $needs = [];
-  foreach (array_keys(pack_create_rule_templates()) as $templateName) {
-    $needs[normalize_question_need($templateName)] = true;
+function pack_create_program_question_scope_sql(PDO $pdo, int $activeProgramId): string {
+  if ($activeProgramId <= 0 || !auth_table_exists($pdo, 'program_question_links')) {
+    return '';
   }
 
-  $st = $pdo->query("
-    SELECT DISTINCT TRIM(need) AS need_name
-    FROM questions
-    WHERE need IS NOT NULL AND TRIM(need) <> ''
+  return "EXISTS (
+    SELECT 1
+    FROM program_question_links pql
+    WHERE pql.question_id = q.id
+      AND pql.program_id = " . (int)$activeProgramId . "
+  )";
+}
+
+function pack_create_rule_templates_for_program(PDO $pdo, int $activeProgramId, array $ruleTemplates): array {
+  if ($activeProgramId <= 0) {
+    return $ruleTemplates;
+  }
+
+  if (auth_program_package_links_enabled($pdo)) {
+    $stmt = $pdo->prepare("
+      SELECT UPPER(TRIM(pk.name)) AS package_name
+      FROM packages pk
+      JOIN program_package_links ppl ON ppl.package_id = pk.id
+      WHERE ppl.program_id = ?
+    ");
+    $stmt->execute([$activeProgramId]);
+  } elseif (auth_column_exists($pdo, 'packages', 'program_id')) {
+    $stmt = $pdo->prepare("
+      SELECT UPPER(TRIM(name)) AS package_name
+      FROM packages
+      WHERE program_id = ?
+    ");
+    $stmt->execute([$activeProgramId]);
+  } else {
+    return $ruleTemplates;
+  }
+
+  $allowedNames = [];
+  foreach (($stmt ? $stmt->fetchAll() : []) as $row) {
+    $name = (string)($row['package_name'] ?? '');
+    if ($name !== '') {
+      $allowedNames[$name] = true;
+    }
+  }
+
+  return array_intersect_key($ruleTemplates, $allowedNames);
+}
+
+function pack_create_known_needs(PDO $pdo, array $ruleTemplates, int $activeProgramId = 0): array {
+  $seedNeeds = [];
+  foreach ($ruleTemplates as $template) {
+    foreach (($template['buckets'] ?? []) as $bucket) {
+      $seedNeeds[] = (string)($bucket['need'] ?? '');
+    }
+  }
+
+  $programQuestionScopeSql = pack_create_program_question_scope_sql($pdo, $activeProgramId);
+  if ($programQuestionScopeSql === '') {
+    return question_known_needs($pdo, $seedNeeds);
+  }
+
+  $needs = [];
+  foreach ($seedNeeds as $need) {
+    $need = normalize_question_need((string)$need);
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+  $stmt = $pdo->query("
+    SELECT DISTINCT TRIM(q.need) AS need_name
+    FROM questions q
+    WHERE q.need IS NOT NULL
+      AND TRIM(q.need) <> ''
+      AND $programQuestionScopeSql
     ORDER BY need_name ASC
   ");
-  foreach (($st ? $st->fetchAll() : []) as $row) {
+  foreach (($stmt ? $stmt->fetchAll() : []) as $row) {
     $need = normalize_question_need((string)($row['need_name'] ?? ''));
     if ($need !== '') {
       $needs[$need] = true;
@@ -207,8 +274,10 @@ function pack_create_known_needs(PDO $pdo): array {
   return array_keys($needs);
 }
 
-function pack_create_available_question_counts(PDO $pdo): array {
+function pack_create_available_question_counts(PDO $pdo, int $activeProgramId = 0): array {
   $counts = [];
+  $programQuestionScopeSql = pack_create_program_question_scope_sql($pdo, $activeProgramId);
+  $programWhereSql = $programQuestionScopeSql !== '' ? "AND $programQuestionScopeSql" : "";
   $st = $pdo->query("
     SELECT q.need, q.level, COUNT(*) c
     FROM questions q
@@ -219,6 +288,7 @@ function pack_create_available_question_counts(PDO $pdo): array {
       GROUP BY qo.question_id
       HAVING COUNT(*) >= 2
     )
+    $programWhereSql
     GROUP BY q.need, q.level
   ");
   foreach (($st ? $st->fetchAll() : []) as $row) {
@@ -249,8 +319,10 @@ $badgeImageFilename = 'user-badge-blue.png';
 $isActive = 1;
 $nameColorHex = '#334155';
 $ruleTemplates = pack_create_rule_templates();
-$knownNeeds = pack_create_known_needs($pdo);
-$availableQuestionCounts = pack_create_available_question_counts($pdo);
+$ruleTemplates = pack_create_rule_templates_for_program($pdo, $activeProgramId, $ruleTemplates);
+$knownNeeds = pack_create_known_needs($pdo, $ruleTemplates, $activeProgramId);
+$defaultNeed = question_default_need($knownNeeds);
+$availableQuestionCounts = pack_create_available_question_counts($pdo, $activeProgramId);
 $selectedTemplate = '';
 $ruleRows = [];
 
@@ -310,6 +382,14 @@ $hasFailedCooldownDaysColumn = (bool)$pdo->query("
     AND TABLE_NAME = 'packages'
     AND COLUMN_NAME = 'failed_cooldown_days'
 ")->fetchColumn();
+$hasProgramIdColumn = (bool)$pdo->query("
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'packages'
+    AND COLUMN_NAME = 'program_id'
+")->fetchColumn();
+$hasProgramPackageLinksTable = auth_table_exists($pdo, 'program_package_links');
 $badgeImageOptions = pack_create_badge_file_options();
 if ($hasDisplayOrderColumn) {
   $nextDisplayOrder = (int)$pdo->query("SELECT COALESCE(MAX(display_order), 0) + 10 FROM packages")->fetchColumn();
@@ -452,6 +532,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif (
     $hasRulesColumn
     && !empty($ruleRows)
+    && array_diff(
+      array_map(static fn(array $row): string => normalize_question_need((string)($row['need'] ?? '')), $ruleRows),
+      $knownNeeds
+    )
+  ) {
+    $error = 'Categorie indisponible dans ce programme.';
+  } elseif (
+    $hasRulesColumn
+    && !empty($ruleRows)
     && ($ruleError = pack_create_validate_rule_rows($ruleRows, $count)) !== ''
   ) {
     $error = $ruleError;
@@ -484,6 +573,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $columns[] = 'failed_cooldown_days';
           $values[] = $failedCooldownDays;
         }
+        if ($hasProgramIdColumn) {
+          $columns[] = 'program_id';
+          $values[] = $activeProgramId;
+        }
         if ($hasAntiRepeatSessionsColumn) {
           $columns[] = 'anti_repeat_sessions';
           $values[] = 1;
@@ -514,9 +607,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           VALUES($placeholders)
         ");
         $ins->execute($values);
+        $newPackageId = (int)$pdo->lastInsertId();
+        if ($hasProgramPackageLinksTable && $activeProgramId > 0 && $newPackageId > 0) {
+          $linkStmt = $pdo->prepare("
+            INSERT IGNORE INTO program_package_links(program_id, package_id, is_active)
+            VALUES(?, ?, 1)
+          ");
+          $linkStmt->execute([$activeProgramId, $newPackageId]);
+        }
       }
       if ($error === '') {
-        header('Location: /admin/packages.php?created=1');
+        $redirect = '/admin/packages.php?created=1';
+        if ($activeProgramId > 0) {
+          $redirect .= '&program_id=' . (int)$activeProgramId;
+        }
+        header('Location: ' . $redirect);
         exit;
       }
     }
@@ -526,6 +631,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Cr&eacute;er un pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -625,7 +731,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <div class="badge-picker-field">
                     <label class="label">Image du badge</label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($badgeImageFilename) ?>">
-                    <?php $libraryReturn = '/admin/pack_create.php'; ?>
+                    <?php $libraryReturn = '/admin/pack_create.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : ''); ?>
                     <a
                       id="pack-create-badge-picker"
                       class="badge-current-link"
@@ -754,7 +860,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="users-create-actions">
           <button class="btn" type="submit">Cr&eacute;er le pack</button>
-          <a class="btn ghost" href="/admin/packages.php">Annuler</a>
+          <a class="btn ghost" href="/admin/packages.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Annuler</a>
         </div>
       </form>
     </div>
@@ -961,7 +1067,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     function buildRowHtml(data) {
-      var need = String(data.need || 'PONE');
+      var need = String(data.need || <?= json_encode($defaultNeed, JSON_UNESCAPED_UNICODE) ?>);
       var targetTotal = data.target_total || 0;
       var levels = Array.isArray(data.levels) ? data.levels : [1];
       var hasL1 = levels.indexOf(1) !== -1;
@@ -1137,7 +1243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (addRowBtn) {
       addRowBtn.addEventListener('click', function () {
-        addRuleRow({ need: 'PONE', levels: [1], target_total: 0 });
+        addRuleRow({ need: <?= json_encode($defaultNeed, JSON_UNESCAPED_UNICODE) ?>, levels: [1], target_total: 0 });
       });
     }
 

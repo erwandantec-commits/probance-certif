@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $pdo = db();
 $package_id = (int)($_POST['package_id'] ?? 0);
+$requestedProgramId = (int)($_POST['program_id'] ?? 0);
 $cooldownOverrideId = 0;
 $session_type = strtoupper(trim((string)($_POST['session_type'] ?? 'EXAM')));
 if (!in_array($session_type, ['EXAM', 'TRAINING'], true)) {
@@ -28,6 +29,11 @@ if ($package_id <= 0) {
   exit;
 }
 
+if (!auth_user_can_access_package($pdo, $user, $package_id)) {
+  header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.package_not_found'));
+  exit;
+}
+
 $stmt = $pdo->prepare("SELECT * FROM packages WHERE id=? AND is_active=1");
 $stmt->execute([$package_id]);
 $pkg = $stmt->fetch();
@@ -36,6 +42,13 @@ if (!$pkg) {
   header("Location: /dashboard.php?lang=" . urlencode($lang) . "&err_key=" . urlencode('start.err.package_not_found'));
   exit;
 }
+
+$packageProgramIds = auth_package_program_ids($pdo, $package_id, true);
+$activeProgramId = $requestedProgramId > 0 ? auth_candidate_program_context($pdo, $user, $requestedProgramId) : auth_candidate_program_context($pdo, $user);
+if ($packageProgramIds && !in_array($activeProgramId, $packageProgramIds, true)) {
+  $activeProgramId = (int)$packageProgramIds[0];
+}
+$programSourceLang = package_program_source_lang($pdo, $package_id, $activeProgramId);
 
 if ($session_type === 'EXAM') {
   if (table_exists($pdo, 'exam_cooldown_overrides')) {
@@ -153,10 +166,10 @@ if (($selection['error_key'] ?? null) !== null) {
   exit;
 }
 
-if (question_translation_normalize_lang($lang) !== 'fr') {
+if (question_translation_normalize_lang($lang) !== $programSourceLang) {
   $blockingMissing = [];
   foreach ($qids as $questionId) {
-    $translationStatus = question_translation_status($pdo, (int)$questionId, $lang);
+    $translationStatus = question_translation_status($pdo, (int)$questionId, $lang, $programSourceLang);
     if ($translationStatus !== 'complete') {
       $blockingMissing[] = (int)$questionId;
     }

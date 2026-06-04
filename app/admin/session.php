@@ -1,12 +1,13 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+$adminUser = require_team_reporting();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
 $pdo = db();
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 
 function admin_session_safe_return(?string $candidate): string {
   $fallback = '/admin/index.php';
@@ -26,7 +27,13 @@ function admin_session_safe_return(?string $candidate): string {
 $sid = $_GET['sid'] ?? '';
 if (!$sid) { http_response_code(400); echo "Missing sid"; exit; }
 $returnTo = admin_session_safe_return((string)($_GET['return'] ?? ''));
+if ($activeProgramId > 0 && strpos($returnTo, 'program_id=') === false) {
+  $returnTo .= (str_contains($returnTo, '?') ? '&' : '?') . 'program_id=' . $activeProgramId;
+}
 $sessionSelfUrl = '/admin/session.php?sid=' . urlencode((string)$sid);
+if ($activeProgramId > 0) {
+  $sessionSelfUrl .= '&program_id=' . (int)$activeProgramId;
+}
 if ($returnTo !== '/admin/index.php') {
   $sessionSelfUrl .= '&return=' . urlencode($returnTo);
 }
@@ -37,6 +44,7 @@ $stmt = $pdo->prepare("
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.id=?
+    " . ($activeProgramId > 0 ? "AND " . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false) : "") . "
 ");
 $stmt->execute([$sid]);
 $s = $stmt->fetch();
@@ -147,6 +155,7 @@ $statusClass = match ((string)$s['status']) {
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Detail session</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -244,12 +253,12 @@ $statusClass = match ((string)$s['status']) {
                   </td>
                   <td class="actions-cell admin-session-actions">
                     <?php if (!empty($it['question_id'])): ?>
-                      <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$it['question_id'] ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Modifier la question" title="Modifier la question">
+                      <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$it['question_id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Modifier la question" title="Modifier la question">
                         <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                           <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                         </svg>
                       </a>
-                      <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$it['question_id'] ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+                      <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$it['question_id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($sessionSelfUrl)) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
                         <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                           <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
                         </svg>

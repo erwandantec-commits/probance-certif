@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       'id' => (int)$u['id'],
       'email' => $u['email'],
       'name' => $u['name'],
-      'role' => $u['role'],
+      'role' => normalize_user_role((string)($u['role'] ?? 'USER')),
     ];
     header("Location: /dashboard.php?lang=" . urlencode($lang));
     exit;
@@ -41,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title><?= h(t('login.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">

@@ -295,6 +295,7 @@ if ($canShowReview) {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title><?= h(t('result.title', [], $lang)) ?></title>
   <link rel="stylesheet" href="/assets/style.css?v=9">

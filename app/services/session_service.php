@@ -226,6 +226,58 @@ function compute_package_selection_target(array $pkg, int $eligibleCount): int {
   return $count;
 }
 
+function session_package_program_ids(PDO $pdo, int $packageId): array {
+  if ($packageId <= 0) {
+    return [];
+  }
+
+  if (function_exists('auth_package_program_ids')) {
+    return auth_package_program_ids($pdo, $packageId, true);
+  }
+
+  if (table_exists($pdo, 'program_package_links')) {
+    $st = $pdo->prepare("
+      SELECT program_id
+      FROM program_package_links
+      WHERE package_id = ?
+        AND is_active = 1
+      ORDER BY program_id ASC
+    ");
+    $st->execute([$packageId]);
+    return array_values(array_filter(array_map(static fn($value): int => (int)$value, $st->fetchAll(PDO::FETCH_COLUMN) ?: []), static fn(int $value): bool => $value > 0));
+  }
+
+  if (table_column_exists($pdo, 'packages', 'program_id')) {
+    $st = $pdo->prepare("SELECT program_id FROM packages WHERE id = ? LIMIT 1");
+    $st->execute([$packageId]);
+    $programId = (int)($st->fetchColumn() ?: 0);
+    return $programId > 0 ? [$programId] : [];
+  }
+
+  return [];
+}
+
+function session_question_program_scope(PDO $pdo, int $packageId, string $questionAlias = 'q'): array {
+  $questionAlias = preg_replace('/[^a-zA-Z0-9_]/', '', $questionAlias) ?: 'q';
+  if (table_exists($pdo, 'program_question_links')) {
+    $programIds = session_package_program_ids($pdo, $packageId);
+    if ($programIds) {
+      $placeholders = implode(',', array_fill(0, count($programIds), '?'));
+      return [
+        "EXISTS (
+          SELECT 1
+          FROM program_question_links pql_session_scope
+          WHERE pql_session_scope.question_id = {$questionAlias}.id
+            AND pql_session_scope.program_id IN ($placeholders)
+        )",
+        $programIds,
+      ];
+    }
+  }
+
+  return ["{$questionAlias}.package_id = ?", [$packageId]];
+}
+
 function recent_question_ids_for_user_package(PDO $pdo, int $userId, int $packageId, int $sessionLimit = 4): array {
   if ($userId <= 0 || $packageId <= 0 || $sessionLimit < 1) {
     return [];
@@ -342,6 +394,7 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
 
   $hasNeed = table_column_exists($pdo, 'questions', 'need');
   $hasLevel = table_column_exists($pdo, 'questions', 'level');
+  [$questionScopeSql, $questionScopeParams] = session_question_program_scope($pdo, $packageId, 'q');
   $antiRepeatSessions = 1;
   $recentExcludedQids = $antiRepeatSessions > 0
     ? recent_question_ids_for_user_package($pdo, $userId, $packageId, $antiRepeatSessions)
@@ -404,8 +457,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
           JOIN question_options qo ON qo.question_id = q.id
           WHERE q.need = ?
             AND q.level IN ($inLevels)
+            AND $questionScopeSql
         ";
-        $params = array_merge([$need], $levels);
+        $params = array_merge([$need], $levels, $questionScopeParams);
 
         $excludedNow = array_values(array_unique(array_merge($qids, $recentExcludedQids)));
         if (!empty($excludedNow)) {
@@ -436,8 +490,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
             JOIN question_options qo ON qo.question_id = q.id
             WHERE q.need = ?
               AND q.level IN ($inLevels)
+              AND $questionScopeSql
           ";
-          $paramsFill = array_merge([$need], $levels);
+          $paramsFill = array_merge([$need], $levels, $questionScopeParams);
           if (!empty($qids)) {
             $inExcludeFill = implode(',', array_fill(0, count($qids), '?'));
             $sqlFill .= " AND q.id NOT IN ($inExcludeFill)";
@@ -475,9 +530,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
     SELECT q.id
     FROM questions q
     JOIN question_options qo ON qo.question_id = q.id
-    WHERE q.package_id = ?
+    WHERE $questionScopeSql
   ";
-  $params = [$packageId];
+  $params = $questionScopeParams;
   if (!empty($recentExcludedQids)) {
     $inExclude = implode(',', array_fill(0, count($recentExcludedQids), '?'));
     $sql .= " AND q.id NOT IN ($inExclude)";
@@ -499,9 +554,9 @@ function select_questions_for_package(PDO $pdo, array $pkg, int $userId = 0): ar
       SELECT q.id
       FROM questions q
       JOIN question_options qo ON qo.question_id = q.id
-      WHERE q.package_id = ?
+      WHERE $questionScopeSql
     ";
-    $paramsFill = [$packageId];
+    $paramsFill = $questionScopeParams;
     if (!empty($qids)) {
       $inExcludeFill = implode(',', array_fill(0, count($qids), '?'));
       $sqlFill .= " AND q.id NOT IN ($inExcludeFill)";

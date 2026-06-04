@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/_auth.php';
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 require_once __DIR__ . '/../utils.php';
 
@@ -22,25 +23,29 @@ function admin_question_edit_safe_return(?string $candidate): string {
   return $candidate;
 }
 
-function admin_question_edit_known_needs(PDO $pdo): array {
-  $needs = [];
-  $st = $pdo->query("
-    SELECT DISTINCT TRIM(need) AS need_name
-    FROM questions
-    WHERE need IS NOT NULL AND TRIM(need) <> ''
-    ORDER BY need_name ASC
-  ");
-  foreach (($st ? $st->fetchAll() : []) as $row) {
-    $need = normalize_question_need((string)($row['need_name'] ?? ''));
-    if ($need !== '') {
-      $needs[$need] = true;
-    }
+function admin_question_edit_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
   }
-  return array_keys($needs);
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
 }
 
 $id = (int)($_GET['id'] ?? 0);
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 $returnTo = admin_question_edit_safe_return((string)($_GET['return'] ?? ''));
+if ($activeProgramId > 0 && strpos($returnTo, 'program_id=') === false) {
+  $returnTo .= (str_contains($returnTo, '?') ? '&' : '?') . 'program_id=' . $activeProgramId;
+}
 
 if ($id <= 0) {
   http_response_code(403);
@@ -50,8 +55,10 @@ if ($id <= 0) {
 
 $question = [
   'id' => 0,
+  'external_id' => null,
   'text' => '',
-  'need' => 'PONE',
+  'need' => '',
+  'theme' => '',
   'level' => 1,
   'question_type' => 'MULTI',
   'allow_skip' => 0,
@@ -60,7 +67,7 @@ $question = [
 
 $optionsByLabel = [];
 
-$st = $pdo->prepare("SELECT id, text, need, level, question_type, allow_skip, explanation FROM questions WHERE id=?");
+$st = $pdo->prepare("SELECT id, external_id, text, need, theme, level, question_type, allow_skip, explanation FROM questions WHERE id=?");
 $st->execute([$id]);
 $q = $st->fetch();
 if (!$q) {
@@ -71,13 +78,35 @@ if (!$q) {
 
 $question = [
   'id' => (int)$q['id'],
+  'external_id' => ($q['external_id'] === null || $q['external_id'] === '') ? null : (int)$q['external_id'],
   'text' => (string)$q['text'],
-  'need' => (string)($q['need'] ?? 'PONE'),
+  'need' => normalize_question_need((string)($q['need'] ?? '')),
+  'theme' => (string)($q['theme'] ?? ''),
   'level' => (int)($q['level'] ?? 1),
   'question_type' => (string)($q['question_type'] ?? 'MULTI'),
   'allow_skip' => 0,
   'explanation' => (string)($q['explanation'] ?? ''),
 ];
+
+if ($activeProgramId > 0) {
+  $scopeSql = auth_program_question_links_enabled($pdo)
+    ? auth_program_question_scope_sql($pdo, $activeProgramId, 'q')
+    : "(q.package_id IS NULL OR " . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false) . ")";
+  $programScopeStmt = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM questions q
+    LEFT JOIN packages pk ON pk.id = q.package_id
+    WHERE q.id = ?
+      AND $scopeSql
+  ");
+  $programScopeStmt->execute([$id]);
+  $programScoped = ((int)$programScopeStmt->fetchColumn() > 0);
+  if (!$programScoped) {
+    http_response_code(404);
+    echo "Question not found";
+    exit;
+  }
+}
 
 $os = $pdo->prepare("
   SELECT id, label, option_text, is_correct, score_value
@@ -90,16 +119,39 @@ foreach ($os->fetchAll() as $o) {
   $optionsByLabel[(string)$o['label']] = $o;
 }
 
-$knownNeeds = admin_question_edit_known_needs($pdo);
+if ($activeProgramId > 0 && auth_program_question_links_enabled($pdo)) {
+  $knownNeedsStmt = $pdo->prepare("
+    SELECT DISTINCT UPPER(TRIM(q.need)) AS need_key
+    FROM questions q
+    WHERE " . auth_program_question_scope_sql($pdo, $activeProgramId, 'q') . "
+      AND q.need IS NOT NULL
+      AND TRIM(q.need) <> ''
+    ORDER BY need_key ASC
+  ");
+  $knownNeedsStmt->execute();
+  $knownNeeds = [];
+  foreach ($knownNeedsStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $needValue) {
+    $needValue = normalize_question_need((string)$needValue);
+    if ($needValue !== '') {
+      $knownNeeds[] = $needValue;
+    }
+  }
+} else {
+  $knownNeeds = question_known_needs($pdo);
+}
 if (!in_array($question['need'], $knownNeeds, true) && $question['need'] !== '') {
   $knownNeeds[] = $question['need'];
   natcasesort($knownNeeds);
   $knownNeeds = array_values($knownNeeds);
 }
+if ($question['need'] === '') {
+  $question['need'] = question_default_need($knownNeeds);
+}
 
 $labels = ['A', 'B', 'C', 'D', 'E', 'F'];
 $errors = [];
-$translationLangs = ['en' => 'EN', 'es' => 'ES', 'jp' => 'JA'];
+$programSourceLang = $activeProgramId > 0 ? program_source_lang($pdo, $activeProgramId) : question_program_source_lang($pdo, $id);
+$translationLangs = question_translation_target_langs($programSourceLang);
 $translationsByLang = [];
 foreach ($translationLangs as $translationLang => $translationLabel) {
   $translationMetaStmt = $pdo->prepare("
@@ -111,7 +163,7 @@ foreach ($translationLangs as $translationLang => $translationLabel) {
   $translationMetaStmt->execute([$id, $translationLang]);
   $translationMeta = $translationMetaStmt->fetch() ?: [];
   $translationsByLang[$translationLang] = [
-    'status' => question_translation_status($pdo, $id, $translationLang),
+    'status' => question_translation_status($pdo, $id, $translationLang, $programSourceLang),
     'text' => trim((string)($translationMeta['question_text'] ?? '')),
     'explanation' => trim((string)($translationMeta['explanation'] ?? '')),
     'source_updated_at' => trim((string)($translationMeta['source_updated_at'] ?? '')),
@@ -123,7 +175,7 @@ foreach ($labels as $label) {
   $option = $optionsByLabel[$label] ?? null;
   $optionId = (int)($option['id'] ?? 0);
   foreach (array_keys($translationLangs) as $translationLang) {
-    $translationsByLang[$translationLang]['options'][$label] = translated_option_text($pdo, $optionId, $translationLang, '');
+    $translationsByLang[$translationLang]['options'][$label] = translated_option_text($pdo, $optionId, $translationLang, '', $programSourceLang);
   }
 }
 $existingTranslationsByLang = $translationsByLang;
@@ -170,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $translationStatusLang,
       ]);
 
-      header("Location: /admin/question_edit.php?id=" . (int)$id . "&return=" . urlencode($returnTo));
+      header("Location: /admin/question_edit.php?id=" . (int)$id . ($activeProgramId > 0 ? "&program_id=" . (int)$activeProgramId : '') . "&return=" . urlencode($returnTo));
       exit;
     } catch (Throwable $e) {
       $errors[] = "Erreur mise a jour du statut de traduction: " . $e->getMessage();
@@ -178,7 +230,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   $question['text'] = trim((string)($_POST['text'] ?? ''));
-  $question['need'] = normalize_question_need((string)($_POST['need'] ?? ($question['need'] ?? 'PONE')));
+  $question['need'] = normalize_question_need((string)($_POST['need'] ?? ($question['need'] ?? '')));
+  $question['theme'] = trim((string)($_POST['theme'] ?? ''));
   $question['level'] = (int)($_POST['level'] ?? ($question['level'] ?? 1));
   $question['question_type'] = (string)($_POST['question_type'] ?? 'MULTI');
   $question['allow_skip'] = 0;
@@ -278,10 +331,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     try {
       if ($question['id'] > 0) {
-        $up = $pdo->prepare("UPDATE questions SET text=?, need=?, level=?, question_type=?, allow_skip=?, explanation=?, updated_at=NOW() WHERE id=?");
+        $up = $pdo->prepare("UPDATE questions SET text=?, need=?, theme=?, level=?, question_type=?, allow_skip=?, explanation=?, updated_at=NOW() WHERE id=?");
         $up->execute([
           $question['text'],
           $question['need'],
+          $question['theme'] !== '' ? $question['theme'] : null,
           $question['level'],
           $question['question_type'],
           $question['allow_skip'],
@@ -293,6 +347,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new RuntimeException("Creation manuelle des questions desactivee.");
       }
 
+      if (auth_table_exists($pdo, 'question_option_translations')) {
+        $pdo->prepare("
+          DELETE qot
+          FROM question_option_translations qot
+          JOIN question_options qo ON qo.id = qot.option_id
+          WHERE qo.question_id = ?
+        ")->execute([$qid]);
+      }
       $pdo->prepare("DELETE FROM question_options WHERE question_id=?")->execute([$qid]);
 
       $io = $pdo->prepare("
@@ -310,6 +372,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $sourceChanged =
         $question['text'] !== (string)($originalQuestion['text'] ?? '')
         || $question['need'] !== (string)($originalQuestion['need'] ?? '')
+        || $question['theme'] !== trim((string)($originalQuestion['theme'] ?? ''))
         || (int)$question['level'] !== (int)($originalQuestion['level'] ?? 1)
         || $question['question_type'] !== (string)($originalQuestion['question_type'] ?? 'MULTI')
         || $question['explanation'] !== trim((string)($originalQuestion['explanation'] ?? ''));
@@ -445,7 +508,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $pdo->commit();
       if ($stayOnPageAfterSave) {
-        header("Location: /admin/question_edit.php?id=" . (int)$qid . "&return=" . urlencode($returnTo));
+        header("Location: /admin/question_edit.php?id=" . (int)$qid . ($activeProgramId > 0 ? "&program_id=" . (int)$activeProgramId : '') . "&return=" . urlencode($returnTo));
       } else {
         header("Location: " . $returnTo);
       }
@@ -461,8 +524,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title><?= "Modifier question #".(int)$question['id'] ?></title>
+  <?php $displayQuestionId = $question['external_id'] !== null ? (int)$question['external_id'] : (int)$question['id']; ?>
+  <title><?= "Modifier question #".(int)$displayQuestionId ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -472,7 +537,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="card admin-card">
     <div class="admin-head">
       <div class="admin-head-copy">
-        <h2 class="h1"><?= "Admin &middot; Modifier question #".(int)$question['id'] ?></h2>
+        <h2 class="h1"><?= "Admin &middot; Modifier question #".(int)$displayQuestionId ?></h2>
+        <?php if ($question['external_id'] !== null): ?>
+          <p class="sub">ID interne: #<?= (int)$question['id'] ?></p>
+        <?php endif; ?>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('questions'); ?>
@@ -521,6 +589,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </div>
 
               <div class="question-field">
+                <label class="label">Th&eacute;matique</label>
+                <input class="input" type="text" name="theme" value="<?= h((string)($question['theme'] ?? '')) ?>" placeholder="Theme de la question">
+              </div>
+
+              <div class="question-field">
                 <label class="label">Type</label>
                 <select name="question_type">
                   <?php
@@ -547,7 +620,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <textarea name="text" rows="4" class="question-textarea" required><?= h($question['text']) ?></textarea>
               </div>
               <div class="question-field-full">
-                <label class="label">Explication</label>
+                <label class="label">Explication d&eacute;taill&eacute;e en cas de mauvaise r&eacute;ponse</label>
                 <textarea name="explanation" rows="5" class="question-textarea" placeholder="Explication affichee apres la question, par exemple le raisonnement ou le rappel de la bonne reponse."><?= h((string)($question['explanation'] ?? '')) ?></textarea>
               </div>
             </div>

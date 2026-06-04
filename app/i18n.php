@@ -6,13 +6,49 @@ function normalize_lang(?string $lang): string {
     $lang = 'jp';
   }
   if (!in_array($lang, ['fr', 'en', 'es', 'jp'], true)) {
-    $lang = 'fr';
+    $lang = 'en';
   }
   return $lang;
 }
 
+function browser_preferred_lang(?string $acceptLanguage): string {
+  $acceptLanguage = trim((string)$acceptLanguage);
+  if ($acceptLanguage === '') {
+    return 'en';
+  }
+
+  $candidates = [];
+  $supported = ['fr', 'en', 'es', 'jp', 'ja'];
+  foreach (explode(',', $acceptLanguage) as $part) {
+    $part = trim($part);
+    if ($part === '') {
+      continue;
+    }
+
+    $quality = 1.0;
+    if (strpos($part, ';') !== false) {
+      [$tag, $params] = array_pad(explode(';', $part, 2), 2, '');
+      $part = trim($tag);
+      if (preg_match('/q=([0-9.]+)/i', $params, $matches)) {
+        $quality = max(0.0, min(1.0, (float)$matches[1]));
+      }
+    }
+
+    $primary = strtolower(trim(explode('-', str_replace('_', '-', $part))[0] ?? ''));
+    if ($primary !== '' && in_array($primary, $supported, true)) {
+      $candidates[] = ['lang' => normalize_lang($primary), 'quality' => $quality];
+    }
+  }
+
+  usort($candidates, static fn(array $a, array $b): int => $b['quality'] <=> $a['quality']);
+  return (string)($candidates[0]['lang'] ?? 'en');
+}
+
 function get_lang(): string {
-  $lang = normalize_lang($_GET['lang'] ?? $_POST['lang'] ?? $_COOKIE['lang'] ?? 'fr');
+  $rawLang = $_GET['lang'] ?? $_POST['lang'] ?? $_COOKIE['lang'] ?? null;
+  $lang = $rawLang !== null
+    ? normalize_lang((string)$rawLang)
+    : browser_preferred_lang($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '');
   if (!headers_sent()) {
     setcookie('lang', $lang, time() + 3600 * 24 * 365, '/');
   }
@@ -58,6 +94,9 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'dash.subtitle' => 'Ton espace certifications',
       'dash.logout' => 'Déconnexion',
       'dash.admin' => 'Espace Admin',
+      'dash.no_program.title' => 'Aucun programme attribué',
+      'dash.no_program.body' => 'Votre compte est bien créé, mais aucun programme de certification ne vous est encore attribué. Contactez votre responsable ou votre administrateur pour obtenir l’accès à vos certifications.',
+      'dash.no_program.refresh' => 'Actualiser mon espace',
       'dash.attempts' => 'Tentatives',
       'dash.completed' => 'Terminées',
       'dash.passed' => 'Réussies',
@@ -217,6 +256,9 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'dash.subtitle' => 'Your certification space',
       'dash.logout' => 'Logout',
       'dash.admin' => 'Admin Area',
+      'dash.no_program.title' => 'No program assigned',
+      'dash.no_program.body' => 'Your account has been created, but no certification program has been assigned to you yet. Contact your manager or administrator to get access to your certifications.',
+      'dash.no_program.refresh' => 'Refresh my space',
       'dash.attempts' => 'Attempts',
       'dash.completed' => 'Completed',
       'dash.passed' => 'Passed',
@@ -376,6 +418,9 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'dash.subtitle' => 'Tu espacio de certificaciones',
       'dash.logout' => 'Cerrar sesión',
       'dash.admin' => 'Espacio Admin',
+      'dash.no_program.title' => 'Ningún programa asignado',
+      'dash.no_program.body' => 'Tu cuenta se ha creado correctamente, pero todavía no tienes ningún programa de certificación asignado. Contacta con tu responsable o administrador para acceder a tus certificaciones.',
+      'dash.no_program.refresh' => 'Actualizar mi espacio',
       'dash.attempts' => 'Intentos',
       'dash.completed' => 'Completadas',
       'dash.passed' => 'Aprobadas',
@@ -535,6 +580,9 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'dash.subtitle' => '認定スペース',
       'dash.logout' => 'ログアウト',
       'dash.admin' => '管理スペース',
+      'dash.no_program.title' => 'プログラムが割り当てられていません',
+      'dash.no_program.body' => 'アカウントは作成されていますが、認定プログラムはまだ割り当てられていません。認定にアクセスするには、担当者または管理者に連絡してください。',
+      'dash.no_program.refresh' => 'ページを更新',
       'dash.attempts' => '受験回数',
       'dash.completed' => '完了',
       'dash.passed' => '合格',

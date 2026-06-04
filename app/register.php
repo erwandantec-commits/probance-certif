@@ -43,8 +43,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $pdo->beginTransaction();
       try {
-        $ins = $pdo->prepare("INSERT INTO users(email, password_hash, name, role) VALUES(?, ?, ?, 'USER')");
-        $ins->execute([$email, $hash, $fullName]);
+        $organizationId = auth_find_or_create_organization_for_email($pdo, $email);
+        if ($organizationId <= 0) {
+          throw new RuntimeException('organization_create_failed');
+        }
+        $emailControlError = auth_validate_user_email($pdo, $email, false, []);
+        if ($emailControlError !== null) {
+          throw new RuntimeException($emailControlError);
+        }
+
+        $userSql = auth_column_exists($pdo, 'users', 'organization_id')
+          ? "INSERT INTO users(email, password_hash, name, role, organization_id) VALUES(?, ?, ?, 'USER', ?)"
+          : "INSERT INTO users(email, password_hash, name, role) VALUES(?, ?, ?, 'USER')";
+        $ins = $pdo->prepare($userSql);
+        $params = auth_column_exists($pdo, 'users', 'organization_id')
+          ? [$email, $hash, $fullName, $organizationId]
+          : [$email, $hash, $fullName];
+        $ins->execute($params);
         $uid = (int)$pdo->lastInsertId();
 
         $contactUpsert = $pdo->prepare("
@@ -71,7 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pdo->inTransaction()) {
           $pdo->rollBack();
         }
-        $error = "Impossible de creer le compte pour l'instant.";
+        $errorMessage = trim($e->getMessage());
+        $error = str_starts_with($errorMessage, "L'email doit utiliser")
+          ? $errorMessage
+          : "Impossible de creer le compte pour l'instant.";
       }
     }
   }
@@ -80,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title><?= h(t('register.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">

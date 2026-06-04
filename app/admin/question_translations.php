@@ -1,40 +1,71 @@
 <?php
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/_auth.php';
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 require_once __DIR__ . '/../utils.php';
 
 $pdo = db();
 ensure_question_translation_schema($pdo);
+ensure_program_source_language_schema($pdo);
+function question_translations_package_column_exists(PDO $pdo, string $column): bool {
+  static $cache = [];
+  if (isset($cache[$column])) {
+    return $cache[$column];
+  }
+  $st = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'packages'
+      AND COLUMN_NAME = ?
+  ");
+  $st->execute([$column]);
+  $cache[$column] = ((int)$st->fetchColumn() > 0);
+  return $cache[$column];
+}
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+$programSourceLang = program_source_lang($pdo, $activeProgramId);
+$translationLangs = question_translation_target_langs($programSourceLang);
+$packagesWhereSql = $activeProgramId > 0
+  ? ('WHERE ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
 
 $packageId = (int)($_GET['package_id'] ?? 0);
 $needFilter = normalize_question_need((string)($_GET['need'] ?? ''));
-$langFilter = question_translation_normalize_lang((string)($_GET['lang_filter'] ?? 'en'));
+$langFilter = question_translation_normalize_lang((string)($_GET['lang_filter'] ?? (string)array_key_first($translationLangs)));
 $stateFilter = trim((string)($_GET['state_filter'] ?? 'ALL'));
 $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 50;
 
-if (!in_array($langFilter, ['en', 'es', 'jp'], true)) {
-  $langFilter = 'en';
+if (!array_key_exists($langFilter, $translationLangs)) {
+  $langFilter = (string)array_key_first($translationLangs);
 }
 if (!in_array($stateFilter, ['ALL', 'complete', 'stale', 'partial', 'missing'], true)) {
   $stateFilter = 'ALL';
 }
 
 $packages = $pdo->query("
-  SELECT id, name, name_color_hex, selection_rules_json
-  FROM packages
-  ORDER BY name ASC
+  SELECT pk.id, pk.name, pk.name_color_hex, pk.selection_rules_json
+  FROM packages pk
+  $packagesWhereSql
+  ORDER BY pk.name ASC
 ")->fetchAll() ?: [];
 $validPackageIds = array_map(static fn(array $pkg): int => (int)$pkg['id'], $packages);
 if ($packageId > 0 && !in_array($packageId, $validPackageIds, true)) {
   $packageId = 0;
 }
 
+$questionProgramScopeSql = ($activeProgramId > 0 && auth_program_question_links_enabled($pdo))
+  ? auth_program_question_scope_sql($pdo, $activeProgramId, 'q')
+  : '1 = 1';
+
 $needsRows = $pdo->query("
-  SELECT DISTINCT TRIM(need) AS need_name
-  FROM questions
-  WHERE need IS NOT NULL AND TRIM(need) <> ''
+  SELECT DISTINCT TRIM(q.need) AS need_name
+  FROM questions q
+  WHERE q.need IS NOT NULL
+    AND TRIM(q.need) <> ''
+    AND $questionProgramScopeSql
   ORDER BY need_name ASC
 ")->fetchAll() ?: [];
 $allNeeds = [];
@@ -51,6 +82,7 @@ if ($needFilter !== '' && !in_array($needFilter, $allNeeds, true)) {
 
 $where = [];
 $params = [];
+$where[] = $questionProgramScopeSql;
 if ($needFilter !== '') {
   $where[] = "q.need = ?";
   $params[] = $needFilter;
@@ -195,6 +227,9 @@ $filteredRows = [];
 foreach ($questionRows as $row) {
   $questionId = (int)($row['id'] ?? 0);
   $usedPackages = translation_packages_for_question($row, $packageDefinitions);
+  if ($activeProgramId > 0 && !$usedPackages) {
+    continue;
+  }
 
   if ($packageId > 0) {
     $usedPackageIds = array_map(static fn(array $pkg): int => (int)($pkg['id'] ?? 0), $usedPackages);
@@ -204,8 +239,8 @@ foreach ($questionRows as $row) {
   }
 
   $statuses = [];
-  foreach (['en', 'es', 'jp'] as $langCode) {
-    $statuses[$langCode] = question_translation_status($pdo, $questionId, $langCode);
+  foreach ($translationLangs as $langCode => $_langLabel) {
+    $statuses[$langCode] = question_translation_status($pdo, $questionId, $langCode, $programSourceLang);
   }
   if ($stateFilter !== 'ALL' && ($statuses[$langFilter] ?? 'missing') !== $stateFilter) {
     continue;
@@ -232,13 +267,12 @@ $offset = ($page - 1) * $limit;
 $coverageRows = array_slice($filteredRows, $offset, $limit);
 
 $allQuestionIds = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), $filteredRows);
-$summary = [
-  'en' => ['complete' => 0, 'stale' => 0, 'partial' => 0, 'missing' => 0],
-  'es' => ['complete' => 0, 'stale' => 0, 'partial' => 0, 'missing' => 0],
-  'jp' => ['complete' => 0, 'stale' => 0, 'partial' => 0, 'missing' => 0],
-];
+$summary = [];
+foreach ($translationLangs as $langCode => $_langLabel) {
+  $summary[$langCode] = ['complete' => 0, 'stale' => 0, 'partial' => 0, 'missing' => 0];
+}
 foreach ($filteredRows as $row) {
-  foreach (['en', 'es', 'jp'] as $langCode) {
+  foreach ($translationLangs as $langCode => $_langLabel) {
     $status = (string)($row['statuses'][$langCode] ?? 'missing');
     if (!isset($summary[$langCode][$status])) {
       $summary[$langCode][$status] = 0;
@@ -268,10 +302,23 @@ function translation_cover_query(array $overrides = []): string {
   }
   return '/admin/question_translations.php' . ($params ? ('?' . http_build_query($params)) : '');
 }
+
+function translation_import_url(int $activeProgramId): string {
+  return '/admin/import_questions.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '');
+}
+
+function translation_export_url(int $activeProgramId): string {
+  $params = ['export' => '1'];
+  if ($activeProgramId > 0) {
+    $params['program_id'] = $activeProgramId;
+  }
+  return '/admin/questions.php?' . http_build_query($params);
+}
 ?>
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Couverture traductions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -284,7 +331,7 @@ function translation_cover_query(array $overrides = []): string {
     <div class="admin-head">
       <div class="admin-head-copy">
         <h2 class="h1">Admin &middot; Couverture traductions</h2>
-        <p class="sub">Suivi global des statuts EN / ES / JA sur les questions.</p>
+        <p class="sub">Suivi global des statuts de traduction sur les questions. Source: <?= h(question_translation_lang_label($programSourceLang)) ?>.</p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('translations'); ?>
@@ -294,7 +341,7 @@ function translation_cover_query(array $overrides = []): string {
     <hr class="separator">
 
     <div class="admin-stats-grid">
-      <?php foreach (['en' => 'EN', 'es' => 'ES', 'jp' => 'JA'] as $langCode => $langLabel): ?>
+      <?php foreach ($translationLangs as $langCode => $langLabel): ?>
         <article class="admin-stat-card">
           <span class="admin-stat-label"><?= h($langLabel) ?></span>
           <strong class="admin-stat-value"><?= (int)($summary[$langCode]['complete'] ?? 0) ?> / <?= (int)count($allQuestionIds) ?></strong>
@@ -310,9 +357,14 @@ function translation_cover_query(array $overrides = []): string {
 
     <div class="admin-page-layout">
       <section class="admin-section-panel">
-        <div class="section-head admin-section-head">
+        <div class="admin-panel-toolbar">
           <div>
-            <h3 class="h1">Filtres</h3>
+            <h3 class="h1" style="margin:0;">Gestion du catalogue</h3>
+            <p class="sub" style="margin:6px 0 0;">Suivi, export et import de la banque de questions traduites.</p>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <a class="btn ghost" href="<?= h(translation_export_url($activeProgramId)) ?>">Exporter CSV</a>
+            <a class="btn admin-primary-action-btn" href="<?= h(translation_import_url($activeProgramId)) ?>">+ Importer</a>
           </div>
         </div>
 
@@ -337,11 +389,11 @@ function translation_cover_query(array $overrides = []): string {
               </select>
             </div>
             <div>
-              <label class="label" for="translation_lang_filter">Langue pilote</label>
+              <label class="label" for="translation_lang_filter">Langue</label>
               <select class="input" id="translation_lang_filter" name="lang_filter">
-                <option value="en" <?= $langFilter === 'en' ? 'selected' : '' ?>>EN</option>
-                <option value="es" <?= $langFilter === 'es' ? 'selected' : '' ?>>ES</option>
-                <option value="jp" <?= $langFilter === 'jp' ? 'selected' : '' ?>>JA</option>
+                <?php foreach ($translationLangs as $langCode => $langLabel): ?>
+                  <option value="<?= h($langCode) ?>" <?= $langFilter === $langCode ? 'selected' : '' ?>><?= h($langLabel) ?></option>
+                <?php endforeach; ?>
               </select>
             </div>
             <div>
@@ -357,7 +409,7 @@ function translation_cover_query(array $overrides = []): string {
           </div>
           <div class="filters-actions audit-config-actions">
             <button class="btn" type="submit">Appliquer</button>
-            <a class="btn ghost" href="/admin/question_translations.php">Reset</a>
+            <a class="btn ghost" href="/admin/question_translations.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
           </div>
         </form>
       </section>
@@ -374,16 +426,16 @@ function translation_cover_query(array $overrides = []): string {
           <?php if (!$coverageRows): ?>
             <p class="empty-state">Aucune question pour ces filtres.</p>
           <?php else: ?>
-            <table class="table questions-table questions-admin-table translation-coverage-table">
+            <table class="table questions-table translation-coverage-table">
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>Question</th>
                   <th>Catégorie</th>
                   <th>Packs</th>
-                  <th>EN</th>
-                  <th>ES</th>
-                  <th>JA</th>
+                  <?php foreach ($translationLangs as $langLabel): ?>
+                    <th><?= h($langLabel) ?></th>
+                  <?php endforeach; ?>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -403,12 +455,12 @@ function translation_cover_query(array $overrides = []): string {
                         <span class="translation-pack-usage-empty"></span>
                       <?php endif; ?>
                     </td>
-                    <?php foreach (['en', 'es', 'jp'] as $langCode): ?>
+                    <?php foreach ($translationLangs as $langCode => $_langLabel): ?>
                       <?php $meta = translation_status_meta((string)($row['statuses'][$langCode] ?? 'missing')); ?>
                       <td><span class="<?= h($meta['class']) ?>"><?= h($meta['label']) ?></span></td>
                     <?php endforeach; ?>
                     <td class="actions-cell">
-                      <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$row['id'] ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_translations.php'))) ?>" aria-label="Modifier la question" title="Modifier la question">
+                      <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$row['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_translations.php'))) ?>" aria-label="Modifier la question" title="Modifier la question">
                         <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                           <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                         </svg>

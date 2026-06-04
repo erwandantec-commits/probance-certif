@@ -1,12 +1,13 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
 $pdo = db();
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 
 function admin_perf_safe_return(?string $candidate): string {
   $fallback = '/admin/question_performance.php';
@@ -19,6 +20,9 @@ function admin_perf_safe_return(?string $candidate): string {
 
 $qid = (int)($_GET['qid'] ?? 0);
 $returnTo = admin_perf_safe_return((string)($_GET['return'] ?? ''));
+if ($activeProgramId > 0 && strpos($returnTo, 'program_id=') === false) {
+  $returnTo .= (str_contains($returnTo, '?') ? '&' : '?') . 'program_id=' . $activeProgramId;
+}
 $sessionType = strtoupper(trim((string)($_GET['session_type'] ?? 'ALL')));
 $answerStatus = strtoupper(trim((string)($_GET['answer_status'] ?? 'ALL')));
 $dateFrom = trim((string)($_GET['date_from'] ?? ''));
@@ -52,8 +56,11 @@ if ($qid <= 0) {
 
 $questionStmt = $pdo->prepare("
   SELECT id, external_id, text
-  FROM questions
-  WHERE id = ?
+  FROM questions q
+  WHERE q.id = ?
+    " . ($activeProgramId > 0 && auth_program_question_links_enabled($pdo)
+      ? "AND " . auth_program_question_scope_sql($pdo, $activeProgramId, 'q')
+      : "") . "
   LIMIT 1
 ");
 $questionStmt->execute([$qid]);
@@ -69,6 +76,9 @@ $whereParts = [
   "s0.status IN ('TERMINATED', 'EXPIRED')",
 ];
 $params = [$qid];
+if ($activeProgramId > 0) {
+  $whereParts[] = auth_program_package_scope_sql($pdo, $activeProgramId, 'pk0', false);
+}
 if ($sessionType !== 'ALL') {
   $whereParts[] = "s0.session_type = ?";
   $params[] = $sessionType;
@@ -138,6 +148,7 @@ $perfSql = "
       $answerStatusExpr AS answer_status
     FROM session_questions sq
     JOIN sessions s0 ON s0.id = sq.session_id
+    JOIN packages pk0 ON pk0.id = s0.package_id
     " . ($hasAnswerStatusSnapshot ? "" : "
     JOIN (
       SELECT
@@ -202,6 +213,7 @@ $summarySql = "
       END AS answer_status
     FROM session_questions sq
     JOIN sessions s0 ON s0.id = sq.session_id
+    JOIN packages pk0 ON pk0.id = s0.package_id
     JOIN (
       SELECT
         qo.question_id,
@@ -262,6 +274,7 @@ $rows = $stmt->fetchAll() ?: [];
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Zoom performance question</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -279,7 +292,7 @@ $rows = $stmt->fetchAll() ?: [];
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('performance'); ?>
-        <a class="btn ghost back-nav-btn icon-btn zoom-edit-btn" href="/admin/question_edit.php?id=<?= (int)$qid ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="Modifier la question" title="Modifier la question">
+        <a class="btn ghost back-nav-btn icon-btn zoom-edit-btn" href="/admin/question_edit.php?id=<?= (int)$qid ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="Modifier la question" title="Modifier la question">
           <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
           </svg>
@@ -347,7 +360,7 @@ $rows = $stmt->fetchAll() ?: [];
       </div>
       <div class="filters-actions" style="margin-top:12px;">
         <button class="btn" type="submit">Filtrer</button>
-        <a class="btn ghost" href="/admin/question_performance_failures.php?qid=<?= (int)$qid ?>&return=<?= h(urlencode($returnTo)) ?>">Reset</a>
+        <a class="btn ghost" href="/admin/question_performance_failures.php?qid=<?= (int)$qid ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($returnTo)) ?>">Reset</a>
       </div>
     </form>
 
@@ -385,7 +398,7 @@ $rows = $stmt->fetchAll() ?: [];
                 <td><?= h((string)($row['correct_labels'] ?: '-')) ?></td>
                 <td><?= $row['score_percent'] !== null ? h((string)$row['score_percent']) . '%' : '-' ?></td>
                 <td class="actions-cell">
-                  <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h((string)$row['session_id']) ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="Voir la session" title="Voir la session">
+                  <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h((string)$row['session_id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="Voir la session" title="Voir la session">
                     <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                     </svg>

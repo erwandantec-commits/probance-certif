@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+$adminUser = require_admin_area();
 
 require_once __DIR__ . '/../db.php';
 $pdo = db();
@@ -14,10 +14,30 @@ if ($return === '' || preg_match('/[\r\n]/', $return) || strpos($return, '/admin
   $return = '/admin/certifications.php';
 }
 
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+if ($activeProgramId > 0 && strpos($return, 'program_id=') === false) {
+  $return .= (str_contains($return, '?') ? '&' : '?') . 'program_id=' . $activeProgramId;
+}
+
 if ($contactId <= 0 || $packageId <= 0) {
   http_response_code(400);
   echo "Missing contact_id or package_id";
   exit;
+}
+
+if ($activeProgramId > 0) {
+  $scopeStmt = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM packages pk
+    WHERE pk.id = ?
+      AND " . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false) . "
+  ");
+  $scopeStmt->execute([$packageId]);
+  if ((int)$scopeStmt->fetchColumn() <= 0) {
+    http_response_code(404);
+    echo "Package not found";
+    exit;
+  }
 }
 
 $hasRevocationsTable = (bool)$pdo->query("

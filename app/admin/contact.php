@@ -1,17 +1,22 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-$adminUser = require_admin();
+$adminUser = require_team_reporting();
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
 require_once __DIR__ . '/_nav.php';
 $pdo = db();
+$hasEmailControlBypassColumn = auth_column_exists($pdo, 'users', 'email_control_bypass');
 
 if (empty($_SESSION['admin_contact_csrf']) || !is_string($_SESSION['admin_contact_csrf'])) {
   $_SESSION['admin_contact_csrf'] = bin2hex(random_bytes(32));
 }
 $csrfToken = (string)$_SESSION['admin_contact_csrf'];
+if (empty($_SESSION['admin_users_csrf']) || !is_string($_SESSION['admin_users_csrf'])) {
+  $_SESSION['admin_users_csrf'] = bin2hex(random_bytes(32));
+}
+$userEditCsrfToken = (string)$_SESSION['admin_users_csrf'];
 
 function admin_contact_package_column_exists(PDO $pdo, string $column): bool {
   static $cache = [];
@@ -52,6 +57,83 @@ function admin_contact_format_cert_expiry(?DateTimeImmutable $expiresAt, bool $i
 
   return $dateLabel . ' (' . $remainingDays . ' j restants)';
 }
+
+function admin_contact_guess_first_last(?string $fullName): array {
+  $fullName = trim((string)$fullName);
+  if ($fullName === '') {
+    return ['', ''];
+  }
+  $parts = preg_split('/\s+/', $fullName) ?: [];
+  if (count($parts) <= 1) {
+    return [$fullName, ''];
+  }
+  $first = (string)array_shift($parts);
+  $last = trim(implode(' ', $parts));
+  return [$first, $last];
+}
+
+function admin_contact_role_label(string $role): string {
+  return match (normalize_user_role($role)) {
+    'ADMIN' => 'ADMIN',
+    'OWNER' => 'OWNER',
+    default => 'USER',
+  };
+}
+
+function admin_contact_assignable_roles(array $actor, ?string $currentRole = null): array {
+  $roles = [];
+  foreach (['USER', 'OWNER', 'ADMIN'] as $role) {
+    if (user_can_assign_role($actor, $role)) {
+      $roles[] = $role;
+    }
+  }
+  $currentRole = normalize_user_role($currentRole);
+  if ($currentRole !== '' && !in_array($currentRole, $roles, true)) {
+    $roles[] = $currentRole;
+  }
+  return $roles;
+}
+
+function admin_contact_normalize_ids(mixed $raw): array {
+  if (!is_array($raw)) {
+    return [];
+  }
+  $ids = [];
+  foreach ($raw as $value) {
+    $id = (int)$value;
+    if ($id > 0) {
+      $ids[$id] = $id;
+    }
+  }
+  return array_values($ids);
+}
+
+function admin_contact_normalize_program_roles(mixed $raw, array $allowedProgramIds, array $actor): array {
+  if (!is_array($raw)) {
+    return [];
+  }
+  $allowed = array_fill_keys($allowedProgramIds, true);
+  $roles = [];
+  foreach ($raw as $programIdRaw => $roleRaw) {
+    $programId = (int)$programIdRaw;
+    if ($programId <= 0 || !isset($allowed[$programId])) {
+      continue;
+    }
+    $role = strtoupper(trim((string)$roleRaw));
+    if ($role === 'OWNER' && user_has_role($actor, ['ADMIN', 'OWNER'])) {
+      $roles[$programId] = 'OWNER';
+    } elseif ($role === 'USER') {
+      $roles[$programId] = 'USER';
+    }
+  }
+  return $roles;
+}
+
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+$canMutateReporting = user_can_access_admin_area($adminUser);
+$packagesWhereSql = $activeProgramId > 0
+  ? (' AND ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
 
 $email = trim($_GET['email'] ?? '');
 if ($email === '') { http_response_code(400); echo "Missing email"; exit; }
@@ -110,14 +192,63 @@ $stmt->execute([$email]);
 $contact = $stmt->fetch();
 if (!$contact) { http_response_code(404); echo "Contact not found"; exit; }
 
-$linkedUserStmt = $pdo->prepare("SELECT id, email, role FROM users WHERE email = ? LIMIT 1");
+$linkedUserEmailControlSelect = $hasEmailControlBypassColumn ? ', u.email_control_bypass' : ', 0 AS email_control_bypass';
+$linkedUserStmt = $pdo->prepare("
+  SELECT u.id, u.email, u.name, u.role $linkedUserEmailControlSelect
+  FROM users u
+  WHERE u.email = ?
+  LIMIT 1
+");
 $linkedUserStmt->execute([$email]);
 $linkedUser = $linkedUserStmt->fetch();
 $linkedUserId = (int)($linkedUser['id'] ?? 0);
+$canManageLinkedUser = $linkedUserId > 0 && (
+  $linkedUserId === (int)($adminUser['id'] ?? 0)
+  || (
+    user_can_manage_target_role($adminUser, (string)($linkedUser['role'] ?? 'USER'))
+    && (
+      user_has_role($adminUser, 'ADMIN')
+      || auth_users_share_program_scope($pdo, (int)($adminUser['id'] ?? 0), $linkedUserId)
+    )
+  )
+);
+$contactNotice = $_SESSION['admin_users_notice'] ?? null;
+unset($_SESSION['admin_users_notice']);
+$contactEditFormSession = $_SESSION['admin_users_edit_form'] ?? null;
+unset($_SESSION['admin_users_edit_form']);
+$contactEditForm = [];
+$contactEditFormUserId = 0;
+if (is_array($contactEditFormSession)) {
+  $contactEditFormUserId = (int)($contactEditFormSession['user_id'] ?? 0);
+  if (is_array($contactEditFormSession['data'] ?? null)) {
+    $contactEditForm = $contactEditFormSession['data'];
+  }
+}
 
+$programRows = user_has_role($adminUser, 'ADMIN') ? auth_accessible_programs($pdo, $adminUser) : auth_manageable_programs($pdo, $adminUser);
+$programLabelsById = [];
+foreach ($programRows as $programRow) {
+  $programId = (int)($programRow['id'] ?? 0);
+  if ($programId > 0) {
+    $programLabelsById[$programId] = trim((string)($programRow['name'] ?? 'Programme'));
+  }
+}
+$linkedUserProgramIds = [];
+$linkedUserProgramRoles = [];
+if ($linkedUserId > 0 && auth_table_exists($pdo, 'user_program_access')) {
+  $stPrograms = $pdo->prepare("SELECT program_id, " . auth_program_access_role_expr($pdo, 'user_program_access') . " AS access_role FROM user_program_access WHERE user_id = ? ORDER BY program_id ASC");
+  $stPrograms->execute([$linkedUserId]);
+  foreach ($stPrograms->fetchAll() ?: [] as $row) {
+    $programId = (int)($row['program_id'] ?? 0);
+    if ($programId > 0) {
+      $linkedUserProgramIds[] = $programId;
+      $linkedUserProgramRoles[$programId] = auth_normalize_program_access_role((string)($row['access_role'] ?? 'USER'));
+    }
+  }
+}
 $hasDisplayOrderColumn = admin_contact_package_column_exists($pdo, 'display_order');
 $packageOrder = $hasDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id ASC";
-$packagesStmt = $pdo->query("SELECT id, name, name_color_hex FROM packages WHERE is_active=1 $packageOrder");
+$packagesStmt = $pdo->query("SELECT pk.id, pk.name, pk.name_color_hex FROM packages pk WHERE pk.is_active=1 $packagesWhereSql $packageOrder");
 $packages = $packagesStmt->fetchAll() ?: [];
 $packageIds = array_map(fn($pkg) => (string)$pkg['id'], $packages);
 if ($hpackage !== 'ALL' && !in_array($hpackage, $packageIds, true)) {
@@ -131,7 +262,9 @@ if ($linkedUserId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {
   $activeOverridesCountStmt = $pdo->prepare("
     SELECT COUNT(*)
     FROM exam_cooldown_overrides o
+    JOIN packages pk ON pk.id = o.package_id
     WHERE o.user_id = ?
+      " . ($activeProgramId > 0 ? "AND " . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false) : "") . "
   ");
   $activeOverridesCountStmt->execute([$linkedUserId]);
   $overrideTotalRows = (int)$activeOverridesCountStmt->fetchColumn();
@@ -157,6 +290,7 @@ if ($linkedUserId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {
     JOIN packages pk ON pk.id = o.package_id
     LEFT JOIN users cu ON cu.id = o.created_by_user_id
     WHERE o.user_id = ?
+      " . ($activeProgramId > 0 ? "AND " . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false) : "") . "
     ORDER BY o.created_at DESC, o.id DESC
     LIMIT ? OFFSET ?
   ");
@@ -168,6 +302,10 @@ if ($linkedUserId > 0 && table_exists($pdo, 'exam_cooldown_overrides')) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  if (!$canMutateReporting) {
+    header('Location: /admin/contact.php?email=' . urlencode($email) . ($activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '') . '&unlock_err=' . urlencode('Action reservee aux owners et admins.'));
+    exit;
+  }
   $action = (string)($_POST['action'] ?? '');
   $postedToken = (string)($_POST['csrf_token'] ?? '');
   if ($postedToken === '' || !hash_equals($csrfToken, $postedToken)) {
@@ -297,7 +435,9 @@ $summaryStmt = $pdo->prepare("
     ROUND(AVG(CASE WHEN s.session_type='EXAM' AND s.status='TERMINATED' AND s.score_percent IS NOT NULL
                    THEN s.score_percent END), 1) AS avg_exam_score
   FROM sessions s
+  JOIN packages pk ON pk.id = s.package_id
   WHERE s.contact_id = ?
+    " . ($activeProgramId > 0 ? "AND " . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false) : "") . "
 ");
 $summaryStmt->execute([(int)$contact['id']]);
 $summary = $summaryStmt->fetch();
@@ -316,6 +456,7 @@ $certsStmt = $pdo->prepare("
     AND s.status = 'TERMINATED'
     AND s.passed = 1
     AND s.session_type = 'EXAM'
+    " . ($activeProgramId > 0 ? "AND " . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false) : "") . "
   GROUP BY s.package_id, pk.name, pk.name_color_hex$certValidityDaysGroup
   ORDER BY last_cert_date DESC
 ");
@@ -375,6 +516,9 @@ if ($hpackage !== 'ALL') {
   $histWhere[] = "s.package_id = ?";
   $histParams[] = (int)$hpackage;
 }
+if ($activeProgramId > 0) {
+  $histWhere[] = auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false);
+}
 $histWhere[] = "(
   ? = 'ALL'
   OR (? = 'PASSED' AND s.status IN ('TERMINATED', 'EXPIRED') AND s.passed=1)
@@ -388,6 +532,7 @@ $histWhereSql = implode("\n    AND ", $histWhere);
 $histCountStmt = $pdo->prepare("
   SELECT COUNT(*)
   FROM sessions s
+  JOIN packages pk ON pk.id = s.package_id
   WHERE s.contact_id = ?
     AND $histWhereSql
 ");
@@ -425,12 +570,40 @@ $histStmt->bindValue($histBindIndex++, $historyLimit, PDO::PARAM_INT);
 $histStmt->bindValue($histBindIndex++, $historyOffset, PDO::PARAM_INT);
 $histStmt->execute();
 $hist = $histStmt->fetchAll();
+
+$linkedFirstName = trim((string)($contact['first_name'] ?? ''));
+$linkedLastName = trim((string)($contact['last_name'] ?? ''));
+if (($linkedFirstName === '' || $linkedLastName === '') && $linkedUser) {
+  [$firstGuess, $lastGuess] = admin_contact_guess_first_last((string)($linkedUser['name'] ?? ''));
+  if ($linkedFirstName === '') {
+    $linkedFirstName = $firstGuess;
+  }
+  if ($linkedLastName === '') {
+    $linkedLastName = $lastGuess;
+  }
+}
+$editFirstName = ($contactEditFormUserId === $linkedUserId) ? trim((string)($contactEditForm['first_name'] ?? $linkedFirstName)) : $linkedFirstName;
+$editLastName = ($contactEditFormUserId === $linkedUserId) ? trim((string)($contactEditForm['last_name'] ?? $linkedLastName)) : $linkedLastName;
+$editEmail = ($contactEditFormUserId === $linkedUserId) ? trim((string)($contactEditForm['email'] ?? $email)) : $email;
+$editRole = ($contactEditFormUserId === $linkedUserId)
+  ? normalize_user_role((string)($contactEditForm['role'] ?? (string)($linkedUser['role'] ?? 'USER')))
+  : normalize_user_role((string)($linkedUser['role'] ?? 'USER'));
+$editProgramRoles = ($contactEditFormUserId === $linkedUserId && is_array($contactEditForm['program_roles'] ?? null))
+  ? admin_contact_normalize_program_roles($contactEditForm['program_roles'], array_keys($programLabelsById), $adminUser)
+  : $linkedUserProgramRoles;
+$editEmailControlBypass = ($contactEditFormUserId === $linkedUserId)
+  ? (int)($contactEditForm['email_control_bypass'] ?? (int)($linkedUser['email_control_bypass'] ?? 0))
+  : (int)($linkedUser['email_control_bypass'] ?? 0);
+$editRoleOptions = admin_contact_assignable_roles($adminUser, (string)($linkedUser['role'] ?? 'USER'));
+$editIsGlobalAdmin = $editRole === 'ADMIN';
+$returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . urlencode($email)));
 ?>
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Profil candidat</title>
+  <title>Admin &middot; Fiche utilisateur</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= time() ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -440,15 +613,21 @@ $hist = $histStmt->fetchAll();
     <div class="card admin-card candidate-profile-page">
       <div class="admin-head candidate-profile-hero">
         <div class="admin-head-copy">
-          <p class="candidate-profile-eyebrow">Administration candidat</p>
-          <h2 class="h1">Admin &middot; Profil candidat</h2>
+          <p class="candidate-profile-eyebrow">Administration utilisateur</p>
+          <h2 class="h1">Admin &middot; Fiche utilisateur</h2>
           <p class="sub"><?= h($contact['email']) ?></p>
         </div>
         <div class="admin-head-actions">
-          <?php render_admin_tabs(); ?>
+          <?php render_admin_tabs('users'); ?>
           <a class="btn ghost back-nav-btn" href="/admin/users.php">Retour</a>
         </div>
       </div>
+
+      <?php if (is_array($contactNotice) && isset($contactNotice['type'], $contactNotice['text'])): ?>
+        <div class="admin-notice <?= ((string)$contactNotice['type'] === 'ok') ? 'is-ok' : 'is-bad' ?>">
+          <?= h((string)$contactNotice['text']) ?>
+        </div>
+      <?php endif; ?>
 
       <div class="candidate-stats-grid">
         <article class="candidate-stat-card">
@@ -468,6 +647,131 @@ $hist = $histStmt->fetchAll();
           <strong class="candidate-stat-value"><?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></strong>
         </article>
       </div>
+
+      <section class="candidate-section candidate-account-section">
+        <div class="section-head candidate-section-head">
+          <div>
+            <h2 class="h1">Compte utilisateur</h2>
+            <p class="sub">Les informations d'administration et d'acces sont editees ici.</p>
+          </div>
+        </div>
+
+        <?php if ($linkedUserId <= 0): ?>
+          <p class="empty-state">Aucun compte utilisateur n'est lie a cet email.</p>
+        <?php else: ?>
+          <div class="candidate-account-summary">
+            <span class="pill info"><?= h(admin_contact_role_label((string)($linkedUser['role'] ?? 'USER'))) ?></span>
+            <span class="candidate-account-summary-item">Programmes : <?= (int)count($editProgramRoles) ?></span>
+            <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn && $editEmailControlBypass === 1): ?>
+              <span class="candidate-account-summary-item">Controle email : desactive</span>
+            <?php endif; ?>
+          </div>
+
+          <?php if ($canManageLinkedUser): ?>
+            <form method="post" action="/admin/users.php" class="users-edit-form candidate-account-form">
+              <input type="hidden" name="csrf_token" value="<?= h($userEditCsrfToken) ?>">
+              <input type="hidden" name="action" value="update_user">
+              <input type="hidden" name="user_id" value="<?= (int)$linkedUserId ?>">
+              <input type="hidden" name="return_to" value="<?= h($returnTo) ?>">
+              <?php if (!user_has_role($adminUser, 'ADMIN')): ?>
+                <input type="hidden" name="role" value="<?= h($editRole) ?>">
+              <?php endif; ?>
+              <div class="candidate-account-layout">
+                <section class="candidate-account-card">
+                  <div class="candidate-account-card-head">
+                    <h3 class="candidate-account-card-title">Identite</h3>
+                    <p class="sub">Coordonnees principales du compte.</p>
+                  </div>
+                  <div class="users-edit-grid">
+                    <div>
+                      <label class="label" for="contact-edit-first-name">Prenom</label>
+                      <input class="input" id="contact-edit-first-name" name="first_name" type="text" maxlength="100" required value="<?= h($editFirstName) ?>">
+                    </div>
+                    <div>
+                      <label class="label" for="contact-edit-last-name">Nom</label>
+                      <input class="input" id="contact-edit-last-name" name="last_name" type="text" maxlength="100" required value="<?= h($editLastName) ?>">
+                    </div>
+                    <div class="candidate-account-field-wide">
+                      <label class="label" for="contact-edit-email">Email</label>
+                      <input class="input" id="contact-edit-email" name="email" type="email" required value="<?= h($editEmail) ?>">
+                    </div>
+                  </div>
+                </section>
+
+                <section class="candidate-account-card">
+                  <div class="candidate-account-card-head">
+                    <h3 class="candidate-account-card-title">Securite</h3>
+                    <p class="sub">Laisse vide pour conserver le mot de passe actuel.</p>
+                  </div>
+                  <div class="users-edit-grid candidate-account-compact-grid">
+                    <div>
+                      <label class="label" for="contact-edit-pass">Nouveau mot de passe</label>
+                      <input class="input" id="contact-edit-pass" name="new_password" type="password" minlength="8" autocomplete="new-password">
+                    </div>
+                    <div>
+                      <label class="label" for="contact-edit-pass2">Confirmer le mot de passe</label>
+                      <input class="input" id="contact-edit-pass2" name="new_password2" type="password" minlength="8" autocomplete="new-password">
+                    </div>
+                  </div>
+                </section>
+
+                <section class="candidate-account-card candidate-account-card-full">
+                  <div class="candidate-account-card-head">
+                    <h3 class="candidate-account-card-title">Permissions avancees</h3>
+                    <p class="sub">Programme(s) visibles et exception email.</p>
+                  </div>
+                  <div class="candidate-account-checklists">
+                    <?php if (user_has_role($adminUser, 'ADMIN')): ?>
+                      <div class="users-multiselect candidate-account-checklist">
+                        <span class="label">Administration globale</span>
+                        <label class="admin-inline-checkbox">
+                          <input type="checkbox" name="role" value="ADMIN" <?= $editIsGlobalAdmin ? 'checked' : '' ?>>
+                          <span>Compte administrateur global</span>
+                        </label>
+                        <p class="sub" style="margin:8px 0 0;">Donne acces a tous les programmes et aux reglages globaux.</p>
+                      </div>
+                    <?php endif; ?>
+                    <div class="users-multiselect candidate-account-checklist">
+                      <span class="label">Acces par programme</span>
+                      <div class="users-checkbox-list">
+                        <?php foreach ($programRows as $programRow): ?>
+                          <?php $programIdOption = (int)($programRow['id'] ?? 0); ?>
+                          <?php $selectedProgramRole = auth_normalize_program_access_role((string)($editProgramRoles[$programIdOption] ?? '')); ?>
+                          <?php $selectedProgramRole = isset($editProgramRoles[$programIdOption]) ? $selectedProgramRole : 'NONE'; ?>
+                          <label class="users-checkbox-item users-program-role-item">
+                            <span><?= h((string)($programLabelsById[$programIdOption] ?? ($programRow['name'] ?? 'Programme'))) ?></span>
+                            <select class="input users-program-role-select" name="program_roles[<?= $programIdOption ?>]">
+                              <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>>Aucun</option>
+                              <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>>Utilisateur</option>
+                              <?php if (user_has_role($adminUser, ['ADMIN', 'OWNER'])): ?>
+                                <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>>Owner</option>
+                              <?php endif; ?>
+                            </select>
+                          </label>
+                        <?php endforeach; ?>
+                      </div>
+                    </div>
+                    <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn): ?>
+                      <div class="users-multiselect candidate-account-checklist">
+                        <span class="label">Exception email</span>
+                        <label class="admin-inline-checkbox">
+                          <input type="checkbox" name="email_control_bypass" value="1" <?= $editEmailControlBypass === 1 ? 'checked' : '' ?>>
+                          <span>Ignorer le controle email pour ce compte</span>
+                        </label>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                </section>
+              </div>
+              <div class="users-edit-actions candidate-account-actions">
+                <button class="btn" type="submit">Enregistrer le compte</button>
+              </div>
+            </form>
+          <?php else: ?>
+            <p class="empty-state">Vous pouvez consulter ce profil, mais pas modifier ce compte utilisateur.</p>
+          <?php endif; ?>
+        <?php endif; ?>
+      </section>
 
       <div class="candidate-profile-layout">
       <section class="candidate-section candidate-section-accent">
@@ -493,6 +797,8 @@ $hist = $histStmt->fetchAll();
 
       <?php if ($linkedUserId <= 0): ?>
         <p class="error">Aucun compte utilisateur n'est lie a cet email. Deblocage impossible.</p>
+      <?php elseif (!$canMutateReporting): ?>
+        <p class="sub">Consultation seule pour ce role.</p>
       <?php elseif (!$packages): ?>
         <p class="error">Aucune certification active disponible.</p>
       <?php else: ?>
@@ -715,7 +1021,7 @@ $hist = $histStmt->fetchAll();
                   $expiresAt = null;
                 }
                 $sessionDetailUrl = (string)($c['last_session_id'] ?? '') !== ''
-                  ? '/admin/session.php?sid=' . urlencode((string)$c['last_session_id']) . '&return=' . urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/contact.php?email=' . $contact['email']))
+                  ? '/admin/session.php?sid=' . urlencode((string)$c['last_session_id']) . ($activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '') . '&return=' . urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/contact.php?email=' . $contact['email']))
                   : '';
                 $returnUrl = '/admin/contact.php?' . http_build_query([
                   'email' => (string)$contact['email'],
@@ -744,7 +1050,9 @@ $hist = $histStmt->fetchAll();
                       </a>
                     <?php endif; ?>
                     <?php if ($hasRevocationsTable): ?>
-                      <?php if ((string)($certStatus['status_key'] ?? '') === 'REVOKED'): ?>
+                    <?php if (!$canMutateReporting): ?>
+                      -
+                    <?php elseif ((string)($certStatus['status_key'] ?? '') === 'REVOKED'): ?>
                         <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
                            onclick="return confirm('Retablir cette certification ?');">Retablir</a>
                       <?php else: ?>
@@ -821,7 +1129,7 @@ $hist = $histStmt->fetchAll();
 
         <div class="filters-actions">
           <button class="btn" type="submit">Filtrer</button>
-          <a class="btn ghost" href="/admin/contact.php?email=<?= urlencode($contact['email']) ?>">Reset</a>
+          <a class="btn ghost" href="/admin/contact.php?email=<?= urlencode($contact['email']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
         </div>
       </form>
 
@@ -896,7 +1204,7 @@ $hist = $histStmt->fetchAll();
                     <?php endif; ?>
                   </td>
                   <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?>" aria-label="Voir le detail" title="Voir le detail">
+                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/contact.php?email=' . $contact['email']))) ?>" aria-label="Voir le detail" title="Voir le detail">
                       <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                       </svg>

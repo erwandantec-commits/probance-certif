@@ -475,6 +475,7 @@ $backToTopLabel = $lang === 'jp' ? 'Top' : $backToTopLabel;
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>" id="doc-top">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title><?= h($helpTitle) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -507,7 +508,7 @@ $backToTopLabel = $lang === 'jp' ? 'Top' : $backToTopLabel;
           <span class="doc-action-title"><?= h($dashboardLabel) ?></span>
           <span class="doc-action-meta"><?= h($dashboardMeta) ?></span>
         </a>
-        <?php if (($user['role'] ?? 'USER') === 'ADMIN'): ?>
+        <?php if (user_can_access_reporting_area($user)): ?>
           <a class="doc-action-card" href="/admin/help.php">
             <span class="doc-action-title"><?= h($adminDocLabel) ?></span>
             <span class="doc-action-meta"><?= h($adminDocMeta) ?></span>

@@ -13,6 +13,10 @@ $pdo = db();
 $user = require_auth();
 $lang = get_lang();
 $uid = (int)$user['id'];
+$requestedProgramId = (int)($_GET['program_id'] ?? 0);
+$accessiblePrograms = auth_accessible_programs($pdo, $user);
+$activeProgramId = auth_candidate_program_context($pdo, $user, $requestedProgramId > 0 ? $requestedProgramId : null);
+$restrictToNoProgramAccess = auth_table_exists($pdo, 'programs') && auth_table_exists($pdo, 'user_program_access') && !$accessiblePrograms;
 
 function dashboard_package_column_exists(PDO $pdo, string $column): bool {
   static $cache = [];
@@ -36,6 +40,8 @@ $hasPackageDisplayOrderColumn = dashboard_package_column_exists($pdo, 'display_o
 $hasPackageBadgeImageColumn = dashboard_package_column_exists($pdo, 'badge_image_filename');
 $hasPackageCertValidityDaysColumn = dashboard_package_column_exists($pdo, 'cert_validity_days');
 $hasPackageFailedCooldownDaysColumn = dashboard_package_column_exists($pdo, 'failed_cooldown_days');
+$hasPackageProgramColumn = dashboard_package_column_exists($pdo, 'program_id');
+$hasProgramPackageLinksTable = auth_program_package_links_enabled($pdo);
 
 $errKey = trim((string)($_GET['err_key'] ?? ''));
 $err = trim((string)($_GET['err'] ?? ''));
@@ -50,9 +56,21 @@ if ($hasPackageDisplayOrderColumn) {
 if ($hasPackageFailedCooldownDaysColumn) {
   $pkgCols .= ", failed_cooldown_days";
 }
+$pkgWhere = [];
+if ($hasProgramPackageLinksTable && $activeProgramId > 0) {
+  $pkgWhere[] = auth_program_package_scope_sql($pdo, $activeProgramId, 'pk');
+}
+if ($restrictToNoProgramAccess) {
+  $pkgWhere[] = "1 = 0";
+} elseif (!$hasProgramPackageLinksTable && $hasPackageProgramColumn && $activeProgramId > 0) {
+  $pkgWhere[] = "program_id = " . (int)$activeProgramId;
+}
+$pkgWhereSql = $pkgWhere ? ('WHERE ' . implode(' AND ', $pkgWhere)) : '';
 $pkgOrder = $hasPackageDisplayOrderColumn ? "ORDER BY display_order ASC, id ASC" : "ORDER BY id DESC";
-$pkgStmt = $pdo->query("SELECT $pkgCols FROM packages $pkgOrder");
+$pkgStmt = $pdo->query("SELECT $pkgCols FROM packages pk $pkgWhereSql $pkgOrder");
 $packages = $pkgStmt->fetchAll();
+$accessiblePackageIds = array_values(array_map(static fn(array $p): int => (int)($p['id'] ?? 0), $packages));
+$restrictToEmptyProgram = $restrictToNoProgramAccess || ($hasPackageProgramColumn && $activeProgramId > 0 && !$accessiblePackageIds);
 
 $packageIdList = array_map(static fn(array $p): int => (int)$p['id'], $packages);
 $latestCert = (int)($_GET['latest_cert'] ?? 0);
@@ -71,6 +89,12 @@ $hasTerminationType = sessions_column_exists($pdo, 'termination_type');
 
 $lastConds = ["s.user_id=?"];
 $lastParams = [$uid];
+if ($restrictToEmptyProgram) {
+  $lastConds[] = "1 = 0";
+} elseif ($accessiblePackageIds) {
+  $lastConds[] = "s.package_id IN (" . implode(',', array_fill(0, count($accessiblePackageIds), '?')) . ")";
+  $lastParams = array_merge($lastParams, $accessiblePackageIds);
+}
 if ($latestCert > 0) {
   $lastConds[] = "s.package_id=?";
   $lastParams[] = $latestCert;
@@ -126,9 +150,17 @@ $certSuccessStmt = $pdo->prepare("
     AND s.session_type='EXAM'
     AND s.status='TERMINATED'
     AND s.passed=1
+    " . ($restrictToEmptyProgram
+      ? "AND 1 = 0"
+      : ($accessiblePackageIds ? ("AND s.package_id IN (" . implode(',', array_fill(0, count($accessiblePackageIds), '?')) . ")") : "")
+    ) . "
   ORDER BY s.started_at DESC
 ");
-$certSuccessStmt->execute([$uid]);
+$certSuccessParams = [$uid];
+if ($accessiblePackageIds) {
+  $certSuccessParams = array_merge($certSuccessParams, $accessiblePackageIds);
+}
+$certSuccessStmt->execute($certSuccessParams);
 $certCards = [];
 $revokedMap = [];
 $hasRevocationsTable = (bool)$pdo->query("
@@ -323,9 +355,17 @@ $activeStmt = $pdo->prepare("
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE user_id=? AND status='ACTIVE'
+  " . ($restrictToEmptyProgram
+    ? "AND 1 = 0"
+    : ($accessiblePackageIds ? ("AND s.package_id IN (" . implode(',', array_fill(0, count($accessiblePackageIds), '?')) . ")") : "")
+  ) . "
   ORDER BY s.started_at DESC
 ");
-$activeStmt->execute([$uid]);
+$activeParams = [$uid];
+if ($accessiblePackageIds) {
+  $activeParams = array_merge($activeParams, $accessiblePackageIds);
+}
+$activeStmt->execute($activeParams);
 $activeRows = $activeStmt->fetchAll();
 $activeByPackage = [];
 $resumePosBySession = [];
@@ -509,6 +549,7 @@ function dash_remaining_label(int $seconds): string {
 <!doctype html>
 <html lang="<?= h(html_lang_code($lang)) ?>">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title><?= h(t('dash.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -527,37 +568,55 @@ function dash_remaining_label(int $seconds): string {
     </div>
 
       <div class="dashboard-head-actions">
-      <div class="lang-switch">
-        <select id="dash-lang" class="input lang-select"
-                onchange="window.location.href='/dashboard.php?lang=' + encodeURIComponent(this.value);">
-          <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
-          <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
-          <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
-          <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
-        </select>
-      </div>
-      <div class="dashboard-main-actions">
-        <?php if (($user['role'] ?? 'USER') === 'ADMIN'): ?>
-          <a class="btn ghost dashboard-admin-btn" href="/admin/">
-            <?= h(t('dash.admin', [], $lang)) ?>
+        <div class="dashboard-toolbar">
+          <?php if (count($accessiblePrograms) > 1): ?>
+            <form method="get" class="dashboard-program-switcher">
+              <input type="hidden" name="lang" value="<?= h($lang) ?>">
+              <div class="dashboard-program-select-wrap">
+                <svg class="dashboard-program-select-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M3 4h18v12H3z"/>
+                  <path d="M10 16h4v3h4v2H6v-2h4z"/>
+                </svg>
+                <select class="input dashboard-program-switcher-select" id="dashboard-program-id" name="program_id" onchange="this.form.submit()">
+                  <?php foreach ($accessiblePrograms as $program): ?>
+                    <?php $programId = (int)($program['id'] ?? 0); ?>
+                    <option value="<?= $programId ?>" <?= $programId === $activeProgramId ? 'selected' : '' ?>>
+                      <?= h((string)($program['name'] ?? '')) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </form>
+          <?php endif; ?>
+          <div class="lang-switch">
+            <select id="dash-lang" class="input lang-select"
+                    onchange="window.location.href='/dashboard.php?lang=' + encodeURIComponent(this.value) + '<?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>';">
+              <option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>><?= h(t('lang.fr', [], $lang)) ?></option>
+              <option value="en" <?= $lang === 'en' ? 'selected' : '' ?>><?= h(t('lang.en', [], $lang)) ?></option>
+              <option value="es" <?= $lang === 'es' ? 'selected' : '' ?>><?= h(t('lang.es', [], $lang)) ?></option>
+              <option value="jp" <?= $lang === 'jp' ? 'selected' : '' ?>><?= h(t('lang.jp', [], $lang)) ?></option>
+            </select>
+          </div>
+          <?php if (user_can_access_reporting_area($user)): ?>
+            <a class="btn ghost dashboard-admin-btn" href="/admin/">
+              <?= h(t('dash.admin', [], $lang)) ?>
+            </a>
+          <?php endif; ?>
+          <a class="btn ghost dashboard-help-btn" href="/help.php?lang=<?= h(urlencode($lang)) ?>" aria-label="Aide" title="Aide">
+            <svg class="help-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="12" r="8.3"/>
+              <path d="M9.4 9.35a2.6 2.6 0 1 1 5.05.87c0 1.72-2.45 2.47-2.45 4.08"/>
+              <path d="M12 16.95h.01"/>
+            </svg>
           </a>
-        <?php endif; ?>
-        <a class="btn ghost dashboard-help-btn" href="/help.php?lang=<?= h(urlencode($lang)) ?>" aria-label="Aide" title="Aide">
-          <svg class="help-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <circle cx="12" cy="12" r="8.3"/>
-            <path d="M9.4 9.35a2.6 2.6 0 1 1 5.05.87c0 1.72-2.45 2.47-2.45 4.08"/>
-            <path d="M12 16.95h.01"/>
-          </svg>
-        </a>
-        <a class="btn ghost dashboard-logout-btn" href="/logout.php">
-          <svg class="logout-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 16l4-4-4-4M19 12H9"/>
-          </svg>
-          <span><?= h(t('dash.logout', [], $lang)) ?></span>
-        </a>
+          <a class="btn ghost dashboard-logout-btn" href="/logout.php" aria-label="<?= h(t('dash.logout', [], $lang)) ?>" title="<?= h(t('dash.logout', [], $lang)) ?>">
+            <svg class="logout-inline-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 16l4-4-4-4M19 12H9"/>
+            </svg>
+          </a>
+        </div>
       </div>
     </div>
-  </div>
 
   <?php if ($errKey || $err): ?>
     <div class="card dashboard-alert">
@@ -566,6 +625,27 @@ function dash_remaining_label(int $seconds): string {
       </p>
     </div>
   <?php endif; ?>
+
+  <?php if ($restrictToNoProgramAccess): ?>
+    <div class="card dashboard-card dashboard-empty-program">
+      <div class="dashboard-empty-program-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13Z"/>
+          <path d="M8 8h8M8 12h5M8 16h3"/>
+        </svg>
+      </div>
+      <div class="dashboard-empty-program-copy">
+        <h3 class="dashboard-section-title"><?= h(t('dash.no_program.title', [], $lang)) ?></h3>
+        <p class="sub"><?= h(t('dash.no_program.body', [], $lang)) ?></p>
+      </div>
+      <div class="dashboard-empty-program-actions">
+        <a class="btn" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?>"><?= h(t('dash.no_program.refresh', [], $lang)) ?></a>
+        <?php if (user_can_access_reporting_area($user)): ?>
+          <a class="btn ghost" href="/admin/"><?= h(t('dash.admin', [], $lang)) ?></a>
+        <?php endif; ?>
+      </div>
+    </div>
+  <?php else: ?>
 
   <nav class="dashboard-jump" aria-label="Dashboard sections">
     <a class="dashboard-jump-link" href="#sec-certifications"><?= h(t('dash.certifications.title', [], $lang)) ?></a>
@@ -625,6 +705,7 @@ function dash_remaining_label(int $seconds): string {
 
 	    <form method="post" action="/start.php" class="dashboard-start-form">
 	      <input type="hidden" name="lang" value="<?= h($lang) ?>">
+	      <input type="hidden" name="program_id" value="<?= (int)$activeProgramId ?>">
 	      <div class="dashboard-start-grid">
 		        <div class="dashboard-field dashboard-cert-field">
 		          <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
@@ -780,6 +861,9 @@ function dash_remaining_label(int $seconds): string {
 
     <form method="get" class="filters-grid" style="margin-bottom:12px;">
       <input type="hidden" name="lang" value="<?= h($lang) ?>">
+      <?php if ($activeProgramId > 0): ?>
+        <input type="hidden" name="program_id" value="<?= (int)$activeProgramId ?>">
+      <?php endif; ?>
       <div>
         <label class="label"><?= h(t('dash.col.cert', [], $lang)) ?></label>
         <select name="latest_cert">
@@ -812,7 +896,7 @@ function dash_remaining_label(int $seconds): string {
       </div>
       <div class="filters-actions">
         <button class="btn ghost" type="submit">Filtrer</button>
-        <a class="btn ghost" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?>#sec-latest">Reinitialiser</a>
+        <a class="btn ghost" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>#sec-latest">Reinitialiser</a>
       </div>
     </form>
 
@@ -889,6 +973,7 @@ function dash_remaining_label(int $seconds): string {
       </div>
     <?php endif; ?>
   </div>
+  <?php endif; ?>
 </div>
 <script src="/assets/package-colors.js"></script>
 <script>

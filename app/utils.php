@@ -79,6 +79,48 @@ function parse_question_need_tokens(?string $raw): array {
   return array_keys($tokens);
 }
 
+function question_known_needs(PDO $pdo, array $seedNeeds = []): array {
+  $needs = [];
+
+  foreach ($seedNeeds as $seedNeed) {
+    $need = normalize_question_need((string)$seedNeed);
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+
+  $st = $pdo->query("
+    SELECT DISTINCT TRIM(need) AS need_name
+    FROM questions
+    WHERE need IS NOT NULL AND TRIM(need) <> ''
+    ORDER BY need_name ASC
+  ");
+  foreach (($st ? $st->fetchAll() : []) as $row) {
+    $need = normalize_question_need((string)($row['need_name'] ?? ''));
+    if ($need !== '') {
+      $needs[$need] = true;
+    }
+  }
+
+  $knownNeeds = array_keys($needs);
+  natcasesort($knownNeeds);
+  return array_values($knownNeeds);
+}
+
+function question_default_need(array $knownNeeds, string $preferred = 'PONE'): string {
+  $preferred = normalize_question_need($preferred);
+  $knownNeeds = array_values(array_filter(array_map(
+    static fn($need) => normalize_question_need((string)$need),
+    $knownNeeds
+  ), static fn($need) => $need !== ''));
+
+  if ($preferred !== '' && in_array($preferred, $knownNeeds, true)) {
+    return $preferred;
+  }
+
+  return $knownNeeds[0] ?? $preferred;
+}
+
 function app_build_url(string $path): string {
   return APP_BASE_URL . '/' . ltrim($path, '/');
 }
@@ -92,6 +134,26 @@ function question_translation_normalize_lang(?string $lang): string {
     $lang = 'fr';
   }
   return $lang;
+}
+
+function question_translation_lang_labels(): array {
+  return [
+    'fr' => 'FR',
+    'en' => 'EN',
+    'es' => 'ES',
+    'jp' => 'JA',
+  ];
+}
+
+function question_translation_lang_label(string $lang): string {
+  $labels = question_translation_lang_labels();
+  $lang = question_translation_normalize_lang($lang);
+  return $labels[$lang] ?? strtoupper($lang);
+}
+
+function question_translation_target_langs(string $sourceLang): array {
+  $sourceLang = question_translation_normalize_lang($sourceLang);
+  return array_diff_key(question_translation_lang_labels(), [$sourceLang => true]);
 }
 
 function question_translation_table_exists(PDO $pdo, string $table): bool {
@@ -126,6 +188,81 @@ function question_translation_column_exists(PDO $pdo, string $table, string $col
   $st->execute([$table, $column]);
   $cache[$key] = ((int)$st->fetchColumn() > 0);
   return $cache[$key];
+}
+
+function ensure_program_source_language_schema(PDO $pdo): void {
+  static $done = false;
+  if ($done || !question_translation_table_exists($pdo, 'programs')) {
+    return;
+  }
+  if (!question_translation_column_exists($pdo, 'programs', 'source_lang')) {
+    $pdo->exec("ALTER TABLE programs ADD COLUMN source_lang VARCHAR(5) NOT NULL DEFAULT 'fr' AFTER description");
+  }
+  $done = true;
+}
+
+function program_source_lang(PDO $pdo, int $programId): string {
+  $programId = max(0, $programId);
+  ensure_program_source_language_schema($pdo);
+  if ($programId <= 0 || !question_translation_table_exists($pdo, 'programs')) {
+    return 'fr';
+  }
+
+  $st = $pdo->prepare("SELECT source_lang FROM programs WHERE id = ? LIMIT 1");
+  $st->execute([$programId]);
+  return question_translation_normalize_lang((string)($st->fetchColumn() ?: 'fr'));
+}
+
+function question_program_source_lang(PDO $pdo, int $questionId): string {
+  $questionId = max(0, $questionId);
+  if ($questionId <= 0 || !question_translation_table_exists($pdo, 'program_question_links')) {
+    return 'fr';
+  }
+
+  $st = $pdo->prepare("
+    SELECT program_id
+    FROM program_question_links
+    WHERE question_id = ?
+    ORDER BY program_id ASC
+    LIMIT 1
+  ");
+  $st->execute([$questionId]);
+  return program_source_lang($pdo, (int)($st->fetchColumn() ?: 0));
+}
+
+function package_program_source_lang(PDO $pdo, int $packageId, int $preferredProgramId = 0): string {
+  $packageId = max(0, $packageId);
+  $preferredProgramId = max(0, $preferredProgramId);
+  if ($preferredProgramId > 0) {
+    return program_source_lang($pdo, $preferredProgramId);
+  }
+  if ($packageId <= 0) {
+    return 'fr';
+  }
+
+  if (function_exists('auth_package_program_ids')) {
+    $programIds = auth_package_program_ids($pdo, $packageId, true);
+    return program_source_lang($pdo, (int)($programIds[0] ?? 0));
+  }
+  if (question_translation_table_exists($pdo, 'program_package_links')) {
+    $st = $pdo->prepare("
+      SELECT program_id
+      FROM program_package_links
+      WHERE package_id = ?
+        AND is_active = 1
+      ORDER BY program_id ASC
+      LIMIT 1
+    ");
+    $st->execute([$packageId]);
+    return program_source_lang($pdo, (int)($st->fetchColumn() ?: 0));
+  }
+  if (question_translation_column_exists($pdo, 'packages', 'program_id')) {
+    $st = $pdo->prepare("SELECT program_id FROM packages WHERE id = ? LIMIT 1");
+    $st->execute([$packageId]);
+    return program_source_lang($pdo, (int)($st->fetchColumn() ?: 0));
+  }
+
+  return 'fr';
 }
 
 function ensure_question_translation_schema(PDO $pdo): void {
@@ -177,14 +314,15 @@ function question_translations_available(PDO $pdo): bool {
     && question_translation_table_exists($pdo, 'question_option_translations');
 }
 
-function translated_question_field(PDO $pdo, int $questionId, string $lang, string $field, ?string $fallback = null): string {
+function translated_question_field(PDO $pdo, int $questionId, string $lang, string $field, ?string $fallback = null, ?string $sourceLang = null): string {
   $fallbackValue = trim((string)$fallback);
   if ($questionId <= 0) {
     return $fallbackValue;
   }
 
   $lang = question_translation_normalize_lang($lang);
-  if ($lang === 'fr' || !question_translations_available($pdo)) {
+  $sourceLang = question_translation_normalize_lang($sourceLang ?? question_program_source_lang($pdo, $questionId));
+  if ($lang === $sourceLang || !question_translations_available($pdo)) {
     return $fallbackValue;
   }
 
@@ -215,14 +353,20 @@ function translated_question_field(PDO $pdo, int $questionId, string $lang, stri
   return $value !== '' ? $value : $fallbackValue;
 }
 
-function translated_option_text(PDO $pdo, int $optionId, string $lang, ?string $fallback = null): string {
+function translated_option_text(PDO $pdo, int $optionId, string $lang, ?string $fallback = null, ?string $sourceLang = null): string {
   $fallbackValue = trim((string)$fallback);
   if ($optionId <= 0) {
     return $fallbackValue;
   }
 
   $lang = question_translation_normalize_lang($lang);
-  if ($lang === 'fr' || !question_translations_available($pdo)) {
+  if ($sourceLang === null) {
+    $questionStmt = $pdo->prepare("SELECT question_id FROM question_options WHERE id = ? LIMIT 1");
+    $questionStmt->execute([$optionId]);
+    $sourceLang = question_program_source_lang($pdo, (int)($questionStmt->fetchColumn() ?: 0));
+  }
+  $sourceLang = question_translation_normalize_lang($sourceLang);
+  if ($lang === $sourceLang || !question_translations_available($pdo)) {
     return $fallbackValue;
   }
 
@@ -244,12 +388,13 @@ function translated_option_text(PDO $pdo, int $optionId, string $lang, ?string $
   return $value !== '' ? $value : $fallbackValue;
 }
 
-function question_translation_missing_details(PDO $pdo, array $questionIds, string $lang): array {
+function question_translation_missing_details(PDO $pdo, array $questionIds, string $lang, ?string $sourceLang = null): array {
   $lang = question_translation_normalize_lang($lang);
+  $sourceLang = question_translation_normalize_lang($sourceLang ?? 'fr');
   $questionIds = array_values(array_unique(array_map('intval', $questionIds)));
   $questionIds = array_values(array_filter($questionIds, static fn($id) => $id > 0));
 
-  if ($lang === 'fr' || $questionIds === []) {
+  if ($lang === $sourceLang || $questionIds === []) {
     return [];
   }
 
@@ -322,16 +467,17 @@ function question_translation_missing_details(PDO $pdo, array $questionIds, stri
   return $missing;
 }
 
-function questions_have_complete_translation(PDO $pdo, array $questionIds, string $lang): bool {
-  return question_translation_missing_details($pdo, $questionIds, $lang) === [];
+function questions_have_complete_translation(PDO $pdo, array $questionIds, string $lang, ?string $sourceLang = null): bool {
+  return question_translation_missing_details($pdo, $questionIds, $lang, $sourceLang) === [];
 }
 
-function question_translation_status(PDO $pdo, int $questionId, string $lang): string {
+function question_translation_status(PDO $pdo, int $questionId, string $lang, ?string $sourceLang = null): string {
   $lang = question_translation_normalize_lang($lang);
   if ($questionId <= 0) {
     return 'missing';
   }
-  if ($lang === 'fr') {
+  $sourceLang = question_translation_normalize_lang($sourceLang ?? question_program_source_lang($pdo, $questionId));
+  if ($lang === $sourceLang) {
     return 'complete';
   }
   if (!question_translations_available($pdo)) {

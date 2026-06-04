@@ -1,12 +1,15 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+require_team_reporting();
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 require_once __DIR__ . '/../services/session_service.php';
 require_once __DIR__ . '/_nav.php';
 $pdo = db();
+$adminUser = current_user() ?? ['role' => 'USER'];
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
+$canMutateReporting = user_can_access_admin_area($adminUser);
 
 function certifications_package_column_exists(PDO $pdo, string $column): bool {
   static $cache = [];
@@ -32,7 +35,10 @@ if (!in_array($certStatus, ['ALL', 'CERTIFIED', 'SOON', 'EXPIRED', 'REVOKED'], t
   $certStatus = 'ALL';
 }
 
-$packages = $pdo->query("SELECT id, name, name_color_hex FROM packages ORDER BY id DESC")->fetchAll();
+$packagesWhereSql = $activeProgramId > 0
+  ? ('WHERE ' . auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false))
+  : '';
+$packages = $pdo->query("SELECT pk.id, pk.name, pk.name_color_hex FROM packages pk $packagesWhereSql ORDER BY pk.id DESC")->fetchAll();
 $hasCertValidityDaysColumn = certifications_package_column_exists($pdo, 'cert_validity_days');
 $certValidityDaysSelect = $hasCertValidityDaysColumn
   ? "pk.cert_validity_days AS cert_validity_days"
@@ -48,6 +54,9 @@ $where = [
   "s.passed=1",
 ];
 $params = [];
+if ($activeProgramId > 0) {
+  $where[] = auth_program_package_scope_sql($pdo, $activeProgramId, 'pk', false);
+}
 
 if ($email !== '') {
   $where[] = "c.email LIKE ?";
@@ -182,7 +191,15 @@ foreach ($rawRows as $r) {
 }
 
 usort($rows, static function (array $a, array $b): int {
-  return strcmp($a['expires_at'], $b['expires_at']);
+  $dateCmp = strcmp((string)$b['last_cert_date'], (string)$a['last_cert_date']);
+  if ($dateCmp !== 0) {
+    return $dateCmp;
+  }
+  $emailCmp = strcasecmp((string)$a['email'], (string)$b['email']);
+  if ($emailCmp !== 0) {
+    return $emailCmp;
+  }
+  return strcasecmp((string)$a['package_name'], (string)$b['package_name']);
 });
 
 foreach ($rows as &$row) {
@@ -215,6 +232,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Certifications</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -294,7 +312,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 
         <div class="filters-actions">
           <button class="btn" type="submit">Filtrer</button>
-          <a class="btn ghost" href="/admin/certifications.php">Reset</a>
+          <a class="btn ghost" href="/admin/certifications.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
           <button class="btn ghost" type="submit" name="export" value="1">Exporter CSV</button>
         </div>
       </form>
@@ -335,7 +353,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
               <?php foreach ($rows as $r): ?>
                 <tr>
                   <td>
-                    <a href="/admin/contact.php?email=<?= urlencode($r['email']) ?>">
+                    <a href="/admin/contact.php?email=<?= urlencode($r['email']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>">
                       <?= h($r['email']) ?>
                     </a>
                   </td>
@@ -345,7 +363,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                   <td><span class="<?= h($r['status_class']) ?>"><?= h($r['status_label']) ?></span></td>
                   <td class="actions-cell">
 	                    <?php if ((string)($r['last_session_id'] ?? '') !== ''): ?>
-	                      <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= urlencode((string)$r['last_session_id']) ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/certifications.php'))) ?>" aria-label="Voir le detail" title="Voir le detail">
+	                      <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= urlencode((string)$r['last_session_id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/certifications.php'))) ?>" aria-label="Voir le detail" title="Voir le detail">
 	                        <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                          <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
 	                        </svg>
@@ -353,11 +371,13 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
 	                    <?php endif; ?>
                     <?php if (!$hasRevocationsTable): ?>
                       <?php if ((string)($r['last_session_id'] ?? '') === ''): ?>-<?php endif; ?>
+                    <?php elseif (!$canMutateReporting): ?>
+                      <?php if ((string)($r['last_session_id'] ?? '') === ''): ?>-<?php endif; ?>
                     <?php elseif ($r['status_key'] === 'REVOKED'): ?>
-                      <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
+                      <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
                          onclick="return confirm('Retirer la r&eacute;vocation de cette certification ?');">R&eacute;tablir</a>
                     <?php else: ?>
-                      <a class="btn ghost icon-btn danger" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?>"
+                      <a class="btn ghost icon-btn danger" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$r['contact_id'] ?>&package_id=<?= (int)$r['package_id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
                          aria-label="Revoquer" title="Revoquer"
                          onclick="return confirm('Revoquer cette certification ?');">
                         <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

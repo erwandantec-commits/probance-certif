@@ -1,11 +1,12 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 $pdo = db();
+$activeProgramId = auth_admin_program_context($pdo, $adminUser, isset($_GET['program_id']) ? (int)$_GET['program_id'] : null);
 
 function package_edit_questions_column_exists(PDO $pdo, string $column): bool {
   static $cache = [];
@@ -63,6 +64,10 @@ function package_edit_filter_url(int $id, array $needs, array $needLevels): stri
   $cleanNeedLevels = array_values(array_unique($cleanNeedLevels));
 
   $qs = ['id' => $id];
+  $programId = (int)($_GET['program_id'] ?? 0);
+  if ($programId > 0) {
+    $qs['program_id'] = $programId;
+  }
   if (!empty($needs)) {
     $qs['needs'] = $needs;
   }
@@ -135,7 +140,55 @@ function package_rule_templates(): array {
   ];
 }
 
-function package_edit_known_needs(PDO $pdo, array $ruleTemplates, array $ruleRows = []): array {
+function package_edit_program_question_scope_sql(PDO $pdo, int $activeProgramId): string {
+  if ($activeProgramId <= 0 || !auth_table_exists($pdo, 'program_question_links')) {
+    return '';
+  }
+
+  return "EXISTS (
+    SELECT 1
+    FROM program_question_links pql
+    WHERE pql.question_id = q.id
+      AND pql.program_id = " . (int)$activeProgramId . "
+  )";
+}
+
+function package_edit_rule_templates_for_program(PDO $pdo, int $activeProgramId, array $ruleTemplates): array {
+  if ($activeProgramId <= 0) {
+    return $ruleTemplates;
+  }
+
+  if (auth_program_package_links_enabled($pdo)) {
+    $stmt = $pdo->prepare("
+      SELECT UPPER(TRIM(pk.name)) AS package_name
+      FROM packages pk
+      JOIN program_package_links ppl ON ppl.package_id = pk.id
+      WHERE ppl.program_id = ?
+    ");
+    $stmt->execute([$activeProgramId]);
+  } elseif (package_edit_package_column_exists($pdo, 'program_id')) {
+    $stmt = $pdo->prepare("
+      SELECT UPPER(TRIM(name)) AS package_name
+      FROM packages
+      WHERE program_id = ?
+    ");
+    $stmt->execute([$activeProgramId]);
+  } else {
+    return $ruleTemplates;
+  }
+
+  $allowedNames = [];
+  foreach (($stmt ? $stmt->fetchAll() : []) as $row) {
+    $name = (string)($row['package_name'] ?? '');
+    if ($name !== '') {
+      $allowedNames[$name] = true;
+    }
+  }
+
+  return array_intersect_key($ruleTemplates, $allowedNames);
+}
+
+function package_edit_known_needs(PDO $pdo, array $ruleTemplates, array $ruleRows = [], int $activeProgramId = 0): array {
   $needs = [];
 
   foreach ($ruleTemplates as $template) {
@@ -147,17 +200,16 @@ function package_edit_known_needs(PDO $pdo, array $ruleTemplates, array $ruleRow
     }
   }
 
-  foreach ($ruleRows as $row) {
-    $need = normalize_question_need((string)($row['need'] ?? ''));
-    if ($need !== '') {
-      $needs[$need] = true;
-    }
+  $programQuestionScopeSql = package_edit_program_question_scope_sql($pdo, $activeProgramId);
+  $whereSql = "WHERE q.need IS NOT NULL AND TRIM(q.need) <> ''";
+  if ($programQuestionScopeSql !== '') {
+    $whereSql .= " AND $programQuestionScopeSql";
   }
 
   $st = $pdo->query("
     SELECT DISTINCT TRIM(need) AS need_name
-    FROM questions
-    WHERE need IS NOT NULL AND TRIM(need) <> ''
+    FROM questions q
+    $whereSql
     ORDER BY need_name ASC
   ");
   foreach (($st ? $st->fetchAll() : []) as $row) {
@@ -170,8 +222,10 @@ function package_edit_known_needs(PDO $pdo, array $ruleTemplates, array $ruleRow
   return array_keys($needs);
 }
 
-function package_edit_available_question_counts(PDO $pdo): array {
+function package_edit_available_question_counts(PDO $pdo, int $activeProgramId = 0): array {
   $counts = [];
+  $programQuestionScopeSql = package_edit_program_question_scope_sql($pdo, $activeProgramId);
+  $programWhereSql = $programQuestionScopeSql !== '' ? "AND $programQuestionScopeSql" : "";
   $st = $pdo->query("
     SELECT q.need, q.level, COUNT(*) c
     FROM questions q
@@ -182,6 +236,7 @@ function package_edit_available_question_counts(PDO $pdo): array {
       GROUP BY qo.question_id
       HAVING COUNT(*) >= 2
     )
+    $programWhereSql
     GROUP BY q.need, q.level
   ");
   foreach (($st ? $st->fetchAll() : []) as $row) {
@@ -441,13 +496,38 @@ $hasCertValidityDaysColumn = package_edit_package_column_exists($pdo, 'cert_vali
 $hasFailedCooldownDaysColumn = package_edit_package_column_exists($pdo, 'failed_cooldown_days');
 $badgeImageOptions = package_edit_badge_file_options();
 $ruleTemplates = package_rule_templates();
-$packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
 
 if (!$pk) {
   http_response_code(404);
   echo "Not found";
   exit;
 }
+
+if ($activeProgramId > 0) {
+  if (auth_program_package_links_enabled($pdo)) {
+    $scopeStmt = $pdo->prepare("
+      SELECT COUNT(*)
+      FROM program_package_links
+      WHERE package_id = ?
+        AND program_id = ?
+    ");
+    $scopeStmt->execute([(int)$id, $activeProgramId]);
+    if ((int)($scopeStmt->fetchColumn() ?: 0) <= 0) {
+      http_response_code(404);
+      echo "Not found";
+      exit;
+    }
+  } elseif (package_edit_package_column_exists($pdo, 'program_id')) {
+    if ((int)($pk['program_id'] ?? 0) !== $activeProgramId) {
+      http_response_code(404);
+      echo "Not found";
+      exit;
+    }
+  }
+}
+
+$ruleTemplates = package_edit_rule_templates_for_program($pdo, $activeProgramId, $ruleTemplates);
+$packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
 
 $selectedTemplate = '';
 $packNameUpper = strtoupper(trim((string)($pk['name'] ?? '')));
@@ -568,22 +648,31 @@ if ($rulesRaw !== '') {
     }
   }
 }
+$knownNeeds = package_edit_known_needs($pdo, $ruleTemplates, $ruleRows, $activeProgramId);
+$knownNeedSet = array_fill_keys($knownNeeds, true);
+$ruleRows = array_values(array_filter($ruleRows, static function (array $row) use ($knownNeedSet): bool {
+  $need = normalize_question_need((string)($row['need'] ?? ''));
+  return $need !== '' && isset($knownNeedSet[$need]);
+}));
+foreach (array_keys($allowedByNeed) as $needName) {
+  if (!isset($knownNeedSet[$needName])) {
+    unset($allowedByNeed[$needName]);
+  }
+}
 if (empty($allowedByNeed)) {
-  $allowedByNeed = [
-    'PONE' => [1 => true, 2 => true, 3 => true],
-    'PHM' => [1 => true, 2 => true, 3 => true],
-    'PPM' => [1 => true, 2 => true, 3 => true],
-  ];
+  foreach ($knownNeeds as $knownNeed) {
+    $allowedByNeed[$knownNeed] = [1 => true, 2 => true, 3 => true];
+  }
 }
 
-$knownNeeds = package_edit_known_needs($pdo, $ruleTemplates, $ruleRows);
-$availableQuestionCounts = package_edit_available_question_counts($pdo);
+$availableQuestionCounts = package_edit_available_question_counts($pdo, $activeProgramId);
 foreach ($knownNeeds as $knownNeed) {
   if (!isset($allowedByNeed[$knownNeed])) {
     $allowedByNeed[$knownNeed] = [1 => true, 2 => true, 3 => true];
   }
 }
 ksort($allowedByNeed);
+$defaultNeed = question_default_need($knownNeeds);
 
 $filterNeeds = array_values(array_filter(
   $filterNeeds,
@@ -597,7 +686,8 @@ foreach (array_keys($allowedByNeed) as $needName) {
 
 $distStmt = $pdo->prepare("
   SELECT need, knowledge_required_csv, level
-  FROM questions
+  FROM questions q
+  " . (package_edit_program_question_scope_sql($pdo, $activeProgramId) !== '' ? "WHERE " . package_edit_program_question_scope_sql($pdo, $activeProgramId) : "") . "
 ");
 $distStmt->execute();
 foreach ($distStmt->fetchAll() as $r) {
@@ -634,6 +724,10 @@ foreach ($allowedByNeed as $needKey => $levelsMap) {
   }
 }
 $eligibleSql = $eligibleWhereParts ? ('(' . implode(' OR ', $eligibleWhereParts) . ')') : '1=1';
+$programQuestionScopeSql = package_edit_program_question_scope_sql($pdo, $activeProgramId);
+if ($programQuestionScopeSql !== '') {
+  $eligibleSql = "($eligibleSql) AND $programQuestionScopeSql";
+}
 
 $qCountSql = "
   SELECT COUNT(*)
@@ -763,6 +857,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif (
     $hasRulesColumn
     && !empty($ruleRows)
+    && array_diff(
+      array_map(static fn(array $row): string => normalize_question_need((string)($row['need'] ?? '')), $ruleRows),
+      $knownNeeds
+    )
+  ) {
+    $error = "Categorie indisponible dans ce programme.";
+  } elseif (
+    $hasRulesColumn
+    && !empty($ruleRows)
     && ($ruleError = package_edit_validate_rule_rows($ruleRows, $count)) !== ''
   ) {
     $error = $ruleError;
@@ -830,7 +933,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($error === '') {
-      header("Location: /admin/packages.php");
+      header("Location: /admin/packages.php" . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : ''));
       exit;
     }
   }
@@ -850,6 +953,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Modifier pack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1002,7 +1106,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   <div class="badge-picker-field">
                     <label class="label">Image du badge</label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($formBadgeImageFilename) ?>">
-                    <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id; ?>
+                    <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id . ($activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : ''); ?>
                     <a
                       id="pack-edit-badge-picker"
                       class="badge-current-link"
@@ -1132,7 +1236,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
         <div style="margin-top:14px; display:flex; gap:10px;">
           <button class="btn" type="submit">Enregistrer</button>
-          <a class="btn ghost" href="/admin/packages.php">Annuler</a>
+          <a class="btn ghost" href="/admin/packages.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Annuler</a>
         </div>
       </form>
 
@@ -1140,10 +1244,10 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
       <h3 class="distribution-title">Questions du pack</h3>
       <div style="margin: 0 0 10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn ghost" href="/admin/import_questions.php">Importer questions</a>
+        <a class="btn ghost" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Importer questions</a>
       </div>
       <p class="small">
-        R&eacute;partition par outil concern&eacute; et niveau (banque globale, utilis&eacute;e pour le tirage de ce pack).
+        R&eacute;partition par outil concern&eacute; et niveau (questions du programme courant, utilis&eacute;es pour le tirage de ce pack).
         <?php if (!empty($filterNeeds) || !empty($filterNeedLevels)): ?>
           <span class="small" style="margin-left:8px;">
             Filtre:
@@ -1158,7 +1262,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
               ?>
               <?= ' - ' . h(implode(', ', $pairLabels)) ?>
             <?php endif; ?>
-            <a href="/admin/package_edit.php?id=<?= (int)$id ?>" style="margin-left:8px;">Reset</a>
+            <a href="/admin/package_edit.php?id=<?= (int)$id ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>" style="margin-left:8px;">Reset</a>
           </span>
         <?php endif; ?>
       </p>
@@ -1257,17 +1361,17 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   </td>
                   <td><?= (int)($q['option_count'] ?? 0) ?></td>
                   <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?>" aria-label="Modifier la question" title="Modifier la question">
+                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Modifier la question" title="Modifier la question">
                       <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                       </svg>
                     </a>
-                    <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+                    <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
                       <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
                       </svg>
                     </a>
-                    <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?>"
+                    <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
                        aria-label="Supprimer cette question"
                        title="Supprimer"
                        onclick="return confirm('Supprimer cette question ?');">
@@ -1552,7 +1656,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     }
 
     function buildRowHtml(data) {
-      var need = String(data.need || 'PONE');
+      var need = String(data.need || <?= json_encode($defaultNeed, JSON_UNESCAPED_UNICODE) ?>);
       var targetTotal = data.target_total || 0;
       var levels = Array.isArray(data.levels) ? data.levels : [1];
       var hasL1 = levels.indexOf(1) !== -1;
@@ -1723,7 +1827,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
     if (addRowBtn) {
       addRowBtn.addEventListener('click', function () {
-        addRuleRow({ need: 'PONE', levels: [1], target_total: 0 });
+        addRuleRow({ need: <?= json_encode($defaultNeed, JSON_UNESCAPED_UNICODE) ?>, levels: [1], target_total: 0 });
       });
     }
 

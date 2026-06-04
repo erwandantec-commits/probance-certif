@@ -1,25 +1,56 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-$adminUser = require_admin();
+$adminUser = require_admin_area();
 require_once __DIR__ . '/_nav.php';
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../utils.php';
 
 $pdo = db();
 $currentAdminId = (int)$adminUser['id'];
+$hasOrganizationColumn = auth_column_exists($pdo, 'users', 'organization_id');
+$hasOrganizationsTable = auth_table_exists($pdo, 'organizations');
+$hasProgramsTable = auth_table_exists($pdo, 'programs');
+$hasUserProgramAccessTable = auth_table_exists($pdo, 'user_program_access');
+$hasEmailControlBypassColumn = auth_column_exists($pdo, 'users', 'email_control_bypass');
 
 if (empty($_SESSION['admin_users_csrf']) || !is_string($_SESSION['admin_users_csrf'])) {
   $_SESSION['admin_users_csrf'] = bin2hex(random_bytes(32));
 }
 $csrfToken = (string)$_SESSION['admin_users_csrf'];
 
-function admin_users_redirect(array $params = []): void {
-  $base = '/admin/users.php';
+function admin_users_safe_return_url(?string $url, string $fallback = '/admin/users.php'): string {
+  $url = trim((string)$url);
+  if ($url === '' || preg_match('/[\r\n]/', $url)) {
+    return $fallback;
+  }
+  if (!str_starts_with($url, '/admin/')) {
+    return $fallback;
+  }
+  return $url;
+}
+
+function admin_users_redirect(array $params = [], ?string $target = null): void {
+  $base = admin_users_safe_return_url($target, '/admin/users.php');
   if ($params) {
-    $base .= '?' . http_build_query($params);
+    $base .= (str_contains($base, '?') ? '&' : '?') . http_build_query($params);
   }
   header('Location: ' . $base);
   exit;
+}
+
+function admin_users_replace_query_param(string $url, string $key, string $value): string {
+  $parts = parse_url($url);
+  if ($parts === false) {
+    return $url;
+  }
+  $query = [];
+  if (isset($parts['query'])) {
+    parse_str($parts['query'], $query);
+  }
+  $query[$key] = $value;
+  $path = $parts['path'] ?? '/admin/users.php';
+  $fragment = isset($parts['fragment']) ? ('#' . $parts['fragment']) : '';
+  return $path . ($query ? ('?' . http_build_query($query)) : '') . $fragment;
 }
 
 function admin_users_set_notice(string $type, string $text): void {
@@ -62,6 +93,90 @@ function admin_users_guess_first_last(?string $fullName): array {
   return [$first, $last];
 }
 
+function admin_users_format_short_date(?string $raw): string {
+  $raw = trim((string)$raw);
+  if ($raw === '') {
+    return '-';
+  }
+  try {
+    return (new DateTimeImmutable($raw))->format('Y-m-d');
+  } catch (Throwable $e) {
+    return $raw;
+  }
+}
+
+function admin_users_scope_programs(PDO $pdo, array $actor): array {
+  return user_has_role($actor, 'ADMIN') ? auth_accessible_programs($pdo, $actor) : auth_manageable_programs($pdo, $actor);
+}
+
+function admin_users_normalize_ids(mixed $raw): array {
+  if (!is_array($raw)) {
+    return [];
+  }
+  $ids = [];
+  foreach ($raw as $value) {
+    $id = (int)$value;
+    if ($id > 0) {
+      $ids[$id] = $id;
+    }
+  }
+  return array_values($ids);
+}
+
+function admin_users_normalize_program_roles(mixed $raw, array $allowedProgramIds, array $actor): array {
+  if (!is_array($raw)) {
+    return [];
+  }
+  $allowed = array_fill_keys($allowedProgramIds, true);
+  $roles = [];
+  foreach ($raw as $programIdRaw => $roleRaw) {
+    $programId = (int)$programIdRaw;
+    if ($programId <= 0 || !isset($allowed[$programId])) {
+      continue;
+    }
+    $role = strtoupper(trim((string)$roleRaw));
+    if ($role === 'OWNER' && user_has_role($actor, ['ADMIN', 'OWNER'])) {
+      $roles[$programId] = 'OWNER';
+    } elseif ($role === 'USER') {
+      $roles[$programId] = 'USER';
+    }
+  }
+  return $roles;
+}
+
+function admin_users_program_role_ids(array $programRoles): array {
+  return array_values(array_map('intval', array_keys($programRoles)));
+}
+
+function admin_users_user_program_roles(PDO $pdo, int $userId): array {
+  if ($userId <= 0 || !auth_table_exists($pdo, 'user_program_access')) {
+    return [];
+  }
+  $st = $pdo->prepare("
+    SELECT program_id, " . auth_program_access_role_expr($pdo, 'user_program_access') . " AS access_role
+    FROM user_program_access
+    WHERE user_id = ?
+    ORDER BY program_id ASC
+  ");
+  $st->execute([$userId]);
+  $roles = [];
+  foreach ($st->fetchAll() ?: [] as $row) {
+    $programId = (int)($row['program_id'] ?? 0);
+    if ($programId > 0) {
+      $roles[$programId] = auth_normalize_program_access_role((string)($row['access_role'] ?? 'USER'));
+    }
+  }
+  return $roles;
+}
+
+function admin_users_sync_role_from_program_roles(string $requestedRole, array $programRoles): string {
+  $requestedRole = normalize_user_role($requestedRole);
+  if ($requestedRole === 'ADMIN') {
+    return 'ADMIN';
+  }
+  return in_array('OWNER', $programRoles, true) ? 'OWNER' : 'USER';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $postedToken = (string)($_POST['csrf_token'] ?? '');
   if ($postedToken === '' || !hash_equals($csrfToken, $postedToken)) {
@@ -76,14 +191,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim((string)($_POST['email'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     $password2 = (string)($_POST['password2'] ?? '');
-    $isAdmin = ((string)($_POST['is_admin'] ?? '0') === '1');
-    $newRole = $isAdmin ? 'ADMIN' : 'USER';
+    $newRole = normalize_user_role((string)($_POST['role'] ?? 'USER'));
+    $programRows = admin_users_scope_programs($pdo, $adminUser);
+    $allowedProgramIds = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), $programRows);
+    $programRoles = admin_users_normalize_program_roles($_POST['program_roles'] ?? [], $allowedProgramIds, $adminUser);
+    $programIds = admin_users_program_role_ids($programRoles);
+    $newRole = admin_users_sync_role_from_program_roles($newRole, $programRoles);
+    $emailControlBypass = user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn
+      ? (((string)($_POST['email_control_bypass'] ?? '0') === '1') ? 1 : 0)
+      : 0;
 
     admin_users_set_create_form([
       'first_name' => $firstName,
       'last_name' => $lastName,
       'email' => $email,
-      'is_admin' => $isAdmin ? '1' : '0',
+      'role' => $newRole,
+      'program_roles' => $programRoles,
+      'email_control_bypass' => $emailControlBypass,
     ]);
 
     if ($firstName === '' || $lastName === '' || $email === '' || $password === '' || $password2 === '') {
@@ -106,6 +230,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       admin_users_set_notice('bad', 'Les mots de passe ne correspondent pas.');
       admin_users_redirect(['open_create' => '1']);
     }
+    if ($newRole === 'ADMIN' && !user_has_role($adminUser, 'ADMIN')) {
+      admin_users_set_notice('bad', 'Seul un administrateur peut creer un autre administrateur.');
+      admin_users_redirect(['open_create' => '1']);
+    }
+    if (!user_can_assign_role($adminUser, $newRole)) {
+      admin_users_set_notice('bad', 'Role refuse pour votre niveau de permission.');
+      admin_users_redirect(['open_create' => '1']);
+    }
 
     try {
       $pdo->beginTransaction();
@@ -120,9 +252,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $fullName = trim($firstName . ' ' . $lastName);
       $hash = password_hash($password, PASSWORD_DEFAULT);
+      $organizationId = user_organization_id($adminUser);
+      if ($organizationId <= 0 && auth_column_exists($pdo, 'users', 'organization_id')) {
+        $organizationId = auth_find_or_create_organization_for_email($pdo, $email);
+      }
 
-      $ins = $pdo->prepare("INSERT INTO users(email, password_hash, name, role) VALUES(?, ?, ?, ?)");
-      $ins->execute([$email, $hash, $fullName, $newRole]);
+      $emailControlError = auth_validate_user_email($pdo, $email, $emailControlBypass === 1, $programIds);
+      if ($emailControlError !== null) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', $emailControlError);
+        admin_users_redirect(['open_create' => '1']);
+      }
+
+      $hasOrganizationColumn = auth_column_exists($pdo, 'users', 'organization_id');
+      if ($hasOrganizationColumn && $hasEmailControlBypassColumn) {
+        $ins = $pdo->prepare("INSERT INTO users(email, password_hash, name, role, organization_id, email_control_bypass) VALUES(?, ?, ?, ?, ?, ?)");
+        $ins->execute([$email, $hash, $fullName, $newRole, $organizationId, $emailControlBypass]);
+      } elseif ($hasOrganizationColumn) {
+        $ins = $pdo->prepare("INSERT INTO users(email, password_hash, name, role, organization_id) VALUES(?, ?, ?, ?, ?)");
+        $ins->execute([$email, $hash, $fullName, $newRole, $organizationId]);
+      } else {
+        $ins = $pdo->prepare("INSERT INTO users(email, password_hash, name, role) VALUES(?, ?, ?, ?)");
+        $ins->execute([$email, $hash, $fullName, $newRole]);
+      }
+      $newUserId = (int)$pdo->lastInsertId();
 
       $contactUpsert = $pdo->prepare("
         INSERT INTO contacts(email, first_name, last_name)
@@ -132,7 +285,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           last_name = VALUES(last_name)
       ");
       $contactUpsert->execute([$email, $firstName, $lastName]);
-
+      if (auth_table_exists($pdo, 'user_program_access')) {
+        $hasAccessRoleColumn = auth_program_access_role_column_exists($pdo);
+        $grantProgram = $pdo->prepare($hasAccessRoleColumn
+          ? "INSERT IGNORE INTO user_program_access(user_id, program_id, access_role, granted_by_user_id) VALUES(?, ?, ?, ?)"
+          : "INSERT IGNORE INTO user_program_access(user_id, program_id, granted_by_user_id) VALUES(?, ?, ?)"
+        );
+        foreach ($programRoles as $programId => $programRole) {
+          $hasAccessRoleColumn
+            ? $grantProgram->execute([$newUserId, $programId, $programRole, $currentAdminId])
+            : $grantProgram->execute([$newUserId, $programId, $currentAdminId]);
+        }
+      }
       $pdo->commit();
       admin_users_clear_create_form();
       admin_users_set_notice('ok', 'Utilisateur créé: ' . $email . ' (' . $newRole . ').');
@@ -147,73 +311,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   if ($action === 'update_user') {
+    $returnTo = admin_users_safe_return_url((string)($_POST['return_to'] ?? ''), '/admin/users.php');
     $targetId = (int)($_POST['user_id'] ?? 0);
     $firstName = trim((string)($_POST['first_name'] ?? ''));
     $lastName = trim((string)($_POST['last_name'] ?? ''));
     $email = trim((string)($_POST['email'] ?? ''));
-    $isAdmin = ((string)($_POST['is_admin'] ?? '0') === '1');
-    $newRole = $isAdmin ? 'ADMIN' : 'USER';
+    $newRole = normalize_user_role((string)($_POST['role'] ?? 'USER'));
     $newPassword = (string)($_POST['new_password'] ?? '');
     $newPassword2 = (string)($_POST['new_password2'] ?? '');
+    $programRows = admin_users_scope_programs($pdo, $adminUser);
+    $allowedProgramIds = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), $programRows);
+    $programRoles = admin_users_normalize_program_roles($_POST['program_roles'] ?? [], $allowedProgramIds, $adminUser);
+    $programIds = admin_users_program_role_ids($programRoles);
+    $emailControlBypass = user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn
+      ? (((string)($_POST['email_control_bypass'] ?? '0') === '1') ? 1 : 0)
+      : 0;
 
     admin_users_set_edit_form($targetId, [
       'first_name' => $firstName,
       'last_name' => $lastName,
       'email' => $email,
-      'is_admin' => $isAdmin ? '1' : '0',
+      'role' => $newRole,
+      'program_roles' => $programRoles,
+      'email_control_bypass' => $emailControlBypass,
     ]);
 
     if ($targetId <= 0) {
       admin_users_set_notice('bad', 'Utilisateur invalide.');
-      admin_users_redirect();
+      admin_users_redirect([], $returnTo);
     }
     if ($firstName === '' || $lastName === '' || $email === '') {
       admin_users_set_notice('bad', 'Prénom, nom et email sont obligatoires.');
-      admin_users_redirect(['open_edit' => $targetId]);
+      admin_users_redirect([], $returnTo);
     }
     if (strlen($firstName) > 100 || strlen($lastName) > 100) {
       admin_users_set_notice('bad', 'Prénom/nom trop longs (max 100 caractères).');
-      admin_users_redirect(['open_edit' => $targetId]);
+      admin_users_redirect([], $returnTo);
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
       admin_users_set_notice('bad', 'Email invalide.');
-      admin_users_redirect(['open_edit' => $targetId]);
+      admin_users_redirect([], $returnTo);
     }
     if ($newPassword !== '' || $newPassword2 !== '') {
       if (strlen($newPassword) < 8) {
         admin_users_set_notice('bad', 'Mot de passe trop court (min 8 caractères).');
-        admin_users_redirect(['open_edit' => $targetId]);
+        admin_users_redirect([], $returnTo);
       }
       if ($newPassword !== $newPassword2) {
         admin_users_set_notice('bad', 'Les mots de passe ne correspondent pas.');
-        admin_users_redirect(['open_edit' => $targetId]);
+        admin_users_redirect([], $returnTo);
       }
     }
 
     try {
       $pdo->beginTransaction();
-      $targetStmt = $pdo->prepare("SELECT id, email, role FROM users WHERE id=? FOR UPDATE");
+      $emailControlBypassSelect = $hasEmailControlBypassColumn ? ", email_control_bypass" : ", 0 AS email_control_bypass";
+      $targetStmt = $pdo->prepare("SELECT id, email, role, organization_id $emailControlBypassSelect FROM users WHERE id=? FOR UPDATE");
       $targetStmt->execute([$targetId]);
       $target = $targetStmt->fetch();
       if (!$target) {
         $pdo->rollBack();
         admin_users_set_notice('bad', 'Utilisateur introuvable.');
-        admin_users_redirect();
+        admin_users_redirect([], $returnTo);
       }
 
       $oldRole = (string)$target['role'];
+      if ($targetId !== $currentAdminId && !user_can_manage_target_role($adminUser, $oldRole)) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', 'Action refusee sur ce role utilisateur.');
+        admin_users_redirect([], $returnTo);
+      }
+      if ($targetId !== $currentAdminId && !user_has_role($adminUser, 'ADMIN') && !auth_users_share_program_scope($pdo, $currentAdminId, $targetId)) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', 'Action refusee hors de vos programmes.');
+        admin_users_redirect([], $returnTo);
+      }
       $existsStmt = $pdo->prepare("SELECT id FROM users WHERE email=? AND id<>? LIMIT 1");
       $existsStmt->execute([$email, $targetId]);
       if ($existsStmt->fetch()) {
         $pdo->rollBack();
         admin_users_set_notice('bad', 'Un autre utilisateur existe déjà avec cet email.');
-        admin_users_redirect(['open_edit' => $targetId]);
+        admin_users_redirect([], $returnTo);
       }
 
-      if ($targetId === $currentAdminId && $newRole !== 'ADMIN') {
+      if ($targetId === $currentAdminId && user_has_role($adminUser, 'ADMIN') && $newRole !== 'ADMIN') {
         $pdo->rollBack();
-        admin_users_set_notice('bad', 'Action refusée: vous ne pouvez pas retirer vos propres droits admin.');
-        admin_users_redirect(['open_edit' => $targetId]);
+        admin_users_set_notice('bad', 'Action refusee: vous ne pouvez pas retirer vos propres droits admin.');
+        admin_users_redirect([], $returnTo);
+      }
+      if ($targetId === $currentAdminId && !user_has_role($adminUser, 'ADMIN') && $newRole !== normalize_user_role($oldRole)) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', 'Action refusee: vous ne pouvez pas modifier votre propre role.');
+        admin_users_redirect([], $returnTo);
       }
 
       if ($oldRole === 'ADMIN' && $newRole !== 'ADMIN') {
@@ -221,18 +410,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($adminCount <= 1) {
           $pdo->rollBack();
           admin_users_set_notice('bad', 'Impossible: au moins un administrateur doit rester actif.');
-          admin_users_redirect(['open_edit' => $targetId]);
+          admin_users_redirect([], $returnTo);
         }
       }
 
+      $existingProgramRoles = admin_users_user_program_roles($pdo, $targetId);
+      if (user_has_role($adminUser, 'ADMIN')) {
+        $finalProgramRoles = $programRoles;
+      } else {
+        $allowedProgramMap = array_fill_keys($allowedProgramIds, true);
+        $finalProgramRoles = array_filter(
+          $existingProgramRoles,
+          static fn(int $programId): bool => !isset($allowedProgramMap[$programId]),
+          ARRAY_FILTER_USE_KEY
+        );
+        foreach ($programRoles as $programId => $programRole) {
+          $finalProgramRoles[(int)$programId] = $programRole;
+        }
+      }
+      $newRole = admin_users_sync_role_from_program_roles($newRole, $finalProgramRoles);
+      $programIds = admin_users_program_role_ids($finalProgramRoles);
+
+      if ($newRole !== normalize_user_role($oldRole) && !user_can_assign_role($adminUser, $newRole)) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', 'Changement de role refuse pour votre niveau de permission.');
+        admin_users_redirect([], $returnTo);
+      }
+
       $fullName = trim($firstName . ' ' . $lastName);
+      $targetOrganizationId = (int)($target['organization_id'] ?? 0);
+      if (!user_has_role($adminUser, 'ADMIN') || !$hasEmailControlBypassColumn) {
+        $emailControlBypass = (int)($target['email_control_bypass'] ?? 0);
+      }
+      $emailControlError = auth_validate_user_email($pdo, $email, $emailControlBypass === 1, $programIds);
+      if ($emailControlError !== null) {
+        $pdo->rollBack();
+        admin_users_set_notice('bad', $emailControlError);
+        admin_users_redirect([], $returnTo);
+      }
       if ($newPassword !== '') {
         $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-        $upd = $pdo->prepare("UPDATE users SET email=?, name=?, role=?, password_hash=? WHERE id=?");
-        $upd->execute([$email, $fullName, $newRole, $hash, $targetId]);
+        if ($hasEmailControlBypassColumn && auth_column_exists($pdo, 'users', 'organization_id')) {
+          $upd = $pdo->prepare("UPDATE users SET email=?, name=?, role=?, organization_id=?, email_control_bypass=?, password_hash=? WHERE id=?");
+          $upd->execute([$email, $fullName, $newRole, $targetOrganizationId, $emailControlBypass, $hash, $targetId]);
+        } else {
+          $upd = $pdo->prepare("UPDATE users SET email=?, name=?, role=?, password_hash=? WHERE id=?");
+          $upd->execute([$email, $fullName, $newRole, $hash, $targetId]);
+        }
       } else {
-        $upd = $pdo->prepare("UPDATE users SET email=?, name=?, role=? WHERE id=?");
-        $upd->execute([$email, $fullName, $newRole, $targetId]);
+        if ($hasEmailControlBypassColumn && auth_column_exists($pdo, 'users', 'organization_id')) {
+          $upd = $pdo->prepare("UPDATE users SET email=?, name=?, role=?, organization_id=?, email_control_bypass=? WHERE id=?");
+          $upd->execute([$email, $fullName, $newRole, $targetOrganizationId, $emailControlBypass, $targetId]);
+        } else {
+          $upd = $pdo->prepare("UPDATE users SET email=?, name=?, role=? WHERE id=?");
+          $upd->execute([$email, $fullName, $newRole, $targetId]);
+        }
       }
 
       $contactUpsert = $pdo->prepare("
@@ -244,16 +476,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ");
       $contactUpsert->execute([$email, $firstName, $lastName]);
 
+      if (auth_table_exists($pdo, 'user_program_access')) {
+        if (user_has_role($adminUser, 'ADMIN')) {
+          $pdo->prepare("DELETE FROM user_program_access WHERE user_id = ?")->execute([$targetId]);
+        } elseif ($allowedProgramIds) {
+          $deleteScoped = $pdo->prepare("
+            DELETE FROM user_program_access
+            WHERE user_id = ?
+              AND program_id IN (" . implode(',', array_fill(0, count($allowedProgramIds), '?')) . ")
+          ");
+          $deleteScoped->execute(array_merge([$targetId], $allowedProgramIds));
+        }
+        $hasAccessRoleColumn = auth_program_access_role_column_exists($pdo);
+        $grantProgram = $pdo->prepare($hasAccessRoleColumn
+          ? "INSERT INTO user_program_access(user_id, program_id, access_role, granted_by_user_id) VALUES(?, ?, ?, ?)"
+          : "INSERT INTO user_program_access(user_id, program_id, granted_by_user_id) VALUES(?, ?, ?)"
+        );
+        foreach ($programRoles as $programId => $programRole) {
+          $hasAccessRoleColumn
+            ? $grantProgram->execute([$targetId, $programId, $programRole, $currentAdminId])
+            : $grantProgram->execute([$targetId, $programId, $currentAdminId]);
+        }
+      }
+
       $pdo->commit();
       admin_users_clear_edit_form();
       admin_users_set_notice('ok', 'Utilisateur mis a jour: ' . $email . '.');
-      admin_users_redirect();
+      $successReturnTo = $returnTo;
+      if (str_starts_with($successReturnTo, '/admin/contact.php')) {
+        $successReturnTo = admin_users_replace_query_param($successReturnTo, 'email', $email);
+      }
+      admin_users_redirect([], $successReturnTo);
     } catch (Throwable $e) {
       if ($pdo->inTransaction()) {
         $pdo->rollBack();
       }
       admin_users_set_notice('bad', "Erreur serveur pendant la modification de l'utilisateur.");
-      admin_users_redirect(['open_edit' => $targetId]);
+      admin_users_redirect([], $returnTo);
     }
   }
 
@@ -279,6 +538,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetEmail = (string)$target['email'];
     $targetRole = (string)$target['role'];
 
+    if (!user_can_manage_target_role($adminUser, $targetRole)) {
+      $pdo->rollBack();
+      admin_users_set_notice('bad', 'Action refusee sur ce role utilisateur.');
+      admin_users_redirect();
+    }
+    if (!user_has_role($adminUser, 'ADMIN') && !auth_users_share_program_scope($pdo, $currentAdminId, $targetId)) {
+      $pdo->rollBack();
+      admin_users_set_notice('bad', 'Action refusee hors de vos programmes.');
+      admin_users_redirect();
+    }
     if ($targetId === $currentAdminId) {
       $pdo->rollBack();
       admin_users_set_notice('bad', 'Action refusée: vous ne pouvez pas supprimer votre propre compte.');
@@ -309,7 +578,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $role = strtoupper(trim((string)($_GET['role'] ?? 'ALL')));
-$allowedRoles = ['ALL', 'ADMIN', 'USER'];
+$allowedRoles = ['ALL', 'ADMIN', 'OWNER', 'USER'];
 if (!in_array($role, $allowedRoles, true)) {
   $role = 'ALL';
 }
@@ -349,6 +618,18 @@ if ($role !== 'ALL') {
   $where[] = 'u.role = ?';
   $params[] = $role;
 }
+if (!user_has_role($adminUser, 'ADMIN') && auth_table_exists($pdo, 'user_program_access')) {
+  $where[] = "EXISTS (
+    SELECT 1
+    FROM user_program_access target_access
+    JOIN user_program_access actor_access
+      ON actor_access.program_id = target_access.program_id
+    WHERE target_access.user_id = u.id
+      AND actor_access.user_id = ?
+      " . (auth_program_access_role_column_exists($pdo) ? "AND actor_access.access_role = 'OWNER'" : "") . "
+  )";
+  $params[] = $currentAdminId;
+}
 if ($emailFilter !== '') {
   $where[] = 'u.email LIKE ?';
   $params[] = '%' . $emailFilter . '%';
@@ -361,13 +642,31 @@ if ($nameFilter !== '') {
 }
 
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
-$stats = $pdo->query("
+$statsWhere = [];
+$statsParams = [];
+$statsJoin = '';
+if (!user_has_role($adminUser, 'ADMIN') && auth_table_exists($pdo, 'user_program_access')) {
+  $statsJoin = "
+    JOIN user_program_access stats_target_access ON stats_target_access.user_id = users.id
+    JOIN user_program_access stats_actor_access
+      ON stats_actor_access.program_id = stats_target_access.program_id
+     AND stats_actor_access.user_id = ?
+     " . (auth_program_access_role_column_exists($pdo) ? "AND stats_actor_access.access_role = 'OWNER'" : "") . "
+  ";
+  $statsParams[] = $currentAdminId;
+}
+$statsSql = "
   SELECT
-    COUNT(*) AS total_users,
-    SUM(role='ADMIN') AS total_admins,
-    SUM(role='USER') AS total_standard
+    COUNT(DISTINCT users.id) AS total_users,
+    COUNT(DISTINCT CASE WHEN users.role='ADMIN' THEN users.id END) AS total_admins,
+    COUNT(DISTINCT CASE WHEN users.role='OWNER' THEN users.id END) AS total_owners,
+    COUNT(DISTINCT CASE WHEN users.role='USER' THEN users.id END) AS total_standard
   FROM users
-")->fetch() ?: ['total_users' => 0, 'total_admins' => 0, 'total_standard' => 0];
+  $statsJoin
+" . ($statsWhere ? (' WHERE ' . implode(' AND ', $statsWhere)) : '');
+$statsStmt = $pdo->prepare($statsSql);
+$statsStmt->execute($statsParams);
+$stats = $statsStmt->fetch() ?: ['total_users' => 0, 'total_admins' => 0, 'total_owners' => 0, 'total_standard' => 0];
 
 $baseFrom = "
   FROM users u
@@ -420,6 +719,7 @@ $listSql = "
     u.id,
     u.email,
     u.name,
+    " . ($hasEmailControlBypassColumn ? "u.email_control_bypass" : "0 AS email_control_bypass") . ",
     c.first_name,
     c.last_name,
     u.role,
@@ -443,6 +743,38 @@ $listStmt->bindValue($i++, $offset, PDO::PARAM_INT);
 $listStmt->execute();
 $users = $listStmt->fetchAll() ?: [];
 
+$programRows = $hasProgramsTable ? admin_users_scope_programs($pdo, $adminUser) : [];
+$programLabelsById = [];
+foreach ($programRows as $programRow) {
+  $programId = (int)($programRow['id'] ?? 0);
+  if ($programId > 0) {
+    $programLabelsById[$programId] = trim((string)($programRow['name'] ?? 'Programme'));
+  }
+}
+$userProgramMap = [];
+if ($users && $hasProgramsTable && $hasUserProgramAccessTable) {
+  $userIds = array_values(array_map(static fn(array $row): int => (int)($row['id'] ?? 0), $users));
+  if ($userIds) {
+    $stPrograms = $pdo->query("
+      SELECT upa.user_id, upa.program_id, p.name, " . auth_program_access_role_expr($pdo, 'upa') . " AS access_role
+      FROM user_program_access upa
+      JOIN programs p ON p.id = upa.program_id
+      WHERE upa.user_id IN (" . implode(',', array_map('intval', $userIds)) . ")
+      ORDER BY p.display_order ASC, p.id ASC
+    ");
+    foreach ($stPrograms ? ($stPrograms->fetchAll() ?: []) : [] as $row) {
+      $uid = (int)($row['user_id'] ?? 0);
+      if ($uid <= 0) {
+        continue;
+      }
+      $userProgramMap[$uid][] = [
+        'id' => (int)($row['program_id'] ?? 0),
+        'name' => (string)($row['name'] ?? ''),
+        'access_role' => auth_normalize_program_access_role((string)($row['access_role'] ?? 'USER')),
+      ];
+    }
+  }
+}
 $notice = $_SESSION['admin_users_notice'] ?? null;
 unset($_SESSION['admin_users_notice']);
 $createForm = $_SESSION['admin_users_create_form'] ?? null;
@@ -453,7 +785,10 @@ if (!is_array($createForm)) {
 $createFirstName = trim((string)($createForm['first_name'] ?? ''));
 $createLastName = trim((string)($createForm['last_name'] ?? ''));
 $createEmail = trim((string)($createForm['email'] ?? ''));
-$createIsAdmin = ((string)($createForm['is_admin'] ?? '0') === '1');
+$createRole = normalize_user_role((string)($createForm['role'] ?? 'USER'));
+$createProgramRoles = is_array($createForm['program_roles'] ?? null) ? $createForm['program_roles'] : [];
+$createEmailControlBypass = (int)($createForm['email_control_bypass'] ?? 0);
+$canAssignAdmin = user_can_assign_role($adminUser, 'ADMIN');
 $openCreate = ((string)($_GET['open_create'] ?? '') === '1');
 $openEdit = max(0, (int)($_GET['open_edit'] ?? 0));
 $editFormSession = $_SESSION['admin_users_edit_form'] ?? null;
@@ -466,7 +801,6 @@ if (is_array($editFormSession)) {
     $editForm = $editFormSession['data'];
   }
 }
-
 function admin_users_sort_link(array $qs, string $key): string {
   $currentSort = (string)($qs['sort'] ?? 'created_at');
   $currentDir = strtoupper((string)($qs['dir'] ?? 'DESC'));
@@ -484,6 +818,7 @@ function admin_users_sort_link(array $qs, string $key): string {
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Utilisateurs</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -520,7 +855,11 @@ function admin_users_sort_link(array $qs, string $key): string {
           <strong class="admin-stat-value"><?= (int)$stats['total_admins'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Utilisateurs</span>
+          <span class="admin-stat-label">Owners</span>
+          <strong class="admin-stat-value"><?= (int)$stats['total_owners'] ?></strong>
+        </article>
+        <article class="admin-stat-card">
+          <span class="admin-stat-label">Users</span>
           <strong class="admin-stat-value"><?= (int)$stats['total_standard'] ?></strong>
         </article>
       </div>
@@ -544,6 +883,7 @@ function admin_users_sort_link(array $qs, string $key): string {
         <div class="section-head admin-section-head">
           <div>
             <h3 class="h1 users-create-title">Créer un utilisateur</h3>
+            <p class="sub">Crée un compte et définit les programmes qu'il pourra consulter.</p>
           </div>
         </div>
         <form method="post" class="users-create-form">
@@ -563,13 +903,6 @@ function admin_users_sort_link(array $qs, string $key): string {
               <input class="input" id="create-email" name="email" type="email" required value="<?= h($createEmail) ?>" autocomplete="email">
             </div>
             <div>
-              <label class="label" for="create-is-admin">R&ocirc;le</label>
-              <label class="input" style="display:flex;align-items:center;gap:10px;">
-                <input id="create-is-admin" name="is_admin" type="checkbox" value="1" <?= $createIsAdmin ? 'checked' : '' ?>>
-                <span>Admin</span>
-              </label>
-            </div>
-            <div>
               <label class="label" for="create-password">Mot de passe</label>
               <input class="input" id="create-password" name="password" type="password" minlength="8" required autocomplete="new-password">
             </div>
@@ -577,6 +910,44 @@ function admin_users_sort_link(array $qs, string $key): string {
               <label class="label" for="create-password2">Confirmer le mot de passe</label>
               <input class="input" id="create-password2" name="password2" type="password" minlength="8" required autocomplete="new-password">
             </div>
+            <input type="hidden" name="role" value="USER">
+            <?php if ($canAssignAdmin): ?>
+              <div class="users-multiselect">
+                <label class="admin-inline-checkbox">
+                  <input type="checkbox" name="role" value="ADMIN" data-admin-role-toggle <?= $createRole === 'ADMIN' ? 'checked' : '' ?>>
+                  <span>Administrateur</span>
+                </label>
+              </div>
+            <?php endif; ?>
+            <div class="users-multiselect" data-program-role-block>
+              <span class="label">Role par programme</span>
+              <div class="users-checkbox-list">
+                <?php foreach ($programRows as $programRow): ?>
+                  <?php $programIdOption = (int)($programRow['id'] ?? 0); ?>
+                  <?php $selectedProgramRole = auth_normalize_program_access_role((string)($createProgramRoles[$programIdOption] ?? '')); ?>
+                  <?php $selectedProgramRole = isset($createProgramRoles[$programIdOption]) ? $selectedProgramRole : 'NONE'; ?>
+                  <label class="users-checkbox-item users-program-role-item">
+                    <span><?= h((string)($programLabelsById[$programIdOption] ?? ($programRow['name'] ?? 'Programme'))) ?></span>
+                    <select class="input users-program-role-select" name="program_roles[<?= $programIdOption ?>]">
+                      <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>>Pas d'acces</option>
+                      <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>>Utilisateur</option>
+                      <?php if (user_has_role($adminUser, ['ADMIN', 'OWNER'])): ?>
+                        <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>>Owner</option>
+                      <?php endif; ?>
+                    </select>
+                  </label>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn): ?>
+              <div class="users-multiselect">
+                <span class="label">Exception email</span>
+                <label class="admin-inline-checkbox">
+                  <input type="checkbox" name="email_control_bypass" value="1" <?= $createEmailControlBypass === 1 ? 'checked' : '' ?>>
+                  <span>Ignorer le controle email pour ce compte</span>
+                </label>
+              </div>
+            <?php endif; ?>
           </div>
           <div class="users-create-actions">
             <button class="btn" type="submit">Créer utilisateur</button>
@@ -609,7 +980,8 @@ function admin_users_sort_link(array $qs, string $key): string {
           <select class="input" id="role" name="role">
             <option value="ALL" <?= $role === 'ALL' ? 'selected' : '' ?>>Tous</option>
             <option value="ADMIN" <?= $role === 'ADMIN' ? 'selected' : '' ?>>Administrateurs</option>
-            <option value="USER" <?= $role === 'USER' ? 'selected' : '' ?>>Utilisateurs</option>
+            <option value="OWNER" <?= $role === 'OWNER' ? 'selected' : '' ?>>Owners</option>
+            <option value="USER" <?= $role === 'USER' ? 'selected' : '' ?>>Users</option>
           </select>
         </div>
         <div class="filters-actions">
@@ -622,7 +994,16 @@ function admin_users_sort_link(array $qs, string $key): string {
         <?php if (!$users): ?>
           <p class="empty-state">Aucun utilisateur trouvé.</p>
         <?php else: ?>
-          <table class="table questions-table users-table">
+          <table class="table questions-table users-directory-table">
+            <colgroup>
+              <col class="users-directory-col-email">
+              <col class="users-directory-col-name">
+              <col class="users-directory-col-firstname">
+              <col class="users-directory-col-role">
+              <col class="users-directory-col-created">
+              <col class="users-directory-col-sessions">
+              <col class="users-directory-col-actions">
+            </colgroup>
             <thead>
               <tr>
                 <th>
@@ -647,16 +1028,6 @@ function admin_users_sort_link(array $qs, string $key): string {
                     Sessions<?php if ($sort === 'session_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
-                <th>
-                  <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'passed_exam_count')) ?>">
-                    Certifications réussis<?php if ($sort === 'passed_exam_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
-                  </a>
-                </th>
-                <th>
-                  <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'last_session_at')) ?>">
-                    Dernière session<?php if ($sort === 'last_session_at'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
-                  </a>
-                </th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -665,12 +1036,20 @@ function admin_users_sort_link(array $qs, string $key): string {
                 <?php
                   $uid = (int)$u['id'];
                   $isSelf = ($uid === $currentAdminId);
-                  $isAdmin = ((string)$u['role'] === 'ADMIN');
-                  $lastSessionAt = $u['last_session_at'] ? (string)$u['last_session_at'] : '-';
+                  $targetRole = normalize_user_role((string)$u['role']);
+                  $isAdmin = ($targetRole === 'ADMIN');
+                  $isOwner = ($targetRole === 'OWNER');
+                  $canManageTarget = $isSelf || user_can_manage_target_role($adminUser, $targetRole);
+                  $programBadges = $userProgramMap[$uid] ?? [];
+                  $programRolesById = [];
+                  foreach ($programBadges as $programBadge) {
+                    $programRolesById[(int)($programBadge['id'] ?? 0)] = auth_normalize_program_access_role((string)($programBadge['access_role'] ?? 'USER'));
+                  }
+                  $profileLink = '/admin/contact.php?email=' . urlencode((string)$u['email']);
                 ?>
                 <tr>
-                  <td>
-                    <a href="/admin/contact.php?email=<?= urlencode((string)$u['email']) ?>">
+                  <td class="users-directory-email">
+                    <a href="<?= h($profileLink) ?>" title="<?= h((string)$u['email']) ?>">
                       <?= h((string)$u['email']) ?>
                     </a>
                   </td>
@@ -690,9 +1069,10 @@ function admin_users_sort_link(array $qs, string $key): string {
                     $editEmail = $isOpenEdit && $editFormUserId === $uid
                       ? trim((string)($editForm['email'] ?? (string)$u['email']))
                       : (string)$u['email'];
-                    $editIsAdmin = $isOpenEdit && $editFormUserId === $uid
-                      ? ((string)($editForm['is_admin'] ?? '0') === '1')
-                      : $isAdmin;
+                    $editRole = $isOpenEdit && $editFormUserId === $uid
+                      ? normalize_user_role((string)($editForm['role'] ?? $targetRole))
+                      : $targetRole;
+                    $canToggleAdmin = $canAssignAdmin || $editRole === 'ADMIN';
                     $editQs = $_GET;
                     $editQs['open_edit'] = $uid;
                     $editLink = '/admin/users.php?' . http_build_query($editQs);
@@ -700,48 +1080,58 @@ function admin_users_sort_link(array $qs, string $key): string {
                     unset($closeQs['open_edit']);
                     $closeLink = '/admin/users.php' . ($closeQs ? ('?' . http_build_query($closeQs)) : '');
                   ?>
-                  <td><?= h($lastName) !== '' ? h($lastName) : '-' ?></td>
-                  <td><?= h($firstName) !== '' ? h($firstName) : '-' ?></td>
-                  <td>
-                    <?php if ($isAdmin): ?>
+                  <td class="users-directory-name"><?= h($lastName) !== '' ? h($lastName) : '-' ?></td>
+                  <td class="users-directory-firstname"><?= h($firstName) !== '' ? h($firstName) : '-' ?></td>
+                  <td class="users-directory-role">
+                  <?php if ($isAdmin): ?>
                       <span class="badge ok">ADMIN</span>
+                    <?php elseif ($isOwner): ?>
+                      <span class="badge ok">OWNER</span>
                     <?php else: ?>
                       <span class="badge">USER</span>
                     <?php endif; ?>
                   </td>
-                  <td><?= h((string)$u['created_at']) ?></td>
-                  <td><?= (int)$u['session_count'] ?></td>
-                  <td><?= (int)$u['passed_exam_count'] ?></td>
-                  <td><?= h($lastSessionAt) ?></td>
-                  <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="<?= h($editLink) ?>" aria-label="<?= h($isOpenEdit ? 'Edition en cours' : 'Modifier cet utilisateur') ?>" title="<?= h($isOpenEdit ? 'Edition en cours' : 'Modifier cet utilisateur') ?>">
-                      <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
-                      </svg>
-                    </a>
-                    <form method="post" class="inline-action-form">
-                      <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-                      <input type="hidden" name="action" value="delete_user">
-                      <input type="hidden" name="user_id" value="<?= $uid ?>">
-                      <button
-                        class="btn ghost icon-btn danger"
-                        type="submit"
-                        <?= $isSelf ? 'disabled' : '' ?>
-                        <?= $isSelf ? 'title="Vous ne pouvez pas supprimer votre propre compte."' : '' ?>
-                        onclick="return confirm('Supprimer cet utilisateur ? Cette action est irreversible.');"
-                        aria-label="Supprimer cet utilisateur"
-                        title="Supprimer"
-                      >
-                        <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                  <td class="users-directory-created" title="<?= h((string)$u['created_at']) ?>"><?= h(admin_users_format_short_date((string)$u['created_at'])) ?></td>
+                  <td class="users-directory-sessions"><?= (int)$u['session_count'] ?></td>
+                  <td class="actions-cell users-directory-actions">
+                    <div class="users-directory-actions-wrap">
+                      <a class="btn ghost icon-btn" href="<?= h($profileLink) ?>" aria-label="Ouvrir la fiche utilisateur" title="Ouvrir la fiche utilisateur">
+                        <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                         </svg>
-                      </button>
-                    </form>
+                      </a>
+                      <form method="post" class="inline-action-form">
+                        <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+                        <input type="hidden" name="action" value="delete_user">
+                        <input type="hidden" name="user_id" value="<?= $uid ?>">
+                        <button
+                          class="btn ghost icon-btn danger"
+                          type="submit"
+                          <?= (!$canManageTarget || $isSelf) ? 'disabled' : '' ?>
+                          <?= $isSelf ? 'title="Vous ne pouvez pas supprimer votre propre compte."' : (!$canManageTarget ? 'title="Suppression non autorisee pour ce role."' : '') ?>
+                          onclick="return confirm('Supprimer cet utilisateur ? Cette action est irreversible.');"
+                          aria-label="Supprimer cet utilisateur"
+                          title="Supprimer"
+                        >
+                          <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
+                          </svg>
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
-                <?php if ($isOpenEdit): ?>
+                <?php if ($isOpenEdit && $canManageTarget): ?>
+                  <?php
+                    $editProgramRoles = $isOpenEdit && $editFormUserId === $uid && is_array($editForm['program_roles'] ?? null)
+                      ? $editForm['program_roles']
+                      : $programRolesById;
+                    $editEmailControlBypass = $isOpenEdit && $editFormUserId === $uid
+                      ? (int)($editForm['email_control_bypass'] ?? 0)
+                      : (int)($u['email_control_bypass'] ?? 0);
+                  ?>
                   <tr class="users-edit-row">
-                    <td colspan="9">
+                    <td colspan="<?= $showOrganizationColumn ? '8' : '7' ?>">
                       <form method="post" class="users-edit-form">
                         <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
                         <input type="hidden" name="action" value="update_user">
@@ -760,13 +1150,6 @@ function admin_users_sort_link(array $qs, string $key): string {
                             <input class="input" id="edit-email-<?= (int)$uid ?>" name="email" type="email" required value="<?= h($editEmail) ?>">
                           </div>
                           <div>
-                            <label class="label" for="edit-is-admin-<?= (int)$uid ?>">R&ocirc;le</label>
-                            <label class="input" style="display:flex;align-items:center;gap:10px;">
-                              <input id="edit-is-admin-<?= (int)$uid ?>" name="is_admin" type="checkbox" value="1" <?= $editIsAdmin ? 'checked' : '' ?>>
-                              <span>Admin</span>
-                            </label>
-                          </div>
-                          <div>
                             <label class="label" for="edit-pass-<?= (int)$uid ?>">Nouveau mot de passe (optionnel)</label>
                             <input class="input" id="edit-pass-<?= (int)$uid ?>" name="new_password" type="password" minlength="8" autocomplete="new-password">
                           </div>
@@ -774,6 +1157,44 @@ function admin_users_sort_link(array $qs, string $key): string {
                             <label class="label" for="edit-pass2-<?= (int)$uid ?>">Confirmer le nouveau mot de passe</label>
                             <input class="input" id="edit-pass2-<?= (int)$uid ?>" name="new_password2" type="password" minlength="8" autocomplete="new-password">
                           </div>
+                          <input type="hidden" name="role" value="USER">
+                          <?php if ($canToggleAdmin): ?>
+                            <div class="users-multiselect">
+                              <label class="admin-inline-checkbox">
+                                <input type="checkbox" name="role" value="ADMIN" data-admin-role-toggle <?= $editRole === 'ADMIN' ? 'checked' : '' ?> <?= $canAssignAdmin ? '' : 'disabled' ?>>
+                                <span>Administrateur</span>
+                              </label>
+                            </div>
+                          <?php endif; ?>
+                          <div class="users-multiselect" data-program-role-block>
+                            <span class="label">Role par programme</span>
+                            <div class="users-checkbox-list">
+                              <?php foreach ($programRows as $programRow): ?>
+                                <?php $programIdOption = (int)($programRow['id'] ?? 0); ?>
+                                <?php $selectedProgramRole = auth_normalize_program_access_role((string)($editProgramRoles[$programIdOption] ?? '')); ?>
+                                <?php $selectedProgramRole = isset($editProgramRoles[$programIdOption]) ? $selectedProgramRole : 'NONE'; ?>
+                                <label class="users-checkbox-item users-program-role-item">
+                                  <span><?= h((string)($programLabelsById[$programIdOption] ?? ($programRow['name'] ?? 'Programme'))) ?></span>
+                                  <select class="input users-program-role-select" name="program_roles[<?= $programIdOption ?>]">
+                                    <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>>Pas d'acces</option>
+                                    <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>>Utilisateur</option>
+                                    <?php if (user_has_role($adminUser, ['ADMIN', 'OWNER'])): ?>
+                                      <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>>Owner</option>
+                                    <?php endif; ?>
+                                  </select>
+                                </label>
+                              <?php endforeach; ?>
+                            </div>
+                          </div>
+                          <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn): ?>
+                            <div class="users-multiselect">
+                              <span class="label">Exception email</span>
+                              <label class="admin-inline-checkbox">
+                                <input type="checkbox" name="email_control_bypass" value="1" <?= $editEmailControlBypass === 1 ? 'checked' : '' ?>>
+                                <span>Ignorer le controle email pour ce compte</span>
+                              </label>
+                            </div>
+                          <?php endif; ?>
                         </div>
                         <div class="users-edit-actions">
                           <button class="btn" type="submit">Enregistrer</button>
@@ -862,6 +1283,19 @@ function admin_users_sort_link(array $qs, string $key): string {
           setOpen(false);
         });
       }
+
+      document.querySelectorAll('form.users-create-form, form.users-edit-form').forEach(function (form) {
+        var adminToggle = form.querySelector('[data-admin-role-toggle]');
+        var programRoleBlock = form.querySelector('[data-program-role-block]');
+        if (!adminToggle || !programRoleBlock) return;
+
+        function syncProgramRoleVisibility() {
+          programRoleBlock.hidden = adminToggle.checked;
+        }
+
+        syncProgramRoleVisibility();
+        adminToggle.addEventListener('change', syncProgramRoleVisibility);
+      });
     })();
   </script>
 </body>

@@ -27,6 +27,11 @@ services:
     environment:
       ADMIN_PASSWORD: "Probance123!"
       APP_BASE_URL: "http://localhost:8080"
+      DB_HOST: "db"
+      DB_PORT: "3306"
+      DB_NAME: "certif"
+      DB_USER: "certif_user"
+      DB_PASS: "certif_pass"
       SMTP_HOST: "smtp-gw.company.lan"
       SMTP_PORT: "25"
       SMTP_FROM_EMAIL: "certif@company.tld"

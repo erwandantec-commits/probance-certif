@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_auth.php';
-require_admin();
+require_admin_area();
 require_once __DIR__ . '/../utils.php';
 
 function badge_library_return_path(string $raw): string {
@@ -105,6 +105,7 @@ $options = badge_library_options();
 <!doctype html>
 <html lang="fr">
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <title>Admin &middot; Bibliotheque badges</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
