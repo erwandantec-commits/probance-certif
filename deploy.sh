@@ -28,8 +28,12 @@ echo "rsync --dry-run ${RSYNC_PARAM[@]} . \"${REMOTE_USER}@${REMOTE_HOST}:${REMO
 rsync --dry-run ${RSYNC_PARAM[@]} . "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
 
 
-read -rp "Proceed with rsync? [y/N] " answer
-[[ "$answer" =~ ^([Yy]|[Yy][Ee][Ss])$ ]] || exit 1
+if [[ "${CI:-}" == "true" ]]; then
+  echo "CI environment detected — skipping confirmation."
+else
+  read -rp "Proceed with rsync? [y/N] " answer
+  [[ "$answer" =~ ^([Yy]|[Yy][Ee][Ss])$ ]] || exit 1
+fi
 
 
 echo "rsync ${RSYNC_PARAM[@]} . \"${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}\""
