@@ -392,7 +392,7 @@ $deletedQuestions = (int)($stateSummary['deleted_count'] ?? 0);
 $modifiedQuestions = (int)($stateSummary['modified_count'] ?? 0);
 $unchangedQuestions = (int)($stateSummary['unchanged_count'] ?? 0);
 
-$tableTitle = 'Tableau de performance';
+$tableTitle = t('admin.perf.table_title', [], $lang);
 $tableRows = $rows;
 $tableCount = $totalRows;
 $showPagination = true;
@@ -488,7 +488,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Analyse questions</title>
+  <title><?= h(t('admin.perf.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -498,9 +498,9 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
   <div class="card admin-card admin-page-shell">
     <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
-        <p class="admin-page-eyebrow">Administration</p>
-        <h2 class="h1">Admin &middot; Analyse questions</h2>
-        <p class="sub">Vue agr&eacute;g&eacute;e par question sur les r&eacute;ponses des sessions termin&eacute;es et expir&eacute;es.</p>
+        <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
+        <h2 class="h1"><?= h(t('admin.perf.title', [], $lang)) ?></h2>
+        <p class="sub"><?= h(t('admin.perf.subtitle', [], $lang)) ?></p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('performance'); ?>
@@ -509,31 +509,31 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
 
     <div class="admin-stats-grid">
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Questions</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_questions', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= (int)$totalRows ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Réponses</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_responses', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= (int)$totalResponses ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux réussite global</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_ok_rate', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= h(number_format($globalOkRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux échec global</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_fail_rate', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= h(number_format($globalFailRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Inchangées</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_unchanged', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= (int)$unchangedQuestions ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Modifiées</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_modified', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= (int)$modifiedQuestions ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Supprimées</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_deleted', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= (int)$deletedQuestions ?></strong>
       </article>
     </div>
@@ -542,7 +542,7 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
     <section class="admin-section-panel">
     <div class="section-head admin-section-head">
       <div>
-        <h3 class="h1">Filtres d'analyse</h3>
+        <h3 class="h1"><?= h(t('admin.perf.filters_title', [], $lang)) ?></h3>
       </div>
     </div>
     <form method="get" class="admin-panel-surface audit-config-panel">
@@ -550,43 +550,43 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
       <input type="hidden" name="dir" value="<?= h($dir) ?>">
       <div class="audit-panel-block">
         <div class="audit-panel-head">
-          <span class="audit-config-eyebrow">Perimetre d'analyse</span>
+          <span class="audit-config-eyebrow"><?= h(t('admin.perf.scope', [], $lang)) ?></span>
         </div>
         <div class="audit-filter-grid audit-filter-grid-main">
           <div>
-            <label class="label" for="audit_question_id">Question ID</label>
+            <label class="label" for="audit_question_id"><?= h(t('admin.perf.field_question_id', [], $lang)) ?></label>
             <input class="input" id="audit_question_id" name="question_id" type="text" inputmode="numeric" pattern="[0-9]*" value="<?= h($questionIdRaw) ?>" placeholder="ID">
           </div>
           <div>
-            <label class="label" for="audit_session_type">Type</label>
+            <label class="label" for="audit_session_type"><?= h(t('admin.sessions.filter_type', [], $lang)) ?></label>
             <select class="input" id="audit_session_type" name="session_type">
-              <option value="ALL" <?= $sessionType === 'ALL' ? 'selected' : '' ?>>Tous</option>
-              <option value="EXAM" <?= $sessionType === 'EXAM' ? 'selected' : '' ?>>Certification</option>
-              <option value="TRAINING" <?= $sessionType === 'TRAINING' ? 'selected' : '' ?>>Test</option>
+              <option value="ALL" <?= $sessionType === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+              <option value="EXAM" <?= $sessionType === 'EXAM' ? 'selected' : '' ?>><?= h(t('admin.sessions.type_exam', [], $lang)) ?></option>
+              <option value="TRAINING" <?= $sessionType === 'TRAINING' ? 'selected' : '' ?>><?= h(t('admin.sessions.type_training', [], $lang)) ?></option>
             </select>
           </div>
           <div>
-            <label class="label" for="audit_package_id">Package</label>
+            <label class="label" for="audit_package_id"><?= h(t('admin.perf.filter_pack', [], $lang)) ?></label>
             <select class="input" id="audit_package_id" name="package_id">
-              <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>>Tous</option>
+              <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
               <?php foreach ($packages as $pkg): ?>
                 <option value="<?= (int)$pkg['id'] ?>" <?= $packageId === (int)$pkg['id'] ? 'selected' : '' ?>><?= h((string)$pkg['name']) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
           <div>
-            <label class="label" for="audit_question_state">Etat</label>
+            <label class="label" for="audit_question_state"><?= h(t('admin.perf.filter_state', [], $lang)) ?></label>
             <select class="input" id="audit_question_state" name="question_state">
-              <option value="ALL" <?= $questionState === 'ALL' ? 'selected' : '' ?>>Toutes</option>
-              <option value="UNCHANGED" <?= $questionState === 'UNCHANGED' ? 'selected' : '' ?>>Inchangées</option>
-              <option value="MODIFIED" <?= $questionState === 'MODIFIED' ? 'selected' : '' ?>>Modifiées</option>
-              <option value="DELETED" <?= $questionState === 'DELETED' ? 'selected' : '' ?>>Supprimées</option>
+              <option value="ALL" <?= $questionState === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.perf.state_all', [], $lang)) ?></option>
+              <option value="UNCHANGED" <?= $questionState === 'UNCHANGED' ? 'selected' : '' ?>><?= h(t('admin.perf.state_unchanged', [], $lang)) ?></option>
+              <option value="MODIFIED" <?= $questionState === 'MODIFIED' ? 'selected' : '' ?>><?= h(t('admin.perf.state_modified', [], $lang)) ?></option>
+              <option value="DELETED" <?= $questionState === 'DELETED' ? 'selected' : '' ?>><?= h(t('admin.perf.state_deleted', [], $lang)) ?></option>
             </select>
           </div>
           <div>
-            <label class="label" for="audit_knowledge_required">Catégorie</label>
+            <label class="label" for="audit_knowledge_required"><?= h(t('admin.questions.col_category', [], $lang)) ?></label>
             <select class="input" id="audit_knowledge_required" name="knowledge_required">
-              <option value="" <?= $knowledgeRequired === '' ? 'selected' : '' ?>>Toutes</option>
+              <option value="" <?= $knowledgeRequired === '' ? 'selected' : '' ?>><?= h(t('admin.perf.state_all', [], $lang)) ?></option>
               <?php foreach ($knowledgeRequiredRows as $knowledgeRow): ?>
                 <?php $knowledgeName = (string)($knowledgeRow['knowledge_required_name'] ?? ''); ?>
                 <option value="<?= h($knowledgeName) ?>" <?= $knowledgeRequired === $knowledgeName ? 'selected' : '' ?>><?= h($knowledgeName) ?></option>
@@ -596,85 +596,85 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
         </div>
         <div class="audit-filter-grid audit-filter-grid-dates">
           <div>
-            <label class="label" for="date_from">Date debut analyse</label>
+            <label class="label" for="date_from"><?= h(t('admin.perf.filter_date_from', [], $lang)) ?></label>
             <input class="input" id="date_from" name="date_from" type="date" value="<?= h($dateFrom) ?>">
           </div>
           <div>
-            <label class="label" for="date_to">Date fin analyse</label>
+            <label class="label" for="date_to"><?= h(t('admin.perf.filter_date_to', [], $lang)) ?></label>
             <input class="input" id="date_to" name="date_to" type="date" value="<?= h($dateTo) ?>">
           </div>
         </div>
       </div>
       <div class="audit-panel-block">
         <div class="audit-panel-head">
-          <span class="audit-config-eyebrow">Filtres avances</span>
+          <span class="audit-config-eyebrow"><?= h(t('admin.perf.advanced_filters', [], $lang)) ?></span>
         </div>
         <div class="audit-advanced-grid">
           <div class="audit-advanced-card">
-            <span class="audit-setting-title">Taux réussite</span>
+            <span class="audit-setting-title"><?= h(t('admin.perf.metric_ok_rate', [], $lang)) ?></span>
             <div class="audit-filter-grid audit-filter-grid-metrics">
               <div>
-                <label class="label" for="audit_ok_rate_op">Comparateur</label>
+                <label class="label" for="audit_ok_rate_op"><?= h(t('admin.perf.comparator', [], $lang)) ?></label>
                 <select class="input" id="audit_ok_rate_op" name="ok_rate_op">
-                  <option value="" <?= $okRateOp === '' ? 'selected' : '' ?>>Tous</option>
-                  <option value="eq" <?= $okRateOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
-                  <option value="gte" <?= $okRateOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
-                  <option value="lte" <?= $okRateOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
-                  <option value="between" <?= $okRateOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
+                  <option value="" <?= $okRateOp === '' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+                  <option value="eq" <?= $okRateOp === 'eq' ? 'selected' : '' ?>><?= h(t('admin.perf.op_eq', [], $lang)) ?></option>
+                  <option value="gte" <?= $okRateOp === 'gte' ? 'selected' : '' ?>><?= h(t('admin.perf.op_gte', [], $lang)) ?></option>
+                  <option value="lte" <?= $okRateOp === 'lte' ? 'selected' : '' ?>><?= h(t('admin.perf.op_lte', [], $lang)) ?></option>
+                  <option value="between" <?= $okRateOp === 'between' ? 'selected' : '' ?>><?= h(t('admin.perf.op_between', [], $lang)) ?></option>
                 </select>
               </div>
               <div>
-                <label class="label" for="audit_ok_rate_value">Valeur 1</label>
+                <label class="label" for="audit_ok_rate_value"><?= h(t('admin.perf.value1', [], $lang)) ?></label>
                 <input class="input" id="audit_ok_rate_value" name="ok_rate_value" type="number" min="0" max="100" step="0.1" value="<?= h($okRateValueRaw) ?>" placeholder="%">
               </div>
               <div id="audit-ok-rate-value2-wrap" class="audit-filter-optional<?= $okRateOp === 'between' ? '' : ' is-hidden' ?>">
-                <label class="label" for="audit_ok_rate_value2">Valeur 2</label>
+                <label class="label" for="audit_ok_rate_value2"><?= h(t('admin.perf.value2', [], $lang)) ?></label>
                 <input class="input" id="audit_ok_rate_value2" name="ok_rate_value2" type="number" min="0" max="100" step="0.1" value="<?= h($okRateValue2Raw) ?>" placeholder="%">
               </div>
             </div>
           </div>
           <div class="audit-advanced-card">
-            <span class="audit-setting-title">Taux échec</span>
+            <span class="audit-setting-title"><?= h(t('admin.perf.metric_fail_rate', [], $lang)) ?></span>
             <div class="audit-filter-grid audit-filter-grid-metrics">
               <div>
-                <label class="label" for="audit_fail_rate_op">Comparateur</label>
+                <label class="label" for="audit_fail_rate_op"><?= h(t('admin.perf.comparator', [], $lang)) ?></label>
                 <select class="input" id="audit_fail_rate_op" name="fail_rate_op">
-                  <option value="" <?= $failRateOp === '' ? 'selected' : '' ?>>Tous</option>
-                  <option value="eq" <?= $failRateOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
-                  <option value="gte" <?= $failRateOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
-                  <option value="lte" <?= $failRateOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
-                  <option value="between" <?= $failRateOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
+                  <option value="" <?= $failRateOp === '' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+                  <option value="eq" <?= $failRateOp === 'eq' ? 'selected' : '' ?>><?= h(t('admin.perf.op_eq', [], $lang)) ?></option>
+                  <option value="gte" <?= $failRateOp === 'gte' ? 'selected' : '' ?>><?= h(t('admin.perf.op_gte', [], $lang)) ?></option>
+                  <option value="lte" <?= $failRateOp === 'lte' ? 'selected' : '' ?>><?= h(t('admin.perf.op_lte', [], $lang)) ?></option>
+                  <option value="between" <?= $failRateOp === 'between' ? 'selected' : '' ?>><?= h(t('admin.perf.op_between', [], $lang)) ?></option>
                 </select>
               </div>
               <div>
-                <label class="label" for="audit_fail_rate_value">Valeur 1</label>
+                <label class="label" for="audit_fail_rate_value"><?= h(t('admin.perf.value1', [], $lang)) ?></label>
                 <input class="input" id="audit_fail_rate_value" name="fail_rate_value" type="number" min="0" max="100" step="0.1" value="<?= h($failRateValueRaw) ?>" placeholder="%">
               </div>
               <div id="audit-fail-rate-value2-wrap" class="audit-filter-optional<?= $failRateOp === 'between' ? '' : ' is-hidden' ?>">
-                <label class="label" for="audit_fail_rate_value2">Valeur 2</label>
+                <label class="label" for="audit_fail_rate_value2"><?= h(t('admin.perf.value2', [], $lang)) ?></label>
                 <input class="input" id="audit_fail_rate_value2" name="fail_rate_value2" type="number" min="0" max="100" step="0.1" value="<?= h($failRateValue2Raw) ?>" placeholder="%">
               </div>
             </div>
           </div>
           <div class="audit-advanced-card">
-            <span class="audit-setting-title">Nb reponses</span>
+            <span class="audit-setting-title"><?= h(t('admin.perf.metric_responses', [], $lang)) ?></span>
             <div class="audit-filter-grid audit-filter-grid-metrics">
               <div>
-                <label class="label" for="audit_response_op">Comparateur</label>
+                <label class="label" for="audit_response_op"><?= h(t('admin.perf.comparator', [], $lang)) ?></label>
                 <select class="input" id="audit_response_op" name="response_op">
-                  <option value="" <?= $responseOp === '' ? 'selected' : '' ?>>Tous</option>
-                  <option value="eq" <?= $responseOp === 'eq' ? 'selected' : '' ?>>Egal a</option>
-                  <option value="gte" <?= $responseOp === 'gte' ? 'selected' : '' ?>>Superieur a (&gt;=)</option>
-                  <option value="lte" <?= $responseOp === 'lte' ? 'selected' : '' ?>>Inferieur a (&lt;=)</option>
-                  <option value="between" <?= $responseOp === 'between' ? 'selected' : '' ?>>Entre (&gt;=, &lt;=)</option>
+                  <option value="" <?= $responseOp === '' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+                  <option value="eq" <?= $responseOp === 'eq' ? 'selected' : '' ?>><?= h(t('admin.perf.op_eq', [], $lang)) ?></option>
+                  <option value="gte" <?= $responseOp === 'gte' ? 'selected' : '' ?>><?= h(t('admin.perf.op_gte', [], $lang)) ?></option>
+                  <option value="lte" <?= $responseOp === 'lte' ? 'selected' : '' ?>><?= h(t('admin.perf.op_lte', [], $lang)) ?></option>
+                  <option value="between" <?= $responseOp === 'between' ? 'selected' : '' ?>><?= h(t('admin.perf.op_between', [], $lang)) ?></option>
                 </select>
               </div>
               <div>
-                <label class="label" for="audit_response_value">Valeur 1</label>
+                <label class="label" for="audit_response_value"><?= h(t('admin.perf.value1', [], $lang)) ?></label>
                 <input class="input" id="audit_response_value" name="response_value" type="number" min="0" step="1" value="<?= h($responseValueRaw) ?>" placeholder="nb">
               </div>
               <div id="audit-response-value2-wrap" class="audit-filter-optional<?= $responseOp === 'between' ? '' : ' is-hidden' ?>">
-                <label class="label" for="audit_response_value2">Valeur 2</label>
+                <label class="label" for="audit_response_value2"><?= h(t('admin.perf.value2', [], $lang)) ?></label>
                 <input class="input" id="audit_response_value2" name="response_value2" type="number" min="0" step="1" value="<?= h($responseValue2Raw) ?>" placeholder="nb">
               </div>
             </div>
@@ -682,8 +682,8 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
         </div>
       </div>
       <div class="filters-actions audit-config-actions">
-        <button class="btn" type="submit">Appliquer</button>
-        <a class="btn ghost" href="/admin/question_performance.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
+        <button class="btn" type="submit"><?= h(t('admin.perf.apply', [], $lang)) ?></button>
+        <a class="btn ghost" href="/admin/question_performance.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
       </div>
     </form>
 
@@ -693,13 +693,13 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
     <div class="section-head admin-section-head">
       <div>
         <h3 class="h1"><?= h($tableTitle) ?></h3>
-        <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$tableCount ?> question(s))</p>
+        <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $page, 'total' => $totalPages, 'count' => $tableCount], $lang)) ?></p>
       </div>
     </div>
 
     <div class="table-wrap admin-table-panel">
       <?php if (!$tableRows): ?>
-        <p class="empty-state">Aucune donn&eacute;e pour ces filtres.</p>
+        <p class="empty-state"><?= h(t('admin.perf.none', [], $lang)) ?></p>
       <?php else: ?>
         <table class="table questions-table performance-table">
           <thead>
@@ -709,30 +709,30 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
                 unset($qs['page']);
                 $base = '/admin/question_performance.php?';
               ?>
-              <th>Rang</th>
-              <th>ID</th>
+              <th><?= h(t('admin.perf.col_rank', [], $lang)) ?></th>
+              <th><?= h(t('admin.questions.col_id', [], $lang)) ?></th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'question_text'; $urlQs['dir'] = ($sort === 'question_text' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Question</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>"><?= h(t('admin.perf.col_question', [], $lang)) ?></a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'knowledge_required'; $urlQs['dir'] = ($sort === 'knowledge_required' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Catégorie</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>"><?= h(t('admin.questions.col_category', [], $lang)) ?></a>
               </th>
-              <th>Etat</th>
+              <th><?= h(t('admin.perf.col_state', [], $lang)) ?></th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'response_count'; $urlQs['dir'] = ($sort === 'response_count' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Nb reponses</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>"><?= h(t('admin.perf.col_responses', [], $lang)) ?></a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'ok_rate'; $urlQs['dir'] = ($sort === 'ok_rate' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux réussite</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>"><?= h(t('admin.perf.col_ok_rate', [], $lang)) ?></a>
               </th>
               <th>
                 <?php $urlQs = $qs; $urlQs['sort'] = 'fail_rate'; $urlQs['dir'] = ($sort === 'fail_rate' && $dir === 'DESC') ? 'ASC' : 'DESC'; ?>
-                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>">Taux échec</a>
+                <a class="sort-link" href="<?= h($base . http_build_query($urlQs)) ?>"><?= h(t('admin.perf.col_fail_rate', [], $lang)) ?></a>
               </th>
-              <th>Action</th>
+              <th><?= h(t('admin.common.action', [], $lang)) ?></th>
             </tr>
           </thead>
           <tbody>
@@ -746,11 +746,11 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
                 <td>
                   <div class="performance-question-state">
                   <?php if ((int)($row['is_deleted'] ?? 0) === 1): ?>
-                    <span class="pill danger">Supprimée</span>
+                    <span class="pill danger"><?= h(t('admin.perf.pill_deleted', [], $lang)) ?></span>
                   <?php elseif ((int)($row['is_modified'] ?? 0) === 1): ?>
-                    <span class="pill warning">Modifiée</span>
+                    <span class="pill warning"><?= h(t('admin.perf.pill_modified', [], $lang)) ?></span>
                   <?php else: ?>
-                    <span class="pill">Inchangée</span>
+                    <span class="pill"><?= h(t('admin.perf.pill_unchanged', [], $lang)) ?></span>
                   <?php endif; ?>
                   </div>
                 </td>
@@ -758,12 +758,12 @@ foreach ($chartBubbleGroups as $groupKey => $chartGroup) {
                 <td><span class="badge ok"><?= h(number_format((float)$row['ok_rate'], 1, '.', '')) ?>%</span></td>
                 <td><span class="badge bad"><?= h(number_format((float)$row['fail_rate'], 1, '.', '')) ?>%</span></td>
                 <td class="actions-cell">
-                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$row['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Modifier la question" title="Modifier la question">
+                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$row['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="<?= h(t('admin.questions.edit', [], $lang)) ?>" title="<?= h(t('admin.questions.edit', [], $lang)) ?>">
                     <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                     </svg>
                   </a>
-                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&session_type=<?= h(urlencode($sessionType)) ?>&date_from=<?= h(urlencode($dateFrom)) ?>&date_to=<?= h(urlencode($dateTo)) ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="Zoom performance" title="Zoom performance">
+                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$row['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&session_type=<?= h(urlencode($sessionType)) ?>&date_from=<?= h(urlencode($dateFrom)) ?>&date_to=<?= h(urlencode($dateTo)) ?>&return=<?= h(urlencode($returnTo)) ?>" aria-label="<?= h(t('admin.perf.zoom_btn', [], $lang)) ?>" title="<?= h(t('admin.perf.zoom_btn', [], $lang)) ?>">
                     <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
                     </svg>

@@ -187,7 +187,8 @@ foreach ($certSuccessStmt->fetchAll() as $row) {
   $statusInfo = certification_status_from_last_success(
     $baseDate,
     null,
-    (int)($row['package_cert_validity_days'] ?? 365)
+    (int)($row['package_cert_validity_days'] ?? 365),
+    $lang
   );
   $pkgName = strtoupper(trim((string)$row['package_name']));
   $customBadgeFile = trim((string)($row['package_badge_image'] ?? ''));
@@ -577,7 +578,7 @@ function dash_remaining_label(int $seconds): string {
           </div>
           <?php if (user_can_access_reporting_area($user)): ?>
             <a class="btn ghost dashboard-admin-btn" href="/admin/">
-              <?= h(t('dash.admin', [], $lang)) ?>
+              <?= h(t(user_has_role($user, 'OWNER') && !user_has_role($user, 'ADMIN') ? 'dash.manager' : 'dash.admin', [], $lang)) ?>
             </a>
           <?php endif; ?>
           <a class="btn ghost dashboard-help-btn" href="/help.php?lang=<?= h(urlencode($lang)) ?>" aria-label="Aide" title="Aide">

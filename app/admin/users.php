@@ -830,7 +830,7 @@ function admin_users_sort_link(array $qs, string $key): string {
     <div class="card admin-card admin-page-shell">
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <p class="admin-page-eyebrow">Administration</p>
+          <p class="admin-page-eyebrow"><?= h(t('admin.nav.group_admin', [], $lang)) ?></p>
           <h2 class="h1"><?= h(t('admin.users.title', [], $lang)) ?></h2>
           <p class="sub"><?= h(t('admin.users.subtitle', [], $lang)) ?></p>
         </div>
@@ -875,7 +875,7 @@ function admin_users_sort_link(array $qs, string $key): string {
           aria-expanded="<?= $openCreate ? 'true' : 'false' ?>"
           aria-controls="users-create-panel"
         >
-          + Créer un utilisateur
+          <?= h(t('admin.users.create_btn', [], $lang)) ?>
         </button>
       </div>
 
@@ -883,7 +883,7 @@ function admin_users_sort_link(array $qs, string $key): string {
         <div class="section-head admin-section-head">
           <div>
             <h3 class="h1"><?= h(t('admin.users.create_title', [], $lang)) ?></h3>
-            <p class="sub">Crée un compte et définit les programmes qu'il pourra consulter.</p>
+            <p class="sub"><?= h(t('admin.users.create_subtitle', [], $lang)) ?></p>
           </div>
         </div>
         <form method="post" class="users-create-form">
@@ -891,23 +891,23 @@ function admin_users_sort_link(array $qs, string $key): string {
           <input type="hidden" name="action" value="create_user">
           <div class="users-create-grid">
             <div>
-              <label class="label" for="create-first-name">Prénom</label>
+              <label class="label" for="create-first-name"><?= h(t('admin.users.firstname', [], $lang)) ?></label>
               <input class="input" id="create-first-name" name="first_name" type="text" maxlength="100" required value="<?= h($createFirstName) ?>" autocomplete="given-name">
             </div>
             <div>
-              <label class="label" for="create-last-name">Nom</label>
+              <label class="label" for="create-last-name"><?= h(t('admin.users.lastname', [], $lang)) ?></label>
               <input class="input" id="create-last-name" name="last_name" type="text" maxlength="100" required value="<?= h($createLastName) ?>" autocomplete="family-name">
             </div>
             <div>
-              <label class="label" for="create-email">Email</label>
+              <label class="label" for="create-email"><?= h(t('admin.common.email', [], $lang)) ?></label>
               <input class="input" id="create-email" name="email" type="email" required value="<?= h($createEmail) ?>" autocomplete="email">
             </div>
             <div>
-              <label class="label" for="create-password">Mot de passe</label>
+              <label class="label" for="create-password"><?= h(t('admin.users.password', [], $lang)) ?></label>
               <input class="input" id="create-password" name="password" type="password" minlength="8" required autocomplete="new-password">
             </div>
             <div>
-              <label class="label" for="create-password2">Confirmer le mot de passe</label>
+              <label class="label" for="create-password2"><?= h(t('admin.users.password_confirm', [], $lang)) ?></label>
               <input class="input" id="create-password2" name="password2" type="password" minlength="8" required autocomplete="new-password">
             </div>
             <input type="hidden" name="role" value="USER">
@@ -915,12 +915,12 @@ function admin_users_sort_link(array $qs, string $key): string {
               <div class="users-multiselect">
                 <label class="admin-inline-checkbox">
                   <input type="checkbox" name="role" value="ADMIN" data-admin-role-toggle <?= $createRole === 'ADMIN' ? 'checked' : '' ?>>
-                  <span>Administrateur</span>
+                  <span><?= h(t('admin.users.role_checkbox_admin', [], $lang)) ?></span>
                 </label>
               </div>
             <?php endif; ?>
             <div class="users-multiselect" data-program-role-block>
-              <span class="label">Role par programme</span>
+              <span class="label"><?= h(t('admin.users.role_program', [], $lang)) ?></span>
               <div class="users-checkbox-list">
                 <?php foreach ($programRows as $programRow): ?>
                   <?php $programIdOption = (int)($programRow['id'] ?? 0); ?>
@@ -929,10 +929,10 @@ function admin_users_sort_link(array $qs, string $key): string {
                   <label class="users-checkbox-item users-program-role-item">
                     <span><?= h((string)($programLabelsById[$programIdOption] ?? ($programRow['name'] ?? 'Programme'))) ?></span>
                     <select class="input users-program-role-select" name="program_roles[<?= $programIdOption ?>]">
-                      <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>>Pas d'acces</option>
-                      <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>>Utilisateur</option>
+                      <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>><?= h(t('admin.users.role_none', [], $lang)) ?></option>
+                      <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>><?= h(t('admin.users.role_user', [], $lang)) ?></option>
                       <?php if (user_has_role($adminUser, ['ADMIN', 'OWNER'])): ?>
-                        <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>>Owner</option>
+                        <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>><?= h(t('admin.users.role_owner', [], $lang)) ?></option>
                       <?php endif; ?>
                     </select>
                   </label>
@@ -941,16 +941,16 @@ function admin_users_sort_link(array $qs, string $key): string {
             </div>
             <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn): ?>
               <div class="users-multiselect">
-                <span class="label">Exception email</span>
+                <span class="label"><?= h(t('admin.users.email_bypass', [], $lang)) ?></span>
                 <label class="admin-inline-checkbox">
                   <input type="checkbox" name="email_control_bypass" value="1" <?= $createEmailControlBypass === 1 ? 'checked' : '' ?>>
-                  <span>Ignorer le controle email pour ce compte</span>
+                  <span><?= h(t('admin.users.email_bypass_hint', [], $lang)) ?></span>
                 </label>
               </div>
             <?php endif; ?>
           </div>
           <div class="users-create-actions">
-            <button class="btn" type="submit">Créer utilisateur</button>
+            <button class="btn" type="submit"><?= h(t('admin.users.create_title', [], $lang)) ?></button>
             <button class="btn ghost" type="button" id="users-create-cancel-btn"><?= h(t('admin.common.cancel', [], $lang)) ?></button>
           </div>
         </form>
@@ -962,7 +962,7 @@ function admin_users_sort_link(array $qs, string $key): string {
       <div class="section-head admin-section-head">
         <div>
           <h3 class="h1"><?= h(t('admin.users.directory_title', [], $lang)) ?></h3>
-          <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> résultats)</p>
+          <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $page, 'total' => $totalPages, 'count' => $totalRows], $lang)) ?></p>
         </div>
       </div>
 
@@ -972,16 +972,16 @@ function admin_users_sort_link(array $qs, string $key): string {
           <input class="input" id="email" type="text" name="email" value="<?= h($emailFilter) ?>" placeholder="Email">
         </div>
         <div>
-          <label class="label" for="name">Nom / Prenom</label>
-          <input class="input" id="name" type="text" name="name" value="<?= h($nameFilter) ?>" placeholder="Nom ou prenom">
+          <label class="label" for="name"><?= h(t('admin.users.col_name', [], $lang)) ?></label>
+          <input class="input" id="name" type="text" name="name" value="<?= h($nameFilter) ?>" placeholder="<?= h(t('admin.users.filter_name_ph', [], $lang)) ?>">
         </div>
         <div>
-          <label class="label" for="role">R&ocirc;le</label>
+          <label class="label" for="role"><?= h(t('admin.common.role', [], $lang)) ?></label>
           <select class="input" id="role" name="role">
-            <option value="ALL" <?= $role === 'ALL' ? 'selected' : '' ?>>Tous</option>
-            <option value="ADMIN" <?= $role === 'ADMIN' ? 'selected' : '' ?>>Administrateurs</option>
-            <option value="OWNER" <?= $role === 'OWNER' ? 'selected' : '' ?>>Owners</option>
-            <option value="USER" <?= $role === 'USER' ? 'selected' : '' ?>>Users</option>
+            <option value="ALL" <?= $role === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="ADMIN" <?= $role === 'ADMIN' ? 'selected' : '' ?>><?= h(t('admin.users.stat_admins', [], $lang)) ?></option>
+            <option value="OWNER" <?= $role === 'OWNER' ? 'selected' : '' ?>><?= h(t('admin.users.stat_owners', [], $lang)) ?></option>
+            <option value="USER" <?= $role === 'USER' ? 'selected' : '' ?>><?= h(t('admin.users.stat_users', [], $lang)) ?></option>
           </select>
         </div>
         <div class="filters-actions">
@@ -1011,24 +1011,24 @@ function admin_users_sort_link(array $qs, string $key): string {
                     Email<?php if ($sort === 'email'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
-                <th>Nom</th>
-                <th>Prenom</th>
+                <th><?= h(t('admin.users.lastname', [], $lang)) ?></th>
+                <th><?= h(t('admin.users.firstname', [], $lang)) ?></th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'role')) ?>">
-                    R&ocirc;le<?php if ($sort === 'role'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    <?= h(t('admin.common.role', [], $lang)) ?><?php if ($sort === 'role'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'created_at')) ?>">
-                    Date création<?php if ($sort === 'created_at'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    <?= h(t('admin.users.col_created', [], $lang)) ?><?php if ($sort === 'created_at'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
                 <th>
                   <a class="sort-link" href="<?= h(admin_users_sort_link($_GET, 'session_count')) ?>">
-                    Sessions<?php if ($sort === 'session_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
+                    <?= h(t('admin.users.col_sessions', [], $lang)) ?><?php if ($sort === 'session_count'): ?> <span><?= $dir === 'DESC' ? '&darr;' : '&uarr;' ?></span><?php endif; ?>
                   </a>
                 </th>
-                <th>Actions</th>
+                <th><?= h(t('admin.common.actions', [], $lang)) ?></th>
               </tr>
             </thead>
             <tbody>
@@ -1095,7 +1095,7 @@ function admin_users_sort_link(array $qs, string $key): string {
                   <td class="users-directory-sessions"><?= (int)$u['session_count'] ?></td>
                   <td class="actions-cell users-directory-actions">
                     <div class="users-directory-actions-wrap">
-                      <a class="btn ghost icon-btn" href="<?= h($profileLink) ?>" aria-label="Ouvrir la fiche utilisateur" title="Ouvrir la fiche utilisateur">
+                      <a class="btn ghost icon-btn" href="<?= h($profileLink) ?>" aria-label="<?= h(t('admin.users.open_profile', [], $lang)) ?>" title="<?= h(t('admin.users.open_profile', [], $lang)) ?>">
                         <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                           <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                         </svg>
@@ -1108,10 +1108,10 @@ function admin_users_sort_link(array $qs, string $key): string {
                           class="btn ghost icon-btn danger"
                           type="submit"
                           <?= (!$canManageTarget || $isSelf) ? 'disabled' : '' ?>
-                          <?= $isSelf ? 'title="Vous ne pouvez pas supprimer votre propre compte."' : (!$canManageTarget ? 'title="Suppression non autorisee pour ce role."' : '') ?>
-                          onclick="return confirm('Supprimer cet utilisateur ? Cette action est irreversible.');"
-                          aria-label="Supprimer cet utilisateur"
-                          title="Supprimer"
+                          <?= $isSelf ? ('title="' . h(t('admin.users.delete_self_title', [], $lang)) . '"') : (!$canManageTarget ? ('title="' . h(t('admin.users.delete_forbidden_title', [], $lang)) . '"') : '') ?>
+                          onclick="return confirm('<?= h(t('admin.users.delete_confirm', [], $lang)) ?>');"
+                          aria-label="<?= h(t('admin.users.delete_user', [], $lang)) ?>"
+                          title="<?= h(t('admin.common.delete', [], $lang)) ?>"
                         >
                           <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
@@ -1138,23 +1138,23 @@ function admin_users_sort_link(array $qs, string $key): string {
                         <input type="hidden" name="user_id" value="<?= (int)$uid ?>">
                         <div class="users-edit-grid">
                           <div>
-                            <label class="label" for="edit-first-<?= (int)$uid ?>">Prenom</label>
+                            <label class="label" for="edit-first-<?= (int)$uid ?>"><?= h(t('admin.users.firstname', [], $lang)) ?></label>
                             <input class="input" id="edit-first-<?= (int)$uid ?>" name="first_name" type="text" maxlength="100" required value="<?= h($firstName) ?>">
                           </div>
                           <div>
-                            <label class="label" for="edit-last-<?= (int)$uid ?>">Nom</label>
+                            <label class="label" for="edit-last-<?= (int)$uid ?>"><?= h(t('admin.users.lastname', [], $lang)) ?></label>
                             <input class="input" id="edit-last-<?= (int)$uid ?>" name="last_name" type="text" maxlength="100" required value="<?= h($lastName) ?>">
                           </div>
                           <div>
-                            <label class="label" for="edit-email-<?= (int)$uid ?>">Email</label>
+                            <label class="label" for="edit-email-<?= (int)$uid ?>"><?= h(t('admin.common.email', [], $lang)) ?></label>
                             <input class="input" id="edit-email-<?= (int)$uid ?>" name="email" type="email" required value="<?= h($editEmail) ?>">
                           </div>
                           <div>
-                            <label class="label" for="edit-pass-<?= (int)$uid ?>">Nouveau mot de passe (optionnel)</label>
+                            <label class="label" for="edit-pass-<?= (int)$uid ?>"><?= h(t('admin.users.password_new', [], $lang)) ?></label>
                             <input class="input" id="edit-pass-<?= (int)$uid ?>" name="new_password" type="password" minlength="8" autocomplete="new-password">
                           </div>
                           <div>
-                            <label class="label" for="edit-pass2-<?= (int)$uid ?>">Confirmer le nouveau mot de passe</label>
+                            <label class="label" for="edit-pass2-<?= (int)$uid ?>"><?= h(t('admin.users.password_new_confirm', [], $lang)) ?></label>
                             <input class="input" id="edit-pass2-<?= (int)$uid ?>" name="new_password2" type="password" minlength="8" autocomplete="new-password">
                           </div>
                           <input type="hidden" name="role" value="USER">
@@ -1162,12 +1162,12 @@ function admin_users_sort_link(array $qs, string $key): string {
                             <div class="users-multiselect">
                               <label class="admin-inline-checkbox">
                                 <input type="checkbox" name="role" value="ADMIN" data-admin-role-toggle <?= $editRole === 'ADMIN' ? 'checked' : '' ?> <?= $canAssignAdmin ? '' : 'disabled' ?>>
-                                <span>Administrateur</span>
+                                <span><?= h(t('admin.users.role_checkbox_admin', [], $lang)) ?></span>
                               </label>
                             </div>
                           <?php endif; ?>
                           <div class="users-multiselect" data-program-role-block>
-                            <span class="label">Role par programme</span>
+                            <span class="label"><?= h(t('admin.users.role_program', [], $lang)) ?></span>
                             <div class="users-checkbox-list">
                               <?php foreach ($programRows as $programRow): ?>
                                 <?php $programIdOption = (int)($programRow['id'] ?? 0); ?>
@@ -1176,10 +1176,10 @@ function admin_users_sort_link(array $qs, string $key): string {
                                 <label class="users-checkbox-item users-program-role-item">
                                   <span><?= h((string)($programLabelsById[$programIdOption] ?? ($programRow['name'] ?? 'Programme'))) ?></span>
                                   <select class="input users-program-role-select" name="program_roles[<?= $programIdOption ?>]">
-                                    <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>>Pas d'acces</option>
-                                    <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>>Utilisateur</option>
+                                    <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>><?= h(t('admin.users.role_none', [], $lang)) ?></option>
+                                    <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>><?= h(t('admin.users.role_user', [], $lang)) ?></option>
                                     <?php if (user_has_role($adminUser, ['ADMIN', 'OWNER'])): ?>
-                                      <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>>Owner</option>
+                                      <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>><?= h(t('admin.users.role_owner', [], $lang)) ?></option>
                                     <?php endif; ?>
                                   </select>
                                 </label>
@@ -1188,17 +1188,17 @@ function admin_users_sort_link(array $qs, string $key): string {
                           </div>
                           <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn): ?>
                             <div class="users-multiselect">
-                              <span class="label">Exception email</span>
+                              <span class="label"><?= h(t('admin.users.email_bypass', [], $lang)) ?></span>
                               <label class="admin-inline-checkbox">
                                 <input type="checkbox" name="email_control_bypass" value="1" <?= $editEmailControlBypass === 1 ? 'checked' : '' ?>>
-                                <span>Ignorer le controle email pour ce compte</span>
+                                <span><?= h(t('admin.users.email_bypass_hint', [], $lang)) ?></span>
                               </label>
                             </div>
                           <?php endif; ?>
                         </div>
                         <div class="users-edit-actions">
                           <button class="btn" type="submit"><?= h(t('admin.common.save', [], $lang)) ?></button>
-                          <a class="btn ghost" href="<?= h($closeLink) ?>">Fermer</a>
+                          <a class="btn ghost" href="<?= h($closeLink) ?>"><?= h(t('admin.common.close', [], $lang)) ?></a>
                         </div>
                       </form>
                     </td>

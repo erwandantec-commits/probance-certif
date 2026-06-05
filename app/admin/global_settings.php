@@ -50,9 +50,9 @@ $emailControlAllowedDomains = implode("\n", auth_user_email_control_allowed_doma
     <div class="card admin-card admin-page-shell">
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <p class="admin-page-eyebrow">Administration</p>
-          <h2 class="h1">Admin &middot; Administration globale</h2>
-          <p class="sub">Parametres transverses reserves aux administrateurs.</p>
+          <p class="admin-page-eyebrow"><?= h(t('admin.nav.group_admin', [], $lang)) ?></p>
+          <h2 class="h1"><?= h(t('admin.settings.title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.settings.subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('global_settings'); ?>

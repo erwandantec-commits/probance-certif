@@ -358,7 +358,7 @@ if ($hasProgramPackageLinksTable) {
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Edition programme</title>
+  <title><?= h(t('admin.programs.edit_page_title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -368,7 +368,7 @@ if ($hasProgramPackageLinksTable) {
     <div class="card admin-card admin-page-shell">
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <p class="admin-page-eyebrow">Programmes</p>
+          <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
           <h2 class="h1">Programme &middot; <?= h((string)($program['name'] ?? 'Programme')) ?></h2>
         </div>
         <div class="admin-head-actions">
@@ -380,31 +380,31 @@ if ($hasProgramPackageLinksTable) {
         <div class="admin-notice is-bad"><?= h($error) ?></div>
       <?php endif; ?>
       <?php if ($packDetached): ?>
-        <div class="admin-notice is-ok">Pack retire du programme.</div>
+        <div class="admin-notice is-ok"><?= h(t('admin.programs.pack_detached', [], $lang)) ?></div>
       <?php endif; ?>
       <?php if ($packAttached): ?>
-        <div class="admin-notice is-ok">Pack ajoute au programme.</div>
+        <div class="admin-notice is-ok"><?= h(t('admin.programs.pack_attached', [], $lang)) ?></div>
       <?php endif; ?>
       <?php if ($packToggled): ?>
-        <div class="admin-notice is-ok">Disponibilite du pack mise a jour pour ce programme.</div>
+        <div class="admin-notice is-ok"><?= h(t('admin.programs.pack_toggled', [], $lang)) ?></div>
       <?php endif; ?>
 
       <div class="admin-stats-grid">
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Packs lies</span>
+          <span class="admin-stat-label"><?= h(t('admin.programs.stat_packs', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)($program['package_count'] ?? 0) ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Acces utilisateurs</span>
+          <span class="admin-stat-label"><?= h(t('admin.programs.stat_users', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= (int)($program['assigned_user_count'] ?? 0) ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Langue source</span>
+          <span class="admin-stat-label"><?= h(t('admin.programs.stat_source_lang', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= h(question_translation_lang_label((string)($program['source_lang'] ?? 'fr'))) ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label">Statut</span>
-          <strong class="admin-stat-value"><?= (int)($program['is_active'] ?? 0) === 1 ? 'Actif' : 'Inactif' ?></strong>
+          <span class="admin-stat-label"><?= h(t('admin.common.status', [], $lang)) ?></span>
+          <strong class="admin-stat-value"><?= (int)($program['is_active'] ?? 0) === 1 ? h(t('admin.common.active', [], $lang)) : h(t('admin.common.inactive', [], $lang)) ?></strong>
         </article>
       </div>
 
@@ -412,10 +412,10 @@ if ($hasProgramPackageLinksTable) {
         <section class="admin-section-panel admin-section-panel-accent">
           <div class="section-head admin-section-head">
             <div>
-              <h3 class="h1">Modifier le programme</h3>
+              <h3 class="h1"><?= h(t('admin.programs.section_edit', [], $lang)) ?></h3>
             </div>
             <div class="admin-head-actions">
-              <a class="btn ghost" href="/admin/programs.php">Retour aux programmes</a>
+              <a class="btn ghost" href="/admin/programs.php"><?= h(t('admin.programs.back', [], $lang)) ?></a>
             </div>
           </div>
 
@@ -423,15 +423,15 @@ if ($hasProgramPackageLinksTable) {
             <input type="hidden" name="id" value="<?= (int)($program['id'] ?? 0) ?>">
             <div class="users-create-grid">
               <div>
-                <label class="label" for="edit-program-name">Nom</label>
+                <label class="label" for="edit-program-name"><?= h(t('admin.common.name', [], $lang)) ?></label>
                 <input class="input" id="edit-program-name" type="text" name="name" value="<?= h((string)($program['name'] ?? '')) ?>" required>
               </div>
               <div>
-                <label class="label" for="edit-program-description">Description</label>
+                <label class="label" for="edit-program-description"><?= h(t('admin.programs.field_description', [], $lang)) ?></label>
                 <input class="input" id="edit-program-description" type="text" name="description" value="<?= h((string)($program['description'] ?? '')) ?>">
               </div>
               <div>
-                <label class="label" for="edit-program-source-lang">Langue source questions</label>
+                <label class="label" for="edit-program-source-lang"><?= h(t('admin.programs.field_source_lang', [], $lang)) ?></label>
                 <select class="input" id="edit-program-source-lang" name="source_lang">
                   <?php $programSourceLang = question_translation_normalize_lang((string)($program['source_lang'] ?? 'fr')); ?>
                   <?php foreach (question_translation_lang_labels() as $langCode => $langLabel): ?>
@@ -440,16 +440,16 @@ if ($hasProgramPackageLinksTable) {
                 </select>
               </div>
               <div>
-                <label class="label" for="edit-program-active">Statut</label>
+                <label class="label" for="edit-program-active"><?= h(t('admin.common.status', [], $lang)) ?></label>
                 <select class="input" id="edit-program-active" name="is_active">
-                  <option value="1" <?= (int)($program['is_active'] ?? 0) === 1 ? 'selected' : '' ?>>Actif</option>
-                  <option value="0" <?= (int)($program['is_active'] ?? 0) === 0 ? 'selected' : '' ?>>Inactif</option>
+                  <option value="1" <?= (int)($program['is_active'] ?? 0) === 1 ? 'selected' : '' ?>><?= h(t('admin.common.active', [], $lang)) ?></option>
+                  <option value="0" <?= (int)($program['is_active'] ?? 0) === 0 ? 'selected' : '' ?>><?= h(t('admin.common.inactive', [], $lang)) ?></option>
                 </select>
               </div>
             </div>
             <div class="users-create-actions">
-              <button class="btn" type="submit">Enregistrer</button>
-              <a class="btn ghost" href="/admin/programs.php">Annuler</a>
+              <button class="btn" type="submit"><?= h(t('admin.common.save', [], $lang)) ?></button>
+              <a class="btn ghost" href="/admin/programs.php"><?= h(t('admin.common.cancel', [], $lang)) ?></a>
             </div>
           </form>
         </section>
@@ -457,11 +457,11 @@ if ($hasProgramPackageLinksTable) {
         <section class="admin-section-panel">
           <div class="section-head admin-section-head">
             <div>
-              <h3 class="h1">Packs associes</h3>
+              <h3 class="h1"><?= h(t('admin.programs.section_packs', [], $lang)) ?></h3>
               <p class="sub sessions-meta"><?= (int)count($packages) ?> pack(s)</p>
             </div>
             <div class="admin-head-actions">
-              <a class="btn" href="/admin/pack_create.php?program_id=<?= (int)$programId ?>">Ajouter un pack</a>
+              <a class="btn" href="/admin/pack_create.php?program_id=<?= (int)$programId ?>"><?= h(t('admin.programs.add_pack_btn', [], $lang)) ?></a>
             </div>
           </div>
 
@@ -471,10 +471,10 @@ if ($hasProgramPackageLinksTable) {
               <input type="hidden" name="id" value="<?= (int)$programId ?>">
               <div class="users-create-grid" style="grid-template-columns: minmax(0, 1fr) auto;">
                 <div>
-                  <label class="label" for="attach-package-id">Ajouter un pack existant</label>
+                  <label class="label" for="attach-package-id"><?= h(t('admin.programs.add_existing_pack', [], $lang)) ?></label>
                   <select class="input" id="attach-package-id" name="package_id" <?= !$unassignedPackages ? 'disabled' : '' ?>>
                     <?php if (!$unassignedPackages): ?>
-                      <option value="0">Aucun pack disponible</option>
+                      <option value="0"><?= h(t('admin.programs.no_packs_available', [], $lang)) ?></option>
                     <?php else: ?>
                       <?php foreach ($unassignedPackages as $unassignedPackage): ?>
                         <option value="<?= (int)($unassignedPackage['id'] ?? 0) ?>">
@@ -485,35 +485,35 @@ if ($hasProgramPackageLinksTable) {
                   </select>
                 </div>
                 <div class="users-create-actions" style="align-self:end;">
-                  <button class="btn" type="submit" <?= !$unassignedPackages ? 'disabled' : '' ?>>Associer</button>
+                  <button class="btn" type="submit" <?= !$unassignedPackages ? 'disabled' : '' ?>><?= h(t('admin.programs.associate', [], $lang)) ?></button>
                 </div>
               </div>
             </form>
           <?php endif; ?>
 
           <?php if (!$packages): ?>
-            <p class="empty-state">Aucun pack n'est associe a ce programme.</p>
+            <p class="empty-state"><?= h(t('admin.programs.no_packs', [], $lang)) ?></p>
           <?php else: ?>
             <div class="table-wrap admin-table-panel">
               <table class="table questions-table packages-table">
                 <thead>
                   <tr>
-                    <th>Nom</th>
-                    <?php if ($hasProfileColumn): ?><th>Profil</th><?php endif; ?>
-                    <th>Seuil (%)</th>
-                    <th>Duree (min)</th>
-                    <th>Questions</th>
-                    <th>Statut</th>
+                    <th><?= h(t('admin.common.name', [], $lang)) ?></th>
+                    <?php if ($hasProfileColumn): ?><th><?= h(t('admin.packages.col_profile', [], $lang)) ?></th><?php endif; ?>
+                    <th><?= h(t('admin.packages.col_threshold', [], $lang)) ?></th>
+                    <th><?= h(t('admin.packages.col_duration', [], $lang)) ?></th>
+                    <th><?= h(t('admin.packages.col_questions', [], $lang)) ?></th>
+                    <th><?= h(t('admin.common.status', [], $lang)) ?></th>
                     <th>
                       <span class="order-help-wrap">
-                        <span>Disponibilite</span>
-                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur la disponibilite des packs">
+                        <span><?= h(t('admin.packages.col_availability', [], $lang)) ?></span>
+                        <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.packages.col_availability', [], $lang)) ?>">
                           i
-                          <span class="order-help-bubble">Indique si le pack a suffisamment de questions configurees pour etre lance en examen.</span>
+                          <span class="order-help-bubble"><?= h(t('admin.packages.availability_help', [], $lang)) ?></span>
                         </span>
                       </span>
                     </th>
-                    <th>Action</th>
+                    <th><?= h(t('admin.common.action', [], $lang)) ?></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -533,16 +533,16 @@ if ($hasProgramPackageLinksTable) {
                       <td><?= (int)($package['selection_count'] ?? 0) ?></td>
                       <td>
                         <span class="pill <?= $isProgramActive ? 'success' : 'warning' ?>">
-                          <?= $isProgramActive ? 'Actif' : 'Inactif' ?>
+                          <?= $isProgramActive ? h(t('admin.common.active', [], $lang)) : h(t('admin.common.inactive', [], $lang)) ?>
                         </span>
                       </td>
                       <td>
                         <span class="pill <?= $isReady ? 'success' : 'warning' ?>" title="<?= (int)$available ?> / <?= (int)$required ?>">
-                          <?= $isReady ? 'OK' : '&Agrave; completer' ?>
+                          <?= $isReady ? h(t('admin.packages.ready', [], $lang)) : h(t('admin.packages.incomplete', [], $lang)) ?>
                         </span>
                       </td>
                       <td class="actions-cell">
-                        <a class="btn ghost icon-btn" href="<?= h($packageUrl) ?>" aria-label="Modifier ce pack" title="Modifier ce pack">
+                        <a class="btn ghost icon-btn" href="<?= h($packageUrl) ?>" aria-label="<?= h(t('admin.packages.edit', [], $lang)) ?>" title="<?= h(t('admin.packages.edit', [], $lang)) ?>">
                           <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                           </svg>
@@ -551,17 +551,18 @@ if ($hasProgramPackageLinksTable) {
                           <input type="hidden" name="action" value="toggle_package_active">
                           <input type="hidden" name="id" value="<?= (int)$programId ?>">
                           <input type="hidden" name="package_id" value="<?= (int)($package['id'] ?? 0) ?>">
-                          <button class="btn ghost icon-btn <?= $isProgramActive ? 'warning-soft' : 'success-soft' ?>" type="submit" aria-label="<?= $isProgramActive ? 'Rendre le pack inactif dans ce programme' : 'Rendre le pack actif dans ce programme' ?>" title="<?= $isProgramActive ? 'Rendre le pack inactif dans ce programme' : 'Rendre le pack actif dans ce programme' ?>">
+                          <?php $programToggleLabel = $isProgramActive ? t('admin.programs.toggle_inactive_program', [], $lang) : t('admin.programs.toggle_active_program', [], $lang); ?>
+                          <button class="btn ghost icon-btn <?= $isProgramActive ? 'warning-soft' : 'success-soft' ?>" type="submit" aria-label="<?= h($programToggleLabel) ?>" title="<?= h($programToggleLabel) ?>">
                             <svg class="icon-power" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                               <path d="M11 3h2v9h-2zM7.05 5.64 8.46 7.05A7 7 0 1 0 15.54 7.05l1.41-1.41A9 9 0 1 1 7.05 5.64z"/>
                             </svg>
                           </button>
                         </form>
-                        <form method="post" class="inline-action-form" onsubmit="return confirm('Retirer ce pack de ce programme ?');">
+                        <form method="post" class="inline-action-form" onsubmit="return confirm('<?= h(t('admin.programs.detach_confirm', [], $lang)) ?>');">
                           <input type="hidden" name="action" value="detach_package">
                           <input type="hidden" name="id" value="<?= (int)$programId ?>">
                           <input type="hidden" name="package_id" value="<?= (int)($package['id'] ?? 0) ?>">
-                          <button class="btn ghost icon-btn danger" type="submit" aria-label="Retirer ce pack du programme" title="Retirer du programme">
+                          <button class="btn ghost icon-btn danger" type="submit" aria-label="<?= h(t('admin.programs.detach_btn', [], $lang)) ?>" title="<?= h(t('admin.programs.detach_btn', [], $lang)) ?>">
                             <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                               <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
                             </svg>

@@ -773,12 +773,13 @@ function session_is_expired(array $session, ?DateTimeImmutable $now = null): boo
 function certification_status_from_last_success(
   ?string $lastSuccessAt,
   ?DateTimeImmutable $now = null,
-  int $validityDays = 365
+  int $validityDays = 365,
+  string $lang = 'fr'
 ): array {
   if ($lastSuccessAt === null || trim($lastSuccessAt) === '') {
     return [
       'status_key' => 'NONE',
-      'status_label' => 'Aucune',
+      'status_label' => t('admin.certs.status_none', [], $lang),
       'status_class' => 'pill',
       'expires_at' => null,
     ];
@@ -798,7 +799,7 @@ function certification_status_from_last_success(
   if ($expires < $now) {
     return [
       'status_key' => 'EXPIRED',
-      'status_label' => 'Expire',
+      'status_label' => t('admin.certs.status_expired', [], $lang),
       'status_class' => 'pill danger',
       'expires_at' => $expires,
     ];
@@ -807,7 +808,7 @@ function certification_status_from_last_success(
   if ($expires <= $soonLimit) {
     return [
       'status_key' => 'SOON',
-      'status_label' => 'Expire bientot',
+      'status_label' => t('admin.certs.status_soon', [], $lang),
       'status_class' => 'pill warning',
       'expires_at' => $expires,
     ];
@@ -815,7 +816,7 @@ function certification_status_from_last_success(
 
   return [
     'status_key' => 'CERTIFIED',
-    'status_label' => 'Certifié',
+    'status_label' => t('admin.certs.status_certified', [], $lang),
     'status_class' => 'pill success',
     'expires_at' => $expires,
   ];

@@ -254,17 +254,17 @@ function import_mode_normalize(string $mode): string {
   return in_array($mode, ['source', 'update', 'translation'], true) ? $mode : 'source';
 }
 
-function mapping_fields(string $importMode = 'source'): array {
+function mapping_fields(string $importMode = 'source', string $lang = 'fr'): array {
   $common = [
     'id' => ['label' => 'ID', 'required' => true, 'aliases' => ['id', 'questionid', 'questionexternalid']],
-    'question' => ['label' => 'Questions', 'required' => true, 'aliases' => ['questions', 'question']],
-    'answer1' => ['label' => 'Reponse 1', 'required' => true, 'aliases' => ['reponse1', 'response1', 'answer1', 'answera']],
-    'answer2' => ['label' => 'Reponse 2', 'required' => true, 'aliases' => ['reponse2', 'response2', 'answer2', 'answerb']],
-    'answer3' => ['label' => 'Reponse 3', 'required' => false, 'aliases' => ['reponse3', 'response3', 'answer3', 'answerc']],
-    'answer4' => ['label' => 'Reponse 4', 'required' => false, 'aliases' => ['reponse4', 'response4', 'answer4', 'answerd']],
-    'answer5' => ['label' => 'Reponse 5', 'required' => false, 'aliases' => ['reponse5', 'response5', 'answer5', 'answere']],
-    'answer6' => ['label' => 'Reponse 6', 'required' => false, 'aliases' => ['reponse6', 'response6', 'answer6', 'answerf']],
-    'explanation' => ['label' => 'Explication', 'required' => false, 'aliases' => ['explicationdetailleedelabonneresponse', 'explicationdetaillee', 'explanation']],
+    'question' => ['label' => t('admin.import.field_question', [], $lang), 'required' => true, 'aliases' => ['questions', 'question']],
+    'answer1' => ['label' => t('admin.import.field_answer', ['n' => 1], $lang), 'required' => true, 'aliases' => ['reponse1', 'response1', 'answer1', 'answera']],
+    'answer2' => ['label' => t('admin.import.field_answer', ['n' => 2], $lang), 'required' => true, 'aliases' => ['reponse2', 'response2', 'answer2', 'answerb']],
+    'answer3' => ['label' => t('admin.import.field_answer', ['n' => 3], $lang), 'required' => false, 'aliases' => ['reponse3', 'response3', 'answer3', 'answerc']],
+    'answer4' => ['label' => t('admin.import.field_answer', ['n' => 4], $lang), 'required' => false, 'aliases' => ['reponse4', 'response4', 'answer4', 'answerd']],
+    'answer5' => ['label' => t('admin.import.field_answer', ['n' => 5], $lang), 'required' => false, 'aliases' => ['reponse5', 'response5', 'answer5', 'answere']],
+    'answer6' => ['label' => t('admin.import.field_answer', ['n' => 6], $lang), 'required' => false, 'aliases' => ['reponse6', 'response6', 'answer6', 'answerf']],
+    'explanation' => ['label' => t('admin.import.field_explanation', [], $lang), 'required' => false, 'aliases' => ['explicationdetailleedelabonneresponse', 'explicationdetaillee', 'explanation']],
   ];
 
   if ($importMode === 'translation') {
@@ -272,13 +272,10 @@ function mapping_fields(string $importMode = 'source'): array {
   }
 
   $sourceFields = $common + [
-    'knowledge_required' => ['label' => 'Categorie', 'required' => true, 'aliases' => ['categorie', 'toolconcerned', 'connaissancesrequises', 'knowledgerequired', 'knowledge', 'need', 'needs']],
-    'theme' => ['label' => 'Theme', 'required' => false, 'aliases' => ['themequestion', 'theme']],
-    'level' => ['label' => 'Niveau question', 'required' => true, 'aliases' => ['niveauquestion', 'level', 'niveau']],
-    'correct' => ['label' => 'Bonnes reponses', 'required' => true, 'aliases' => ['bonnesreponses', 'bonnereponse', 'correctanswers', 'goodanswers', 'correct']],
-    'user_probance' => ['label' => 'Utilisateur Probance', 'required' => false, 'aliases' => ['utilisateurprobance', 'userprobance', 'probanceuser']],
-    'user_brainpad' => ['label' => 'Utilisateur Brainpad', 'required' => false, 'aliases' => ['utilisateurbrainpad', 'userbrainpad', 'brainpaduser']],
-    'open_to_client' => ['label' => 'Ouvert au client', 'required' => false, 'aliases' => ['ouvertauclient', 'open_to_client', 'opentoclient', 'clientopen', 'openedtoclient']],
+    'knowledge_required' => ['label' => t('admin.import.field_category', [], $lang), 'required' => true, 'aliases' => ['categorie', 'toolconcerned', 'connaissancesrequises', 'knowledgerequired', 'knowledge', 'need', 'needs']],
+    'theme' => ['label' => t('admin.import.field_theme', [], $lang), 'required' => false, 'aliases' => ['themequestion', 'theme']],
+    'level' => ['label' => t('admin.import.field_level', [], $lang), 'required' => true, 'aliases' => ['niveauquestion', 'level', 'niveau']],
+    'correct' => ['label' => t('admin.import.field_correct', [], $lang), 'required' => true, 'aliases' => ['bonnesreponses', 'bonnereponse', 'correctanswers', 'goodanswers', 'correct']],
   ];
 
   return $sourceFields;
@@ -888,7 +885,7 @@ if (table_column_exists($pdo, 'questions', 'package_id') && !db_column_nullable(
 
 $importMode = import_mode_normalize((string)($_POST['import_mode'] ?? ($state['import_mode'] ?? 'source')));
 $importLang = import_effective_lang($importMode, (string)($_POST['import_lang'] ?? ($state['import_lang'] ?? $activeProgramSourceLang)), $activeProgramSourceLang);
-$mappingDefs = mapping_fields($importMode);
+$mappingDefs = mapping_fields($importMode, $lang);
 $mapping = $state['mapping'] ?? [];
 $report = null;
 $verifyDone = false;
@@ -1032,7 +1029,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $state = $_SESSION[$stateKey] ?? [];
 $importMode = import_mode_normalize((string)($state['import_mode'] ?? $importMode ?? 'source'));
 $importLang = import_effective_lang($importMode, (string)($state['import_lang'] ?? $importLang ?? $activeProgramSourceLang), $activeProgramSourceLang);
-$mappingDefs = mapping_fields($importMode);
+$mappingDefs = mapping_fields($importMode, $lang);
 $hasLoadedRows = isset($state['rows']) && is_array($state['rows']) && count($state['rows']) > 0;
 $headers = $state['headers'] ?? [];
 if ((empty($headers) || !is_array($headers)) && $hasLoadedRows) {
@@ -1044,11 +1041,11 @@ if ((empty($headers) || !is_array($headers)) && $hasLoadedRows) {
 }
 $mapping = $state['mapping'] ?? $mapping;
 
-function import_mode_label(string $mode): string {
+function import_mode_label(string $mode, string $lang = 'fr'): string {
   return match (import_mode_normalize($mode)) {
-    'translation' => 'Traductions',
-    'update' => 'Mise a jour',
-    default => 'Reinitialisation',
+    'translation' => t('admin.import.mode_translations', [], $lang),
+    'update' => t('admin.import.mode_update', [], $lang),
+    default => t('admin.import.mode_reset', [], $lang),
   };
 }
 
@@ -1078,7 +1075,7 @@ function import_lang_label(string $lang): string {
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Import questions</title>
+  <title><?= h(t('admin.import.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -1088,8 +1085,8 @@ function import_lang_label(string $lang): string {
   <div class="card admin-card">
     <div class="admin-head">
       <div class="admin-head-copy">
-        <h2 class="h1">Admin &middot; Importer des questions</h2>
-        <p class="sub">Workflow: fichier -> mapping -> v&eacute;rification -> import</p>
+        <h2 class="h1"><?= h(t('admin.import.title', [], $lang)) ?></h2>
+        <p class="sub"><?= h(t('admin.import.subtitle', [], $lang)) ?></p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('questions'); ?>
@@ -1100,32 +1097,32 @@ function import_lang_label(string $lang): string {
 
     <?php if ($schemaErrors): ?>
       <div class="import-report question-errors">
-        <div class="import-report-title">Migration requise</div>
+        <div class="import-report-title"><?= h(t('admin.import.migration_required', [], $lang)) ?></div>
         <div class="import-report-errors">
           <ul>
             <?php foreach ($schemaErrors as $e): ?>
               <li><?= h($e) ?></li>
             <?php endforeach; ?>
           </ul>
-          <p class="small">Applique les migrations SQL du projet avant de continuer.</p>
+          <p class="small"><?= h(t('admin.import.migration_note', [], $lang)) ?></p>
         </div>
       </div>
     <?php endif; ?>
 
     <?php if ($activeProgramId > 0 && $activeProgramPackageCount === 0): ?>
       <div class="admin-notice is-ok" style="margin-bottom:12px;">
-        Aucun pack associ&eacute;: l'import reste possible. Les questions seront visibles dans l'administration, mais elles ne seront pas utilisables en certification tant qu'un pack ne les cible pas.
+        <?= h(t('admin.import.no_pack_notice', [], $lang)) ?>
       </div>
     <?php endif; ?>
 
     <?php if ($report !== null): ?>
       <div class="import-report">
-        <div class="import-report-title">Rapport</div>
+        <div class="import-report-title"><?= h(t('admin.import.report', [], $lang)) ?></div>
         <div class="import-report-stats">
-          <span class="pill">Lignes lues: <?= (int)$report['read_lines'] ?></span>
-          <span class="pill success">Cr&eacute;&eacute;es: <?= (int)$report['created'] ?></span>
-          <span class="pill info">Mises &agrave; jour: <?= (int)$report['updated'] ?></span>
-          <span class="pill danger">Rejet&eacute;es: <?= (int)$report['rejected'] ?></span>
+          <span class="pill"><?= h(t('admin.import.lines_read', [], $lang)) ?>: <?= (int)$report['read_lines'] ?></span>
+          <span class="pill success"><?= h(t('admin.import.created', [], $lang)) ?>: <?= (int)$report['created'] ?></span>
+          <span class="pill info"><?= h(t('admin.import.updated', [], $lang)) ?>: <?= (int)$report['updated'] ?></span>
+          <span class="pill danger"><?= h(t('admin.import.rejected', [], $lang)) ?>: <?= (int)$report['rejected'] ?></span>
         </div>
         <?php
           $readLines = (int)($report['read_lines'] ?? 0);
@@ -1135,13 +1132,12 @@ function import_lang_label(string $lang): string {
         ?>
         <?php if ($lastAction === 'verify' && empty($report['errors'])): ?>
           <div class="admin-notice is-ok" style="margin-top:10px;">
-            V&eacute;rification OK: <?= (int)$validPercent ?>% lignes valides (<?= (int)$validLines ?>/<?= (int)$readLines ?>).
-            Vous pouvez cliquer sur <b><?= h(t('admin.import.do_import', [], $lang)) ?></b>.
+            <?= h(t('admin.import.verify_ok', ['percent' => $validPercent, 'valid' => $validLines, 'total' => $readLines], $lang)) ?> <b><?= h(t('admin.import.do_import', [], $lang)) ?></b>.
           </div>
         <?php endif; ?>
         <?php if (!empty($report['errors'])): ?>
           <div class="import-report-errors">
-            <b>Erreurs</b>
+            <b><?= h(t('admin.import.errors', [], $lang)) ?></b>
             <ul>
               <?php foreach ($report['errors'] as $e): ?>
                 <li><?= h($e) ?></li>
@@ -1156,9 +1152,9 @@ function import_lang_label(string $lang): string {
             <input type="hidden" name="import_lang" value="<?= h($importLang) ?>">
             <div class="import-help" style="margin-top:0;">
               <p class="small" style="margin:0;">
-                Pret pour import:
-                <b data-import-summary-mode><?= h(import_mode_label($importMode)) ?></b>
-                &middot; langue <b data-import-summary-lang><?= h(import_lang_label($importLang)) ?></b>
+                <?= h(t('admin.import.ready_for_import', [], $lang)) ?>
+                <b data-import-summary-mode><?= h(import_mode_label($importMode, $lang)) ?></b>
+                &middot; <?= h(t('admin.import.lang_title', [], $lang)) ?> <b data-import-summary-lang><?= h(import_lang_label($importLang)) ?></b>
               </p>
             </div>
             <div class="import-actions">
@@ -1175,34 +1171,34 @@ function import_lang_label(string $lang): string {
         <div class="import-field">
           <label class="label">
             <span class="order-help-wrap">
-              <span>Mode d'import</span>
-              <span class="order-help-tip" tabindex="0" aria-label="Aide sur le mode d'import">
+              <span><?= h(t('admin.import.mode_title', [], $lang)) ?></span>
+              <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.import.mode_title', [], $lang)) ?>">
                 i
-                <span class="order-help-bubble">Reinitialisation: remplace les questions/reponses de reference et marque les traductions a revoir.<br>Mise a jour: insere/met a jour uniquement les questions/reponses de reference.<br>Traductions: met a jour uniquement la langue choisie pour des questions deja existantes.</span>
+                <span class="order-help-bubble"><?= h(t('admin.import.mode_help', [], $lang)) ?></span>
               </span>
             </span>
           </label>
           <select class="input" name="import_mode">
-            <option value="source" <?= $importMode === 'source' ? 'selected' : '' ?>>Reinitialisation</option>
-            <option value="update" <?= $importMode === 'update' ? 'selected' : '' ?>>Mise a jour</option>
-            <option value="translation" <?= $importMode === 'translation' ? 'selected' : '' ?>>Traductions</option>
+            <option value="source" <?= $importMode === 'source' ? 'selected' : '' ?>><?= h(t('admin.import.mode_reset', [], $lang)) ?></option>
+            <option value="update" <?= $importMode === 'update' ? 'selected' : '' ?>><?= h(t('admin.import.mode_update', [], $lang)) ?></option>
+            <option value="translation" <?= $importMode === 'translation' ? 'selected' : '' ?>><?= h(t('admin.import.mode_translations', [], $lang)) ?></option>
           </select>
         </div>
         <div class="import-field import-field-full">
           <label class="label">
             <span class="order-help-wrap">
-              <span>Langue importee</span>
-              <span class="order-help-tip" tabindex="0" aria-label="Aide sur la langue importee">
+              <span><?= h(t('admin.import.lang_title', [], $lang)) ?></span>
+              <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.import.lang_title', [], $lang)) ?>">
                 i
-                <span class="order-help-bubble">La reference est toujours importee dans la langue source du programme. En traductions, cette liste sert aux libelles traduits.</span>
+                <span class="order-help-bubble"><?= h(t('admin.import.lang_help', [], $lang)) ?></span>
               </span>
             </span>
           </label>
           <div class="import-source-lang-note" data-source-lang-note style="<?= $importMode === 'source' ? '' : 'display:none;' ?>">
-            Importer les questions sources en <b><?= h(import_lang_label($activeProgramSourceLang)) ?></b>.
+            <?= h(t('admin.import.source_lang_note', ['lang' => import_lang_label($activeProgramSourceLang)], $lang)) ?>
           </div>
           <div class="import-source-lang-note" data-update-lang-note style="<?= $importMode === 'update' ? '' : 'display:none;' ?>">
-            Mise a jour des questions/reponses sources en <b><?= h(import_lang_label($activeProgramSourceLang)) ?></b>.
+            <?= h(t('admin.import.update_lang_note', ['lang' => import_lang_label($activeProgramSourceLang)], $lang)) ?>
           </div>
           <select class="input" name="import_lang" data-import-lang-select style="<?= $importMode === 'translation' ? '' : 'display:none;' ?>">
             <?php foreach ($translationLangs as $translationLang => $translationLabel): ?>
@@ -1211,17 +1207,16 @@ function import_lang_label(string $lang): string {
           </select>
         </div>
         <div class="import-field import-field-full">
-          <label class="label">Fichier (.csv ou .xlsx)</label>
+          <label class="label"><?= h(t('admin.import.file_label', [], $lang)) ?></label>
           <input class="input" type="file" name="import_file" accept=".csv,.xlsx" <?= $hasLoadedRows ? '' : 'required' ?>>
         </div>
       </div>
       <div class="import-actions">
-        <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>><?= $hasLoadedRows ? 'Mettre a jour le mapping' : 'Charger le fichier' ?></button>
+        <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>><?= $hasLoadedRows ? h(t('admin.import.update_mapping_btn', [], $lang)) : h(t('admin.import.load_file', [], $lang)) ?></button>
       </div>
       <?php if ($hasLoadedRows): ?>
         <p class="small" style="margin:10px 0 0;">
-          Le fichier courant est charge. Si tu changes le mode ou la langue, le mapping sera recalcul&eacute; pour ce fichier.
-          Tu peux aussi <a href="/admin/import_questions.php?cancel_import=1<?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>">annuler l'import</a> pour repartir de zero.
+          <?= h(t('admin.import.file_loaded_note', [], $lang)) ?> <a href="/admin/import_questions.php?cancel_import=1<?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.import.cancel_link', [], $lang)) ?></a> <?= h(t('admin.import.restart', [], $lang)) ?>
         </p>
       <?php endif; ?>
     </form>
@@ -1230,10 +1225,10 @@ function import_lang_label(string $lang): string {
       <hr class="separator">
       <div class="import-help">
         <div class="import-help-head">
-          <span class="import-help-tag">Mapping</span>
-          <strong>Associe chaque champ &agrave; une colonne du fichier</strong>
+          <span class="import-help-tag"><?= h(t('admin.import.mapping_title', [], $lang)) ?></span>
+          <strong><?= h(t('admin.import.mapping_subtitle', [], $lang)) ?></strong>
         </div>
-        <p class="small">Fichier charg&eacute;: <b><?= h((string)($state['file_name'] ?? '')) ?></b></p>
+        <p class="small"><?= h(t('admin.import.file_loaded_name', [], $lang)) ?> <b><?= h((string)($state['file_name'] ?? '')) ?></b></p>
       </div>
 
       <form method="post" class="import-form">
@@ -1241,10 +1236,10 @@ function import_lang_label(string $lang): string {
         <input type="hidden" name="import_mode" value="<?= h($importMode) ?>">
         <input type="hidden" name="import_lang" value="<?= h($importLang) ?>">
         <p class="small" style="margin:0 0 14px;">
-          Mode: <b data-mapping-summary-mode><?= h(import_mode_label($importMode)) ?></b>
-          &middot; Reference: <b><?= h(import_lang_label($activeProgramSourceLang)) ?></b>
+          <?= h(t('admin.import.mode_label', [], $lang)) ?> <b data-mapping-summary-mode><?= h(import_mode_label($importMode, $lang)) ?></b>
+          &middot; <?= h(t('admin.import.ref_label', [], $lang)) ?> <b><?= h(import_lang_label($activeProgramSourceLang)) ?></b>
           <span data-mapping-translation-summary style="<?= $importMode === 'translation' ? '' : 'display:none;' ?>">
-            &middot; Traduction: <b data-mapping-summary-lang><?= h(import_lang_label($importLang)) ?></b>
+            &middot; <?= h(t('admin.import.translation_label', [], $lang)) ?> <b data-mapping-summary-lang><?= h(import_lang_label($importLang)) ?></b>
           </span>
         </p>
         <div class="import-fields">
@@ -1255,7 +1250,7 @@ function import_lang_label(string $lang): string {
                 <?= h($def['label']) ?><?= $def['required'] ? ' *' : '' ?>
               </label>
               <select name="mapping[<?= h($key) ?>]">
-                <option value="">-- non mapp&eacute; --</option>
+                <option value=""><?= h(t('admin.import.not_mapped', [], $lang)) ?></option>
                 <?php foreach ($headers as $idx => $header): ?>
                   <option value="<?= (int)$idx ?>" <?= ((string)$selected === (string)$idx) ? 'selected' : '' ?>>
                     <?= h('#' . ((int)$idx + 1) . ' - ' . (string)$header) ?>
@@ -1266,15 +1261,15 @@ function import_lang_label(string $lang): string {
           <?php endforeach; ?>
         </div>
         <div class="import-actions">
-          <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>>V&eacute;rifier les donn&eacute;es</button>
+          <button class="btn" type="submit" <?= $schemaErrors ? 'disabled' : '' ?>><?= h(t('admin.import.verify_btn', [], $lang)) ?></button>
           <a class="btn ghost" href="/admin/import_questions.php?cancel_import=1<?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.import.cancel', [], $lang)) ?></a>
         </div>
       </form>
     <?php endif; ?>
 
     <p class="small import-note">
-      *Colonnes obligatoires.<br>
-      La verification ne modifie pas la base. En mode <code>reinitialisation</code>, l'import cree les nouveaux ID et remplace les questions/reponses des ID deja existants dans la langue source du programme (<?= h(import_lang_label($activeProgramSourceLang)) ?>), sans supprimer les questions absentes du fichier; les traductions existantes sont marquees a revoir et les traductions de reponses sont supprimees. En mode <code>mise a jour</code>, l'import insere/met a jour uniquement les questions/reponses dans la langue source du programme. En mode <code>traduction</code>, l'import met a jour uniquement les libelles traduits de la langue choisie.
+      <?= h(t('admin.import.required_cols', [], $lang)) ?><br>
+      <?= t('admin.import.footer_note', ['lang' => h(import_lang_label($activeProgramSourceLang))], $lang) ?>
     </p>
   </div>
 </div>

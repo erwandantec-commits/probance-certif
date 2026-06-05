@@ -99,7 +99,8 @@ if ($session_type === 'EXAM') {
   $certStatus = certification_status_from_last_success(
     is_string($lastSuccessAt) ? $lastSuccessAt : null,
     null,
-    (int)($pkg['cert_validity_days'] ?? 365)
+    (int)($pkg['cert_validity_days'] ?? 365),
+    $lang
   );
 
   if (

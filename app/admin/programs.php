@@ -157,9 +157,9 @@ $rows = $pdo->query("
     <div class="card admin-card admin-page-shell">
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <p class="admin-page-eyebrow">Administration</p>
+          <p class="admin-page-eyebrow"><?= h(t('admin.nav.group_admin', [], $lang)) ?></p>
           <h2 class="h1"><?= h(t('admin.programs.title', [], $lang)) ?></h2>
-          <p class="sub">Cibles de certification et contexte de travail de l'administration.</p>
+          <p class="sub"><?= h(t('admin.programs.subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('programs'); ?>

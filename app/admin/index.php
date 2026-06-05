@@ -231,7 +231,7 @@ $stats = $pdo->query("
     <div class="card admin-card admin-page-shell">
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <p class="admin-page-eyebrow">Administration</p>
+          <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
           <h2 class="h1"><?= h(t('admin.sessions.title', [], $lang)) ?></h2>
           <p class="sub"><?= h(t('admin.sessions.subtitle', [], $lang)) ?></p>
         </div>

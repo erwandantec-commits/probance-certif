@@ -920,7 +920,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Modifier pack</title>
+  <title><?= h(t('admin.pack.edit_title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -930,7 +930,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     <div class="card admin-card">
       <div class="admin-head">
         <div class="admin-head-copy">
-          <h2 class="h1">Admin &middot; Modifier pack</h2>
+          <h2 class="h1"><?= h(t('admin.pack.edit_title', [], $lang)) ?></h2>
           <p class="sub"><span style="<?= h(package_label_style((string)$formName, $packNameColor)) ?>"><?= h($formName) ?></span></p>
         </div>
         <div class="admin-head-actions">
@@ -946,13 +946,13 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
       <form method="post">
         <section class="pack-config-section">
-          <h3 class="pack-config-title">Configuration du pack</h3>
+          <h3 class="pack-config-title"><?= h(t('admin.pack.section_config', [], $lang)) ?></h3>
           <div class="pack-config-grid">
             <article class="pack-config-card">
-              <h4 class="pack-config-card-title">Informations</h4>
+              <h4 class="pack-config-card-title"><?= h(t('admin.pack.card_info', [], $lang)) ?></h4>
               <div class="pack-config-fields">
                 <div>
-                  <label class="label">Nom du pack</label>
+                  <label class="label"><?= h(t('admin.pack.field_name', [], $lang)) ?></label>
                   <input
                     class="input"
                     type="text"
@@ -964,7 +964,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                 </div>
                 <?php if ($hasProfileColumn): ?>
                   <div>
-                    <label class="label">Profil</label>
+                    <label class="label"><?= h(t('admin.pack.field_profile', [], $lang)) ?></label>
                     <input
                       class="input"
                       type="text"
@@ -976,7 +976,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                 <?php endif; ?>
                 <?php if ($hasCertValidityDaysColumn): ?>
                   <div>
-                    <label class="label">P&eacute;riode de validit&eacute; (jours)</label>
+                    <label class="label"><?= h(t('admin.pack.field_validity', [], $lang)) ?></label>
                     <input
                       class="input"
                       type="number"
@@ -990,7 +990,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                 <?php endif; ?>
                 <?php if ($hasFailedCooldownDaysColumn): ?>
                   <div>
-                    <label class="label">D&eacute;lai apr&egrave;s &eacute;chec (jours)</label>
+                    <label class="label"><?= h(t('admin.pack.field_cooldown', [], $lang)) ?></label>
                     <input
                       class="input"
                       type="number"
@@ -1006,10 +1006,10 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
             </article>
 
             <article class="pack-config-card">
-              <h4 class="pack-config-card-title">Evaluation</h4>
+              <h4 class="pack-config-card-title"><?= h(t('admin.pack.card_eval', [], $lang)) ?></h4>
               <div class="pack-config-fields">
                 <div>
-                  <label class="label">Seuil de r&eacute;ussite (%)</label>
+                  <label class="label"><?= h(t('admin.pack.field_threshold', [], $lang)) ?></label>
                   <input
                     class="input"
                     type="number"
@@ -1021,7 +1021,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   >
                 </div>
                 <div>
-                  <label class="label">Dur&eacute;e max (minutes)</label>
+                  <label class="label"><?= h(t('admin.pack.field_duration', [], $lang)) ?></label>
                   <input
                     class="input"
                     type="number"
@@ -1033,7 +1033,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                   >
                 </div>
                 <div>
-                  <label class="label">Nombre de questions tir&eacute;es</label>
+                  <label class="label"><?= h(t('admin.pack.field_count', [], $lang)) ?></label>
                   <input
                     class="input"
                     type="number"
@@ -1048,11 +1048,11 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
             </article>
 
             <article class="pack-config-card pack-config-card-wide">
-              <h4 class="pack-config-card-title">Apparence</h4>
+              <h4 class="pack-config-card-title"><?= h(t('admin.pack.card_appearance', [], $lang)) ?></h4>
               <div class="pack-config-fields pack-appearance-fields">
                 <?php if ($hasNameColorColumn): ?>
                   <div class="pack-color-field">
-                    <label class="label">Couleur du nom</label>
+                    <label class="label"><?= h(t('admin.pack.field_color', [], $lang)) ?></label>
                     <div class="pack-color-row">
                       <input
                         class="pack-color-input"
@@ -1069,7 +1069,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
                 <?php if ($hasBadgeImageColumn): ?>
                   <div class="badge-picker-field">
-                    <label class="label">Image du badge</label>
+                    <label class="label"><?= h(t('admin.pack.field_badge', [], $lang)) ?></label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($formBadgeImageFilename) ?>">
                     <?php $libraryReturn = '/admin/package_edit.php?id=' . (int)$id . ($activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : ''); ?>
                     <a
@@ -1085,12 +1085,12 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                         </span>
                       <?php else: ?>
                         <span class="badge-current">
-                          <span class="badge-current-meta">Aucune image sélectionnée</span>
+                          <span class="badge-current-meta"><?= h(t('admin.pack.no_badge_selected', [], $lang)) ?></span>
                         </span>
                       <?php endif; ?>
                     </a>
                     <?php if (!$badgeImageOptions): ?>
-                      <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
+                      <p class="small" style="margin-top:8px;"><?= h(t('admin.pack.no_badge_available', [], $lang)) ?></p>
                     <?php endif; ?>
                   </div>
                 <?php endif; ?>
@@ -1103,27 +1103,27 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           <section class="rule-builder">
             <h3 class="distribution-title rule-builder-title">
               <span class="order-help-wrap">
-                <span>R&egrave;gles de tirage des questions</span>
-                <span class="order-help-tip" tabindex="0" aria-label="Aide sur les regles de tirage">
+                <span><?= h(t('admin.pack.rules_title', [], $lang)) ?></span>
+                <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.pack.rules_title', [], $lang)) ?>">
                   i
-                  <span class="order-help-bubble">D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions.</span>
+                  <span class="order-help-bubble"><?= h(t('admin.pack.rules_help', [], $lang)) ?></span>
                 </span>
               </span>
             </h3>
 
             <div class="rule-toolbar">
               <div class="rule-template-group">
-                <label class="label" for="rule-template">Mod&egrave;le</label>
+                <label class="label" for="rule-template"><?= h(t('admin.pack.rules_model', [], $lang)) ?></label>
                 <select class="input" id="rule-template" name="rule_template">
-                  <option value="">Aucun</option>
+                  <option value=""><?= h(t('admin.pack.rules_none', [], $lang)) ?></option>
                   <?php foreach (array_keys($ruleTemplates) as $tplName): ?>
                     <option value="<?= h($tplName) ?>" <?= $selectedTemplate === $tplName ? 'selected' : '' ?>><?= h($tplName) ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
               <div class="rule-toolbar-actions">
-                <button class="btn ghost rule-action-btn rule-action-apply" type="button" id="apply-rule-template">Appliquer le mod&egrave;le</button>
-                <button class="btn ghost rule-action-btn rule-action-add" type="button" id="add-rule-row">Ajouter un palier</button>
+                <button class="btn ghost rule-action-btn rule-action-apply" type="button" id="apply-rule-template"><?= h(t('admin.pack.rules_apply', [], $lang)) ?></button>
+                <button class="btn ghost rule-action-btn rule-action-add" type="button" id="add-rule-row"><?= h(t('admin.pack.rules_add', [], $lang)) ?></button>
               </div>
             </div>
 
@@ -1131,18 +1131,18 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
               <table class="table questions-table rules-table" id="rule-rows-table">
                 <thead>
                   <tr>
-                    <th>Categorie</th>
-                    <th>Niveaux</th>
+                    <th><?= h(t('admin.pack.rules_col_category', [], $lang)) ?></th>
+                    <th><?= h(t('admin.pack.rules_col_levels', [], $lang)) ?></th>
                     <th>
                       <span class="order-help-wrap">
-                        <span>Cumul vis&eacute;</span>
-                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur la cible cumulee">
+                        <span><?= h(t('admin.pack.rules_col_cumul', [], $lang)) ?></span>
+                        <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.pack.rules_col_cumul', [], $lang)) ?>">
                           i
-                          <span class="order-help-bubble">Chaque palier prend automatiquement toutes les questions correspondant &agrave; ses crit&egrave;res. Le cumul vis&eacute; permet de fixer le total souhait&eacute; atteint apr&egrave;s ce palier.</span>
+                          <span class="order-help-bubble"><?= h(t('admin.pack.rules_cumul_help', [], $lang)) ?></span>
                         </span>
                       </span>
                     </th>
-                    <th>Action</th>
+                    <th><?= h(t('admin.common.action', [], $lang)) ?></th>
                   </tr>
                 </thead>
                 <tbody id="rule-rows-body">
@@ -1177,7 +1177,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                         <p class="rule-target-warning" hidden></p>
                       </td>
                       <td>
-                        <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier">
+                        <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="<?= h(t('admin.pack.rules_remove', [], $lang)) ?>" title="<?= h(t('admin.pack.rules_remove', [], $lang)) ?>">
                           <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
                           </svg>
@@ -1188,7 +1188,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                 </tbody>
                 <tfoot>
                   <tr class="rule-summary-row">
-                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label">R&eacute;capitulatif</span></td>
+                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label"><?= h(t('admin.pack.rules_summary', [], $lang)) ?></span></td>
                     <td class="rule-summary-value"><span id="rule-total-target" class="rule-summary-number">0</span></td>
                     <td></td>
                   </tr>
@@ -1200,22 +1200,22 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         <?php endif; ?>
 
         <div style="margin-top:14px; display:flex; gap:10px;">
-          <button class="btn" type="submit">Enregistrer</button>
-          <a class="btn ghost" href="/admin/packages.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Annuler</a>
+          <button class="btn" type="submit"><?= h(t('admin.common.save', [], $lang)) ?></button>
+          <a class="btn ghost" href="/admin/packages.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.cancel', [], $lang)) ?></a>
         </div>
       </form>
 
       <hr class="separator">
 
-      <h3 class="distribution-title">Questions du pack</h3>
+      <h3 class="distribution-title"><?= h(t('admin.pack.questions_title', [], $lang)) ?></h3>
       <div style="margin: 0 0 10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn ghost" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Importer questions</a>
+        <a class="btn ghost" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.pack.import_questions', [], $lang)) ?></a>
       </div>
       <p class="small">
-        R&eacute;partition par outil concern&eacute; et niveau (questions du programme courant, utilis&eacute;es pour le tirage de ce pack).
+        <?= h(t('admin.pack.questions_subtitle', [], $lang)) ?>
         <?php if (!empty($filterNeeds) || !empty($filterNeedLevels)): ?>
           <span class="small" style="margin-left:8px;">
-            Filtre:
+            <?= h(t('admin.pack.filter_label', [], $lang)) ?>
             <b><?= h(!empty($filterNeeds) ? implode(', ', $filterNeeds) : 'Tous outils') ?></b>
             <?php if (!empty($filterNeedLevels)): ?>
               <?php
@@ -1283,22 +1283,22 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         <?php endforeach; ?>
       </div>
 
-      <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
+      <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $page, 'total' => $totalPages, 'count' => $totalQuestions], $lang)) ?></p>
 
       <div class="table-wrap" style="margin-top:14px;">
         <?php if (!$questions): ?>
-          <p class="empty-state">Aucune question dans la banque pour ce filtre.</p>
+          <p class="empty-state"><?= h(t('admin.pack.questions_none', [], $lang)) ?></p>
         <?php else: ?>
 	          <table class="table questions-table package-questions-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>&Eacute;nonc&eacute;</th>
-	                <th>Categorie</th>
-	                <th>Niveau</th>
-                <th>Type</th>
-                <th>Options</th>
-                <th>Action</th>
+                <th><?= h(t('admin.questions.col_id', [], $lang)) ?></th>
+                <th><?= h(t('admin.questions.col_text', [], $lang)) ?></th>
+	                <th><?= h(t('admin.questions.col_category', [], $lang)) ?></th>
+	                <th><?= h(t('admin.questions.col_level', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.type', [], $lang)) ?></th>
+                <th><?= h(t('admin.questions.col_options', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.action', [], $lang)) ?></th>
               </tr>
             </thead>
             <tbody>
@@ -1318,28 +1318,28 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     <?php
                       $qt = (string)($q['question_type'] ?? 'MULTI');
                       echo h(match ($qt) {
-                        'TRUE_FALSE' => 'Vrai / Faux',
-                        'SINGLE' => 'Choix unique',
-                        default => 'Choix multiple',
+                        'TRUE_FALSE' => t('admin.questions.type_tf', [], $lang),
+                        'SINGLE' => t('admin.questions.type_single', [], $lang),
+                        default => t('admin.questions.type_multi', [], $lang),
                       });
                     ?>
                   </td>
                   <td><?= (int)($q['option_count'] ?? 0) ?></td>
                   <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Modifier la question" title="Modifier la question">
+                    <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="<?= h(t('admin.questions.edit', [], $lang)) ?>" title="<?= h(t('admin.questions.edit', [], $lang)) ?>">
                       <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                       </svg>
                     </a>
-                    <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+                    <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/package_edit.php?id=' . (int)$id))) ?>" aria-label="<?= h(t('admin.questions.performance', [], $lang)) ?>" title="<?= h(t('admin.questions.performance', [], $lang)) ?>">
                       <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
                       </svg>
                     </a>
                     <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
-                       aria-label="Supprimer cette question"
-                       title="Supprimer"
-                       onclick="return confirm('Supprimer cette question ?');">
+                       aria-label="<?= h(t('admin.questions.delete', [], $lang)) ?>"
+                       title="<?= h(t('admin.common.delete', [], $lang)) ?>"
+                       onclick="return confirm('<?= h(t('admin.questions.delete_confirm', [], $lang)) ?>');">
                       <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
                       </svg>

@@ -47,7 +47,7 @@ if (!function_exists('render_admin_program_switcher')) {
       echo '<div class="admin-program-switcher admin-program-current">';
       echo '<div class="admin-program-switcher-head">';
       echo '<span class="admin-program-switcher-copy">';
-      echo '<span class="admin-program-switcher-label">Programme</span>';
+      echo '<span class="admin-program-switcher-label">' . h(t('admin.common.program', [], function_exists('get_lang') ? get_lang() : 'fr')) . '</span>';
       echo '</span>';
       echo '</div>';
       echo '<div class="admin-program-current-name">' . h($programName) . '</div>';
@@ -72,7 +72,7 @@ if (!function_exists('render_admin_program_switcher')) {
     }
     echo '<div class="admin-program-switcher-head">';
     echo '<span class="admin-program-switcher-copy">';
-    echo '<label class="admin-program-switcher-label" for="admin-program-id">Programme</label>';
+    echo '<label class="admin-program-switcher-label" for="admin-program-id">' . h(t('admin.common.program', [], function_exists('get_lang') ? get_lang() : 'fr')) . '</label>';
     echo '</span>';
     echo '</div>';
     echo '<select class="input admin-program-switcher-select" id="admin-program-id" name="program_id" onchange="this.form.submit()">';
@@ -168,11 +168,10 @@ function render_admin_tabs(string $active = ''): void
     ['key' => 'sessions', 'href' => '/admin/index.php', 'label' => h(t('admin.nav.sessions', [], $navLang))],
     ['key' => 'certifications', 'href' => '/admin/certifications.php', 'label' => h(t('admin.nav.certifications', [], $navLang))],
   ];
-  $managementTabs = [];
-  if (user_can_access_admin_area($user)) {
-    $managementTabs[] = ['key' => 'users', 'href' => '/admin/users.php', 'label' => h(t('admin.nav.users', [], $navLang))];
-  }
   $globalAdminTabs = [];
+  if (user_can_access_admin_area($user)) {
+    $globalAdminTabs[] = ['key' => 'users', 'href' => '/admin/users.php', 'label' => h(t('admin.nav.users', [], $navLang))];
+  }
   if (user_can_manage_program_catalog($user)) {
     $globalAdminTabs[] = ['key' => 'programs', 'href' => '/admin/programs.php', 'label' => h(t('admin.nav.programs', [], $navLang))];
   }
@@ -223,9 +222,6 @@ function render_admin_tabs(string $active = ''): void
   render_admin_program_switcher();
   if (user_can_access_reporting_area($user) && $reportingTabs) {
     render_admin_tab_group(t('admin.nav.group_reporting', [], $navLang), 'sessions', $reportingTabs, $active);
-  }
-  if ($managementTabs) {
-    render_admin_tab_group(t('admin.nav.group_management', [], $navLang), 'users', $managementTabs, $active);
   }
   if ($contentTabs) {
     render_admin_tab_group(t('admin.nav.group_content', [], $navLang), 'packages', $contentTabs, $active);

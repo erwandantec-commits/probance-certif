@@ -1,37 +1,37 @@
 # Guide administrateur
 
-Ce guide explique le fonctionnement des principaux ecrans d'administration, sans entrer dans le code.
+Ce guide explique le fonctionnement des principaux écrans d'administration, sans entrer dans le code.
 
-## Role de l'espace admin
+## Rôle de l'espace admin
 
-L'espace admin sert a:
+L'espace admin sert à :
 
-- suivre les sessions passees par les candidats
-- consulter le detail d'un candidat
-- gerer les certifications
-- gerer les packs
-- gerer les questions
+- suivre les sessions passées par les candidats
+- consulter le détail d'un candidat
+- gérer les certifications
+- gérer les packs
+- gérer les questions
 - analyser la performance des questions
 - administrer les utilisateurs
 
 ## Sessions
 
-La page `Sessions` permet de surveiller les passages recents.
+La page `Sessions` permet de surveiller les passages récents.
 
-Tu peux y voir:
+Tu peux y voir :
 
 - le candidat
 - le pack
 - le type de session
 - le score
 - le statut
-- un acces au detail
+- un accès au détail
 
-Le detail d'une session permet ensuite de:
+Le détail d'une session permet ensuite de :
 
-- revoir les questions posees
-- voir les reponses du candidat
-- verifier les bonnes reponses
+- revoir les questions posées
+- voir les réponses du candidat
+- vérifier les bonnes réponses
 - ouvrir rapidement la fiche question
 - ouvrir l'analyse de performance de la question
 
@@ -39,61 +39,61 @@ Le detail d'une session permet ensuite de:
 
 La fiche candidat centralise la vision par personne.
 
-Elle permet notamment de consulter:
+Elle permet notamment de consulter :
 
 - les informations du candidat
 - son historique de sessions
 - ses certifications
-- certains parametres admin lies a son parcours
+- certains paramètres admin liés à son parcours
 
 ## Certifications
 
 La page `Certifications` donne une vue de suivi par candidat et par pack.
 
-On y retrouve en general:
+On y retrouve en général :
 
-- l'etat de la certification
-- la date de derniere obtention
+- l'état de la certification
+- la date de dernière obtention
 - la date d'expiration
-- l'acces au detail de la derniere session
+- l'accès au détail de la dernière session
 
 ## Utilisateurs
 
-La page `Utilisateurs` sert a gerer les comptes applicatifs.
+La page `Utilisateurs` sert à gérer les comptes applicatifs.
 
-Elle permet de:
+Elle permet de :
 
 - consulter la liste des comptes
 - modifier certaines informations utilisateur
-- ajuster le role si necessaire
+- ajuster le rôle si nécessaire
 
 ## Packs
 
-La page `Packs` sert a gerer les certifications disponibles dans l'outil.
+La page `Packs` sert à gérer les certifications disponibles dans l'outil.
 
-Un pack peut definir:
+Un pack peut définir :
 
 - son nom
 - sa couleur d'affichage
-- sa duree
-- son seuil de reussite
+- sa durée
+- son seuil de réussite
 - son nombre de questions
-- sa logique de selection
-- sa validite de certification
-- le cooldown apres echec
+- sa logique de sélection
+- sa validité de certification
+- le cooldown après échec
 
-Depuis `Modifier pack`, il est possible de:
+Depuis `Modifier pack`, il est possible de :
 
-- ajuster les parametres du pack
-- revoir les questions associees
-- ouvrir l'edition d'une question
+- ajuster les paramètres du pack
+- revoir les questions associées
+- ouvrir l'édition d'une question
 - ouvrir la vue performance d'une question
 
 ## Questions
 
 La page `Questions` est la banque de questions globale.
 
-Elle permet de:
+Elle permet de :
 
 - rechercher des questions
 - les filtrer
@@ -103,17 +103,17 @@ Elle permet de:
 
 ## Import de questions
 
-La page d'import sert a injecter ou mettre a jour des questions en masse.
+La page d'import sert à injecter ou mettre à jour des questions en masse.
 
 ## Analyse
 
-La page `Analyse` donne une vue agregee par question.
+La page `Analyse` donne une vue agrégée par question.
 
-Elle aide a reperer:
+Elle aide à repérer :
 
-- les questions tres reussies
-- les questions souvent echouees
-- les questions peu utilisees
+- les questions très réussies
+- les questions souvent échouées
+- les questions peu utilisées
 - les effets d'un filtre de dates, pack ou type de session
 
-Le bouton de zoom ouvre ensuite le detail des sessions liees a une question donnee.
+Le bouton de zoom ouvre ensuite le détail des sessions liées à une question donnée.

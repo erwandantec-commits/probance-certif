@@ -121,7 +121,8 @@ foreach ($rawRows as $r) {
   $status = certification_status_from_last_success(
     (string)$r['last_cert_date'],
     null,
-    (int)($r['cert_validity_days'] ?? 365)
+    (int)($r['cert_validity_days'] ?? 365),
+    $lang
   );
   $statusKey = (string)$status['status_key'];
   $statusLabel = (string)$status['status_label'];
@@ -228,7 +229,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     <div class="card admin-card admin-page-shell">
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <p class="admin-page-eyebrow">Administration</p>
+          <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
           <h2 class="h1"><?= h(t('admin.certs.title', [], $lang)) ?></h2>
           <p class="sub"><?= h(t('admin.certs.subtitle', [], $lang)) ?></p>
         </div>

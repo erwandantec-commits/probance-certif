@@ -93,10 +93,10 @@ if ($dateTo !== '') {
 }
 $whereSql = implode("\n      AND ", $whereParts);
 $resultFilterSql = $answerStatus === 'ALL' ? "perf.answer_status IN ('OK', 'KO')" : "perf.answer_status = ?";
-$resultLabel = match ($answerStatus) {
-  'OK' => 'réussites',
-  'KO' => 'échecs',
-  default => 'resultats',
+$historyTitle = match ($answerStatus) {
+  'OK' => t('admin.perf.history_ok', [], $lang),
+  'KO' => t('admin.perf.history_ko', [], $lang),
+  default => t('admin.perf.history_all', [], $lang),
 };
 
 $hasAnswerStatusSnapshot = table_column_exists($pdo, 'session_questions', 'answer_status_snapshot');
@@ -276,7 +276,7 @@ $rows = $stmt->fetchAll() ?: [];
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Zoom performance question</title>
+  <title><?= h(t('admin.perf.zoom_title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -286,36 +286,36 @@ $rows = $stmt->fetchAll() ?: [];
   <div class="card admin-card admin-page-shell">
     <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
-        <p class="admin-page-eyebrow">Administration</p>
-        <h2 class="h1">Admin &middot; Zoom performance question</h2>
+        <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
+        <h2 class="h1"><?= h(t('admin.perf.zoom_title', [], $lang)) ?></h2>
         <p class="sub"><?= h(mb_strimwidth((string)$question['text'], 0, 140, '...', 'UTF-8')) ?></p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('performance'); ?>
-        <a class="btn ghost back-nav-btn icon-btn zoom-edit-btn" href="/admin/question_edit.php?id=<?= (int)$qid ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="Modifier la question" title="Modifier la question">
+        <a class="btn ghost back-nav-btn icon-btn zoom-edit-btn" href="/admin/question_edit.php?id=<?= (int)$qid ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="<?= h(t('admin.questions.edit', [], $lang)) ?>" title="<?= h(t('admin.questions.edit', [], $lang)) ?>">
           <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
           </svg>
         </a>
-        <a class="btn ghost back-nav-btn" href="<?= h($returnTo) ?>">Retour</a>
+        <a class="btn ghost back-nav-btn" href="<?= h($returnTo) ?>"><?= h(t('admin.common.back', [], $lang)) ?></a>
       </div>
     </div>
 
     <div class="admin-stats-grid">
       <article class="admin-stat-card">
-        <span class="admin-stat-label">ID question</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.field_question_id', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= ($question['external_id'] === null || $question['external_id'] === '') ? '-' : (int)$question['external_id'] ?></strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux réussite</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.metric_ok_rate', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= h(number_format($okRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Taux échec</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.metric_fail_rate', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= h(number_format($koRate, 1, '.', '')) ?>%</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Users distincts</span>
+        <span class="admin-stat-label"><?= h(t('admin.perf.stat_distinct_users', [], $lang)) ?></span>
         <strong class="admin-stat-value"><?= $distinctUsers ?></strong>
       </article>
     </div>
@@ -324,8 +324,8 @@ $rows = $stmt->fetchAll() ?: [];
     <section class="admin-section-panel">
     <div class="section-head admin-section-head">
       <div>
-        <h3 class="h1">Historique des <?= h($resultLabel) ?></h3>
-        <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalRows ?> resultat(s))</p>
+        <h3 class="h1"><?= h($historyTitle) ?></h3>
+        <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $page, 'total' => $totalPages, 'count' => $totalRows], $lang)) ?></p>
       </div>
     </div>
 
@@ -334,52 +334,52 @@ $rows = $stmt->fetchAll() ?: [];
       <input type="hidden" name="return" value="<?= h($returnTo) ?>">
       <div class="filters-grid" style="grid-template-columns: repeat(4, minmax(0, 220px)); align-items:end;">
         <div>
-          <label class="label" for="session_type">Type</label>
+          <label class="label" for="session_type"><?= h(t('admin.sessions.filter_type', [], $lang)) ?></label>
           <select class="input" id="session_type" name="session_type">
-            <option value="ALL" <?= $sessionType === 'ALL' ? 'selected' : '' ?>>Tous</option>
-            <option value="EXAM" <?= $sessionType === 'EXAM' ? 'selected' : '' ?>>Certification</option>
-            <option value="TRAINING" <?= $sessionType === 'TRAINING' ? 'selected' : '' ?>>Test</option>
+            <option value="ALL" <?= $sessionType === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="EXAM" <?= $sessionType === 'EXAM' ? 'selected' : '' ?>><?= h(t('admin.sessions.type_exam', [], $lang)) ?></option>
+            <option value="TRAINING" <?= $sessionType === 'TRAINING' ? 'selected' : '' ?>><?= h(t('admin.sessions.type_training', [], $lang)) ?></option>
           </select>
         </div>
         <div>
-          <label class="label" for="answer_status">Resultat</label>
+          <label class="label" for="answer_status"><?= h(t('admin.perf.filter_result', [], $lang)) ?></label>
           <select class="input" id="answer_status" name="answer_status">
-            <option value="ALL" <?= $answerStatus === 'ALL' ? 'selected' : '' ?>>Tous</option>
-            <option value="OK" <?= $answerStatus === 'OK' ? 'selected' : '' ?>>Reussites</option>
-            <option value="KO" <?= $answerStatus === 'KO' ? 'selected' : '' ?>>Echecs</option>
+            <option value="ALL" <?= $answerStatus === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="OK" <?= $answerStatus === 'OK' ? 'selected' : '' ?>><?= h(t('admin.perf.result_ok', [], $lang)) ?></option>
+            <option value="KO" <?= $answerStatus === 'KO' ? 'selected' : '' ?>><?= h(t('admin.perf.result_ko', [], $lang)) ?></option>
           </select>
         </div>
         <div>
-          <label class="label" for="date_from">Date debut</label>
+          <label class="label" for="date_from"><?= h(t('admin.perf.filter_date_from_short', [], $lang)) ?></label>
           <input class="input" id="date_from" name="date_from" type="date" value="<?= h($dateFrom) ?>">
         </div>
         <div>
-          <label class="label" for="date_to">Date fin</label>
+          <label class="label" for="date_to"><?= h(t('admin.perf.filter_date_to_short', [], $lang)) ?></label>
           <input class="input" id="date_to" name="date_to" type="date" value="<?= h($dateTo) ?>">
         </div>
       </div>
       <div class="filters-actions" style="margin-top:12px;">
-        <button class="btn" type="submit">Filtrer</button>
-        <a class="btn ghost" href="/admin/question_performance_failures.php?qid=<?= (int)$qid ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($returnTo)) ?>">Reset</a>
+        <button class="btn" type="submit"><?= h(t('admin.common.filter', [], $lang)) ?></button>
+        <a class="btn ghost" href="/admin/question_performance_failures.php?qid=<?= (int)$qid ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode($returnTo)) ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
       </div>
     </form>
 
     <div class="table-wrap admin-table-panel">
       <?php if (!$rows): ?>
-        <p class="empty-state">Aucun resultat enregistre sur cette question pour ces filtres.</p>
+        <p class="empty-state"><?= h(t('admin.perf.none_detail', [], $lang)) ?></p>
       <?php else: ?>
         <table class="table questions-table performance-history-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>User</th>
-              <th>Type</th>
-              <th>Resultat</th>
-              <th>Pack</th>
-              <th>Reponse candidat</th>
-              <th>Reponse correcte</th>
-              <th>Score session</th>
-              <th>Action</th>
+              <th><?= h(t('admin.perf.col_date', [], $lang)) ?></th>
+              <th><?= h(t('admin.perf.col_user', [], $lang)) ?></th>
+              <th><?= h(t('admin.sessions.filter_type', [], $lang)) ?></th>
+              <th><?= h(t('admin.perf.filter_result', [], $lang)) ?></th>
+              <th><?= h(t('admin.common.pack', [], $lang)) ?></th>
+              <th><?= h(t('admin.perf.col_candidate_answer', [], $lang)) ?></th>
+              <th><?= h(t('admin.perf.col_correct_answer', [], $lang)) ?></th>
+              <th><?= h(t('admin.perf.col_session_score', [], $lang)) ?></th>
+              <th><?= h(t('admin.common.action', [], $lang)) ?></th>
             </tr>
           </thead>
           <tbody>
@@ -387,10 +387,10 @@ $rows = $stmt->fetchAll() ?: [];
               <tr>
                 <td><?= h((string)$row['started_at']) ?></td>
                 <td><?= h((string)$row['email']) ?></td>
-                <td><?= h((string)$row['session_type'] === 'EXAM' ? 'Certification' : 'Test') ?></td>
+                <td><?= h((string)$row['session_type'] === 'EXAM' ? t('admin.sessions.type_exam', [], $lang) : t('admin.sessions.type_training', [], $lang)) ?></td>
                 <td>
                   <span class="<?= h((string)$row['answer_status'] === 'OK' ? 'badge ok' : 'badge bad') ?>">
-                    <?= h((string)$row['answer_status'] === 'OK' ? 'Reussite' : 'Echec') ?>
+                    <?= h((string)$row['answer_status'] === 'OK' ? t('admin.perf.answer_ok', [], $lang) : t('admin.perf.answer_ko', [], $lang)) ?>
                   </span>
                 </td>
                 <td><span style="<?= h(package_label_style((string)$row['package_name'], (string)($row['package_color_hex'] ?? ''))) ?>"><?= h((string)$row['package_name']) ?></span></td>
@@ -398,7 +398,7 @@ $rows = $stmt->fetchAll() ?: [];
                 <td><?= h((string)($row['correct_labels'] ?: '-')) ?></td>
                 <td><?= $row['score_percent'] !== null ? h((string)$row['score_percent']) . '%' : '-' ?></td>
                 <td class="actions-cell">
-                  <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h((string)$row['session_id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="Voir la session" title="Voir la session">
+                  <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h((string)$row['session_id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/question_performance_failures.php?qid=' . $qid))) ?>" aria-label="<?= h(t('admin.perf.view_session', [], $lang)) ?>" title="<?= h(t('admin.perf.view_session', [], $lang)) ?>">
                     <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                     </svg>

@@ -268,7 +268,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
     <div class="card admin-card admin-page-shell">
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
-          <p class="admin-page-eyebrow">Administration</p>
+          <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
           <h2 class="h1"><?= h(t('admin.packages.title', [], $lang)) ?></h2>
           <p class="sub"><?= h(t('admin.packages.subtitle', [], $lang)) ?></p>
         </div>
@@ -278,22 +278,22 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       </div>
 
       <?php if ($created): ?>
-        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;">Pack cree avec succes.</p>
+        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;"><?= h(t('admin.packages.created', [], $lang)) ?></p>
       <?php endif; ?>
       <?php if ($deleted): ?>
-        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;">Pack supprime avec succes.</p>
+        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;"><?= h(t('admin.packages.deleted', [], $lang)) ?></p>
       <?php endif; ?>
       <?php if ($deleteError !== ''): ?>
         <p class="error" style="margin:0 0 12px;"><?= h($deleteError) ?></p>
       <?php endif; ?>
       <?php if ($reordered): ?>
-        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;">Ordre des packs mis a jour.</p>
+        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;"><?= h(t('admin.packages.reordered', [], $lang)) ?></p>
       <?php endif; ?>
       <?php if ($reorderError !== ''): ?>
         <p class="error" style="margin:0 0 12px;"><?= h($reorderError) ?></p>
       <?php endif; ?>
       <?php if ($toggled): ?>
-        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;">Statut du pack mis a jour.</p>
+        <p class="small" style="margin:0 0 12px; color: var(--ok); font-weight:700;"><?= h(t('admin.packages.toggled', [], $lang)) ?></p>
       <?php endif; ?>
       <?php if ($toggleError !== ''): ?>
         <p class="error" style="margin:0 0 12px;"><?= h($toggleError) ?></p>
@@ -304,9 +304,9 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       <div class="admin-panel-toolbar">
         <div>
           <h3 class="h1"><?= h(t('admin.packages.manage_title', [], $lang)) ?></h3>
-          <p class="sub" style="margin:6px 0 0;">Cr&eacute;ation, ordre d'affichage, activation et disponibilit&eacute; des packs.</p>
+          <p class="sub" style="margin:6px 0 0;"><?= h(t('admin.packages.manage_subtitle', [], $lang)) ?></p>
         </div>
-        <a class="btn admin-primary-action-btn" href="/admin/pack_create.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">+ Cr&eacute;er un pack</a>
+        <a class="btn admin-primary-action-btn" href="/admin/pack_create.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.packages.create_btn', [], $lang)) ?></a>
       </div>
       </section>
 
@@ -320,33 +320,33 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
         <table class="table questions-table packages-table">
           <thead>
             <tr>
-              <th>Nom</th>
-              <?php if ($hasProfileColumn): ?><th>Profil</th><?php endif; ?>
+              <th><?= h(t('admin.common.name', [], $lang)) ?></th>
+              <?php if ($hasProfileColumn): ?><th><?= h(t('admin.packages.col_profile', [], $lang)) ?></th><?php endif; ?>
               <?php if ($hasDisplayOrderColumn): ?>
                 <th>
                   <span class="order-help-wrap">
-                    <span>Ordre</span>
-                    <span class="order-help-tip" tabindex="0" aria-label="Aide sur l'ordre des packs">
+                    <span><?= h(t('admin.packages.col_order', [], $lang)) ?></span>
+                    <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.packages.col_order', [], $lang)) ?>">
                       i
-                      <span class="order-help-bubble">Definit l'ordre d'affichage des packs: le premier apparait en haut a gauche dans l'espace candidat.</span>
+                      <span class="order-help-bubble"><?= h(t('admin.packages.order_help', [], $lang)) ?></span>
                     </span>
                   </span>
                 </th>
               <?php endif; ?>
-              <th>Seuil (%)</th>
-              <th>Dur&eacute;e (min)</th>
-              <th>Questions</th>
-              <th>Statut</th>
+              <th><?= h(t('admin.packages.col_threshold', [], $lang)) ?></th>
+              <th><?= h(t('admin.packages.col_duration', [], $lang)) ?></th>
+              <th><?= h(t('admin.packages.col_questions', [], $lang)) ?></th>
+              <th><?= h(t('admin.common.status', [], $lang)) ?></th>
               <th>
                 <span class="order-help-wrap">
-                  <span>Disponibilit&eacute;</span>
-                  <span class="order-help-tip" tabindex="0" aria-label="Aide sur la disponibilite des packs">
+                  <span><?= h(t('admin.packages.col_availability', [], $lang)) ?></span>
+                  <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.packages.col_availability', [], $lang)) ?>">
                     i
-                    <span class="order-help-bubble">Indique si le pack a suffisamment de questions configurees pour etre lance en examen.</span>
+                    <span class="order-help-bubble"><?= h(t('admin.packages.availability_help', [], $lang)) ?></span>
                   </span>
                 </span>
               </th>
-              <th>Action</th>
+              <th><?= h(t('admin.common.action', [], $lang)) ?></th>
             </tr>
           </thead>
           <tbody>
@@ -361,8 +361,8 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                       <form method="post" style="display:flex; gap:6px; margin:0;">
                         <input type="hidden" name="action" value="move_pack">
                         <input type="hidden" name="id" value="<?= (int)$pk['id'] ?>">
-                        <button class="btn ghost" type="submit" name="direction" value="up" <?= $idx === 0 ? 'disabled' : '' ?> title="Monter">&uarr;</button>
-                        <button class="btn ghost" type="submit" name="direction" value="down" <?= $idx === (count($packages) - 1) ? 'disabled' : '' ?> title="Descendre">&darr;</button>
+                        <button class="btn ghost" type="submit" name="direction" value="up" <?= $idx === 0 ? 'disabled' : '' ?> title="<?= h(t('admin.packages.move_up', [], $lang)) ?>">&uarr;</button>
+                        <button class="btn ghost" type="submit" name="direction" value="down" <?= $idx === (count($packages) - 1) ? 'disabled' : '' ?> title="<?= h(t('admin.packages.move_down', [], $lang)) ?>">&darr;</button>
                       </form>
                     </div>
                   </td>
@@ -375,16 +375,16 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                     ? ((int)($pk['program_link_is_active'] ?? 1) === 1)
                     : ((int)($pk['is_active'] ?? 1) === 1); ?>
                   <span class="pill <?= $isActive ? 'success' : 'warning' ?>">
-                    <?= $isActive ? 'Actif' : 'Inactif' ?>
+                    <?= $isActive ? h(t('admin.common.active', [], $lang)) : h(t('admin.common.inactive', [], $lang)) ?>
                   </span>
                 </td>
                 <td>
                   <span class="pill <?= $ok ? 'success' : 'warning' ?>" title="<?= (int)$avail ?> / <?= (int)$req ?>">
-                    <?= $ok ? 'OK' : '&Agrave; compl&eacute;ter' ?>
+                    <?= $ok ? h(t('admin.packages.ready', [], $lang)) : h(t('admin.packages.incomplete', [], $lang)) ?>
                   </span>
                 </td>
                 <td class="actions-cell">
-                  <a class="btn ghost icon-btn" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>" aria-label="Modifier ce pack" title="Modifier ce pack">
+                  <a class="btn ghost icon-btn" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>" aria-label="<?= h(t('admin.packages.edit', [], $lang)) ?>" title="<?= h(t('admin.packages.edit', [], $lang)) ?>">
                     <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                     </svg>
@@ -392,7 +392,8 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                   <form method="post" class="inline-action-form">
                     <input type="hidden" name="action" value="toggle_active">
                     <input type="hidden" name="id" value="<?= (int)$pk['id'] ?>">
-                    <button class="btn ghost icon-btn <?= $isActive ? 'warning-soft' : 'success-soft' ?>" type="submit" aria-label="<?= $isActive ? 'Rendre le pack inactif' : 'Rendre le pack actif' ?>" title="<?= $isActive ? 'Rendre le pack inactif' : 'Rendre le pack actif' ?>">
+                    <?php $toggleLabel = $isActive ? t('admin.packages.toggle_inactive', [], $lang) : t('admin.packages.toggle_active', [], $lang); ?>
+                    <button class="btn ghost icon-btn <?= $isActive ? 'warning-soft' : 'success-soft' ?>" type="submit" aria-label="<?= h($toggleLabel) ?>" title="<?= h($toggleLabel) ?>">
                       <svg class="icon-power" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M11 3h2v9h-2zM7.05 5.64 8.46 7.05A7 7 0 1 0 15.54 7.05l1.41-1.41A9 9 0 1 1 7.05 5.64z"/>
                       </svg>
@@ -400,9 +401,9 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                   </form>
                   <a class="btn ghost icon-btn danger"
                      href="/admin/package_delete.php?id=<?= (int)$pk['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
-                     aria-label="Supprimer ce pack"
-                     title="Supprimer"
-                     onclick="return confirm('Supprimer ce pack ? Cette action est irreversible et supprimera les donnees liees.');">
+                     aria-label="<?= h(t('admin.packages.delete', [], $lang)) ?>"
+                     title="<?= h(t('admin.common.delete', [], $lang)) ?>"
+                     onclick="return confirm('<?= h(t('admin.packages.delete_confirm', [], $lang)) ?>');">
                     <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
                     </svg>

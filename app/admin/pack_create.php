@@ -633,7 +633,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Cr&eacute;er un pack</title>
+  <title><?= h(t('admin.pack.create_title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -643,8 +643,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card admin-card">
       <div class="admin-head">
         <div class="admin-head-copy">
-          <h2 class="h1">Admin &middot; Cr&eacute;er un pack</h2>
-          <p class="sub">Ajout d'un nouveau pack d Certification.</p>
+          <h2 class="h1"><?= h(t('admin.pack.create_title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.pack.create_subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
           <?php render_admin_tabs('packages'); ?>
@@ -659,37 +659,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <form method="post" class="users-create-form">
         <section class="pack-config-section">
-          <h3 class="pack-config-title">Configuration du pack</h3>
+          <h3 class="pack-config-title"><?= h(t('admin.pack.section_config', [], $lang)) ?></h3>
           <div class="pack-config-grid">
             <article class="pack-config-card">
-              <h4 class="pack-config-card-title">Informations</h4>
+              <h4 class="pack-config-card-title"><?= h(t('admin.pack.card_info', [], $lang)) ?></h4>
               <div class="pack-config-fields">
                 <div>
-                  <label class="label" for="create-pack-name">Nom du pack</label>
+                  <label class="label" for="create-pack-name"><?= h(t('admin.pack.field_name', [], $lang)) ?></label>
                   <input class="input" id="create-pack-name" name="name" type="text" maxlength="255" required value="<?= htmlspecialchars((string)$name, ENT_QUOTES, 'UTF-8') ?>">
                 </div>
                 <?php if ($hasProfileColumn): ?>
                   <div>
-                    <label class="label" for="create-pack-profile">Profil</label>
+                    <label class="label" for="create-pack-profile"><?= h(t('admin.pack.field_profile', [], $lang)) ?></label>
                     <input class="input" id="create-pack-profile" name="profile" type="text" maxlength="255" value="<?= htmlspecialchars((string)$profile, ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                 <?php endif; ?>
                 <div>
-                  <label class="label" for="create-pack-active">Statut</label>
+                  <label class="label" for="create-pack-active"><?= h(t('admin.common.status', [], $lang)) ?></label>
                   <select class="input" id="create-pack-active" name="is_active">
-                    <option value="1" <?= $isActive === 1 ? 'selected' : '' ?>>Actif</option>
-                    <option value="0" <?= $isActive === 0 ? 'selected' : '' ?>>Inactif</option>
+                    <option value="1" <?= $isActive === 1 ? 'selected' : '' ?>><?= h(t('admin.common.active', [], $lang)) ?></option>
+                    <option value="0" <?= $isActive === 0 ? 'selected' : '' ?>><?= h(t('admin.common.inactive', [], $lang)) ?></option>
                   </select>
                 </div>
                 <?php if ($hasCertValidityDaysColumn): ?>
                   <div>
-                    <label class="label" for="create-pack-cert-validity-days">P&eacute;riode de validit&eacute; (jours)</label>
+                    <label class="label" for="create-pack-cert-validity-days"><?= h(t('admin.pack.field_validity', [], $lang)) ?></label>
                     <input class="input" id="create-pack-cert-validity-days" name="cert_validity_days" type="number" min="1" max="3650" required value="<?= (int)$certValidityDays ?>">
                   </div>
                 <?php endif; ?>
                 <?php if ($hasFailedCooldownDaysColumn): ?>
                   <div>
-                    <label class="label" for="create-pack-failed-cooldown-days">D&eacute;lai apr&egrave;s &eacute;chec (jours)</label>
+                    <label class="label" for="create-pack-failed-cooldown-days"><?= h(t('admin.pack.field_cooldown', [], $lang)) ?></label>
                     <input class="input" id="create-pack-failed-cooldown-days" name="failed_cooldown_days" type="number" min="0" max="3650" required value="<?= (int)$failedCooldownDays ?>">
                   </div>
                 <?php endif; ?>
@@ -697,29 +697,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </article>
 
             <article class="pack-config-card">
-              <h4 class="pack-config-card-title">Evaluation</h4>
+              <h4 class="pack-config-card-title"><?= h(t('admin.pack.card_eval', [], $lang)) ?></h4>
               <div class="pack-config-fields">
                 <div>
-                  <label class="label" for="create-pack-threshold">Seuil (%)</label>
+                  <label class="label" for="create-pack-threshold"><?= h(t('admin.pack.field_threshold_short', [], $lang)) ?></label>
                   <input class="input" id="create-pack-threshold" name="pass_threshold_percent" type="number" min="0" max="100" required value="<?= (int)$threshold ?>">
                 </div>
                 <div>
-                  <label class="label" for="create-pack-duration">Dur&eacute;e (minutes)</label>
+                  <label class="label" for="create-pack-duration"><?= h(t('admin.pack.field_duration_short', [], $lang)) ?></label>
                   <input class="input" id="create-pack-duration" name="duration_limit_minutes" type="number" min="1" max="600" required value="<?= (int)$duration ?>">
                 </div>
                 <div>
-                  <label class="label" for="create-pack-count">Nombre de questions tir&eacute;es</label>
+                  <label class="label" for="create-pack-count"><?= h(t('admin.pack.field_count', [], $lang)) ?></label>
                   <input class="input" id="create-pack-count" name="selection_count" type="number" min="1" max="200" required value="<?= (int)$count ?>">
                 </div>
               </div>
             </article>
 
             <article class="pack-config-card pack-config-card-wide">
-              <h4 class="pack-config-card-title">Apparence</h4>
+              <h4 class="pack-config-card-title"><?= h(t('admin.pack.card_appearance', [], $lang)) ?></h4>
               <div class="pack-config-fields pack-appearance-fields">
                 <?php if ($hasNameColorColumn): ?>
                   <div class="pack-color-field">
-                    <label class="label" for="create-pack-color">Couleur du nom</label>
+                    <label class="label" for="create-pack-color"><?= h(t('admin.pack.field_color', [], $lang)) ?></label>
                     <div class="pack-color-row">
                       <input class="pack-color-input" id="create-pack-color" name="name_color_hex" type="color" value="<?= htmlspecialchars((string)$nameColorHex, ENT_QUOTES, 'UTF-8') ?>">
                       <span class="pack-color-swatch" data-pack-color-preview style="background:<?= h($nameColorHex) ?>;"></span>
@@ -729,7 +729,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endif; ?>
                 <?php if ($hasBadgeImageColumn): ?>
                   <div class="badge-picker-field">
-                    <label class="label">Image du badge</label>
+                    <label class="label"><?= h(t('admin.pack.field_badge', [], $lang)) ?></label>
                     <input type="hidden" name="badge_image_filename" value="<?= h($badgeImageFilename) ?>">
                     <?php $libraryReturn = '/admin/pack_create.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : ''); ?>
                     <a
@@ -745,12 +745,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </span>
                       <?php else: ?>
                         <span class="badge-current">
-                          <span class="badge-current-meta">Aucune image sélectionnée</span>
+                          <span class="badge-current-meta"><?= h(t('admin.pack.no_badge_selected', [], $lang)) ?></span>
                         </span>
                       <?php endif; ?>
                     </a>
                     <?php if (!$badgeImageOptions): ?>
-                      <p class="small" style="margin-top:8px;">Aucune image de badge disponible.</p>
+                      <p class="small" style="margin-top:8px;"><?= h(t('admin.pack.no_badge_available', [], $lang)) ?></p>
                     <?php endif; ?>
                   </div>
                 <?php endif; ?>
@@ -763,26 +763,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <section class="rule-builder">
             <h3 class="distribution-title rule-builder-title">
               <span class="order-help-wrap">
-                <span>R&egrave;gles de tirage des questions</span>
-                <span class="order-help-tip" tabindex="0" aria-label="Aide sur les regles de tirage">
+                <span><?= h(t('admin.pack.rules_title', [], $lang)) ?></span>
+                <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.pack.rules_title', [], $lang)) ?>">
                   i
-                  <span class="order-help-bubble">D&eacute;finis l'ordre des paliers. Chaque ligne prend "jusqu'&agrave; X" questions.</span>
+                  <span class="order-help-bubble"><?= h(t('admin.pack.rules_help', [], $lang)) ?></span>
                 </span>
               </span>
             </h3>
             <div class="rule-toolbar">
               <div class="rule-template-group">
-                <label class="label" for="rule-template">Mod&egrave;le</label>
+                <label class="label" for="rule-template"><?= h(t('admin.pack.rules_model', [], $lang)) ?></label>
                 <select class="input" id="rule-template" name="rule_template">
-                  <option value="">Aucun</option>
+                  <option value=""><?= h(t('admin.pack.rules_none', [], $lang)) ?></option>
                   <?php foreach (array_keys($ruleTemplates) as $tplName): ?>
                     <option value="<?= h($tplName) ?>" <?= $selectedTemplate === $tplName ? 'selected' : '' ?>><?= h($tplName) ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
               <div class="rule-toolbar-actions">
-                <button class="btn ghost rule-action-btn rule-action-apply" type="button" id="apply-rule-template">Appliquer le mod&egrave;le</button>
-                <button class="btn ghost rule-action-btn rule-action-add" type="button" id="add-rule-row">Ajouter un palier</button>
+                <button class="btn ghost rule-action-btn rule-action-apply" type="button" id="apply-rule-template"><?= h(t('admin.pack.rules_apply', [], $lang)) ?></button>
+                <button class="btn ghost rule-action-btn rule-action-add" type="button" id="add-rule-row"><?= h(t('admin.pack.rules_add', [], $lang)) ?></button>
               </div>
             </div>
 
@@ -790,18 +790,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <table class="table questions-table rules-table" id="rule-rows-table">
                 <thead>
                   <tr>
-                    <th>Categorie</th>
-                    <th>Niveaux</th>
+                    <th><?= h(t('admin.pack.rules_col_category', [], $lang)) ?></th>
+                    <th><?= h(t('admin.pack.rules_col_levels', [], $lang)) ?></th>
                     <th>
                       <span class="order-help-wrap">
-                        <span>Cumul vis&eacute;</span>
-                        <span class="order-help-tip" tabindex="0" aria-label="Aide sur la cible cumulee">
+                        <span><?= h(t('admin.pack.rules_col_cumul', [], $lang)) ?></span>
+                        <span class="order-help-tip" tabindex="0" aria-label="<?= h(t('admin.pack.rules_col_cumul', [], $lang)) ?>">
                           i
-                          <span class="order-help-bubble">Chaque palier prend automatiquement toutes les questions correspondant &agrave; ses crit&egrave;res. Le cumul vis&eacute; permet de fixer le total souhait&eacute; atteint apr&egrave;s ce palier.</span>
+                          <span class="order-help-bubble"><?= h(t('admin.pack.rules_cumul_help', [], $lang)) ?></span>
                         </span>
                       </span>
                     </th>
-                    <th>Action</th>
+                    <th><?= h(t('admin.common.action', [], $lang)) ?></th>
                   </tr>
                 </thead>
                 <tbody id="rule-rows-body">
@@ -836,7 +836,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <p class="rule-target-warning" hidden></p>
                       </td>
                       <td>
-                        <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="Supprimer ce palier" title="Supprimer ce palier">
+                        <button class="btn ghost icon-btn danger rule-remove rule-remove-btn" type="button" aria-label="<?= h(t('admin.pack.rules_remove', [], $lang)) ?>" title="<?= h(t('admin.pack.rules_remove', [], $lang)) ?>">
                           <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
                           </svg>
@@ -847,7 +847,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tbody>
                 <tfoot>
                   <tr class="rule-summary-row">
-                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label">R&eacute;capitulatif</span></td>
+                    <td colspan="2" class="rule-summary-label-cell"><span class="rule-summary-label"><?= h(t('admin.pack.rules_summary', [], $lang)) ?></span></td>
                     <td class="rule-summary-value"><span id="rule-total-target" class="rule-summary-number">0</span></td>
                     <td></td>
                   </tr>
@@ -859,8 +859,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <div class="users-create-actions">
-          <button class="btn" type="submit">Cr&eacute;er le pack</button>
-          <a class="btn ghost" href="/admin/packages.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Annuler</a>
+          <button class="btn" type="submit"><?= h(t('admin.pack.create_btn', [], $lang)) ?></button>
+          <a class="btn ghost" href="/admin/packages.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.cancel', [], $lang)) ?></a>
         </div>
       </form>
     </div>

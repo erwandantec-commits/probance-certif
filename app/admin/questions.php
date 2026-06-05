@@ -624,9 +624,9 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
   <div class="card admin-card admin-page-shell">
     <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
-        <p class="admin-page-eyebrow">Administration</p>
+        <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
         <h2 class="h1"><?= h(t('admin.questions.title', [], $lang)) ?></h2>
-        <p class="sub">Modifier / supprimer (creation via import uniquement)</p>
+        <p class="sub"><?= h(t('admin.questions.subtitle', [], $lang)) ?></p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('questions'); ?>
@@ -638,11 +638,11 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     <div class="admin-panel-toolbar">
       <div>
         <h3 class="h1"><?= h(t('admin.questions.catalog_title', [], $lang)) ?></h3>
-        <p class="sub" style="margin:6px 0 0;">Recherche, navigation et analyse de la banque de questions.</p>
+        <p class="sub" style="margin:6px 0 0;"><?= h(t('admin.questions.catalog_subtitle', [], $lang)) ?></p>
       </div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <a class="btn ghost" href="<?= h(questions_export_url($_GET)) ?>"><?= h(t('admin.common.export_csv', [], $lang)) ?></a>
-        <a class="btn admin-primary-action-btn" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">+ Importer</a>
+        <a class="btn admin-primary-action-btn" href="/admin/import_questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">+ <?= h(t('admin.common.import', [], $lang)) ?></a>
       </div>
     </div>
     <form method="get" class="filters-grid users-filters admin-panel-surface" style="margin-bottom:8px;">
@@ -653,18 +653,18 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
         <input type="hidden" name="need_levels[]" value="<?= h($pair) ?>">
       <?php endforeach; ?>
       <div>
-        <label class="label" for="id_question">Rechercher ID question</label>
-        <input class="input" id="id_question" name="id_question" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="ID question" value="<?= h($idFilterRaw) ?>">
+        <label class="label" for="id_question"><?= h(t('admin.questions.search_placeholder', [], $lang)) ?></label>
+        <input class="input" id="id_question" name="id_question" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="ID" value="<?= h($idFilterRaw) ?>">
       </div>
       <div class="filters-actions">
-        <button class="btn" type="submit">Rechercher</button>
+        <button class="btn" type="submit"><?= h(t('admin.common.search', [], $lang)) ?></button>
         <a class="btn ghost" href="/admin/questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
       </div>
     </form>
 
     <?php if ($totalQuestions > 0): ?>
       <div class="distribution-wrap">
-        <p class="distribution-title">R&eacute;partition actuelle</p>
+        <p class="distribution-title"><?= h(t('admin.questions.distribution_title', [], $lang)) ?></p>
         <div class="distribution-grid">
           <?php foreach ($allNeeds as $n): ?>
             <?php
@@ -692,7 +692,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                  data-filter-need-url="<?= h($needUrl) ?>"
                  role="link"
                  tabindex="0"
-                 aria-label="<?= h(($needActive ? 'Retirer' : 'Ajouter') . ' le filtre ' . $n) ?>">
+                 aria-label="<?= h($needActive ? t('admin.questions.filter_remove', ['need' => $n], $lang) : t('admin.questions.filter_add', ['need' => $n], $lang)) ?>">
               <p class="distribution-need">
                 <a class="distribution-need-link <?= $needActive ? 'is-active' : '' ?>"
                    href="<?= h($needUrl) ?>">
@@ -730,7 +730,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
     <div class="section-head admin-section-head">
       <div>
         <h3 class="h1"><?= h(t('admin.questions.list_title', [], $lang)) ?></h3>
-        <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
+        <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $page, 'total' => $totalPages, 'count' => $totalQuestions], $lang)) ?></p>
       </div>
     </div>
 
@@ -742,14 +742,14 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
           <thead>
             <tr>
               <th>ID</th>
-              <th>ID question</th>
-              <th>Categorie</th>
-              <th>Niveau</th>
-              <th>Type</th>
-              <th>Options</th>
-              <?php if ($activeProgramId > 0): ?><th class="question-pack-count-col">Pack</th><?php endif; ?>
-              <th>&Eacute;nonc&eacute;</th>
-              <th>Action</th>
+              <th><?= h(t('admin.questions.col_external_id', [], $lang)) ?></th>
+              <th><?= h(t('admin.questions.col_category', [], $lang)) ?></th>
+              <th><?= h(t('admin.questions.col_level', [], $lang)) ?></th>
+              <th><?= h(t('admin.common.type', [], $lang)) ?></th>
+              <th><?= h(t('admin.questions.col_options', [], $lang)) ?></th>
+              <?php if ($activeProgramId > 0): ?><th class="question-pack-count-col"><?= h(t('admin.common.pack', [], $lang)) ?></th><?php endif; ?>
+              <th><?= h(t('admin.questions.col_text', [], $lang)) ?></th>
+              <th><?= h(t('admin.common.action', [], $lang)) ?></th>
             </tr>
           </thead>
           <tbody>
@@ -760,11 +760,11 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                 <td><?= h((string)$q['need']) ?></td>
                 <td><?= (int)$q['level'] ?></td>
                 <td>
-                  <?= match ((string)$q['question_type']) {
-                    'TRUE_FALSE' => 'Vrai/Faux',
-                    'SINGLE' => 'Choix unique',
-                    default => 'Choix multiple',
-                  } ?>
+                  <?= h(match ((string)$q['question_type']) {
+                    'TRUE_FALSE' => t('admin.questions.type_tf', [], $lang),
+                    'SINGLE' => t('admin.questions.type_single', [], $lang),
+                    default => t('admin.questions.type_multi', [], $lang),
+                  }) ?>
                 </td>
 	                <td><?= (int)$q['opt_count'] ?></td>
                 <?php if ($activeProgramId > 0): ?>
@@ -772,26 +772,26 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                     <?php $usedPackages = is_array($q['_used_packages'] ?? null) ? $q['_used_packages'] : []; ?>
                     <?php $usedPackageCount = count($usedPackages); ?>
                     <span class="pill <?= $usedPackageCount > 0 ? 'info' : 'warning' ?>">
-                      <?= (int)$usedPackageCount ?> pack<?= $usedPackageCount > 1 ? 's' : '' ?>
+                      <?= h(t('admin.translations.n_packs', ['n' => $usedPackageCount], $lang)) ?>
                     </span>
                   </td>
                 <?php endif; ?>
                 <td><?= h(mb_strimwidth((string)$q['text'], 0, 90, '...', 'UTF-8')) ?></td>
 	                <td class="actions-cell">
-	                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/questions.php'))) ?>" aria-label="Modifier la question" title="Modifier la question">
+	                  <a class="btn ghost icon-btn" href="/admin/question_edit.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/questions.php'))) ?>" aria-label="<?= h(t('admin.questions.edit', [], $lang)) ?>" title="<?= h(t('admin.questions.edit', [], $lang)) ?>">
 	                    <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                      <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
 	                    </svg>
 	                  </a>
-	                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/questions.php'))) ?>" aria-label="Voir la performance de la question" title="Voir la performance de la question">
+	                  <a class="btn ghost icon-btn" href="/admin/question_performance_failures.php?qid=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/questions.php'))) ?>" aria-label="<?= h(t('admin.questions.performance', [], $lang)) ?>" title="<?= h(t('admin.questions.performance', [], $lang)) ?>">
 	                    <svg class="icon-performance" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                      <path d="M5 19h14v2H5zM6 10h3v7H6zM11 6h3v11h-3zM16 12h3v5h-3z"/>
 	                    </svg>
 	                  </a>
 	                  <a class="btn ghost icon-btn danger" href="/admin/question_delete.php?id=<?= (int)$q['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"
-	                     aria-label="Supprimer cette question"
-	                     title="Supprimer"
-	                     onclick="return confirm('Supprimer cette question ?');">
+	                     aria-label="<?= h(t('admin.questions.delete', [], $lang)) ?>"
+	                     title="<?= h(t('admin.common.delete', [], $lang)) ?>"
+	                     onclick="return confirm('<?= h(t('admin.questions.delete_confirm', [], $lang)) ?>');">
 	                    <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
 	                      <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
 	                    </svg>

@@ -18,19 +18,19 @@ if (empty($_SESSION['admin_users_csrf']) || !is_string($_SESSION['admin_users_cs
 }
 $userEditCsrfToken = (string)$_SESSION['admin_users_csrf'];
 
-function admin_contact_format_cert_expiry(?DateTimeImmutable $expiresAt, bool $isRevoked): string {
+function admin_contact_format_cert_expiry(?DateTimeImmutable $expiresAt, bool $isRevoked, string $lang = 'fr'): string {
   if (!$expiresAt) {
     return '-';
   }
 
   $dateLabel = $expiresAt->format('Y-m-d');
   if ($isRevoked) {
-    return $dateLabel . ' (revoquee)';
+    return $dateLabel . ' ' . t('admin.contact.cert_expiry_revoked', [], $lang);
   }
 
   $today = new DateTimeImmutable('today');
   if ($expiresAt < $today) {
-    return $dateLabel . ' (expiree)';
+    return $dateLabel . ' ' . t('admin.contact.cert_expiry_expired', [], $lang);
   }
 
   $remainingDays = (int)$today->diff($expiresAt)->format('%a');
@@ -38,7 +38,7 @@ function admin_contact_format_cert_expiry(?DateTimeImmutable $expiresAt, bool $i
     $remainingDays = 1;
   }
 
-  return $dateLabel . ' (' . $remainingDays . ' j restants)';
+  return $dateLabel . ' ' . t('admin.contact.cert_expiry_days', ['count' => $remainingDays], $lang);
 }
 
 function admin_contact_guess_first_last(?string $fullName): array {
@@ -156,10 +156,10 @@ $historyPage = max(1, (int)($_GET['hpage'] ?? 1));
 $overrideLimit = 10;
 $historyLimit = 10;
 
-function admin_session_type_label(string $type): string {
+function admin_session_type_label(string $type, string $lang = 'fr'): string {
   return match ($type) {
-    'EXAM' => 'Certification',
-    'TRAINING' => 'Test',
+    'EXAM' => t('admin.sessions.type_exam', [], $lang),
+    'TRAINING' => t('admin.sessions.type_training', [], $lang),
     default => $type,
   };
 }
@@ -586,7 +586,7 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Fiche utilisateur</title>
+  <title><?= h(t('admin.contact.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -596,8 +596,8 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
     <div class="card admin-card candidate-profile-page">
       <div class="admin-head candidate-profile-hero">
         <div class="admin-head-copy">
-          <p class="candidate-profile-eyebrow">Administration utilisateur</p>
-          <h2 class="h1">Admin &middot; Fiche utilisateur</h2>
+          <p class="candidate-profile-eyebrow"><?= h(t('admin.contact.eyebrow', [], $lang)) ?></p>
+          <h2 class="h1"><?= h(t('admin.contact.title', [], $lang)) ?></h2>
           <p class="sub"><?= h($contact['email']) ?></p>
         </div>
         <div class="admin-head-actions">
@@ -614,19 +614,19 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
 
       <div class="candidate-stats-grid">
         <article class="candidate-stat-card">
-          <span class="candidate-stat-label">Sessions</span>
+          <span class="candidate-stat-label"><?= h(t('admin.contact.stat_sessions', [], $lang)) ?></span>
           <strong class="candidate-stat-value"><?= (int)$summary['total_sessions'] ?></strong>
         </article>
         <article class="candidate-stat-card">
-          <span class="candidate-stat-label">Derniere activite</span>
+          <span class="candidate-stat-label"><?= h(t('admin.contact.stat_last_activity', [], $lang)) ?></span>
           <strong class="candidate-stat-value candidate-stat-value-sm"><?= h($summary['last_activity'] ?: '-') ?></strong>
         </article>
         <article class="candidate-stat-card">
-          <span class="candidate-stat-label">Certifications reussies</span>
+          <span class="candidate-stat-label"><?= h(t('admin.contact.stat_certs', [], $lang)) ?></span>
           <strong class="candidate-stat-value"><?= (int)$summary['passed_exam_count'] ?></strong>
         </article>
         <article class="candidate-stat-card">
-          <span class="candidate-stat-label">Score moyen certification</span>
+          <span class="candidate-stat-label"><?= h(t('admin.contact.stat_avg_score', [], $lang)) ?></span>
           <strong class="candidate-stat-value"><?= $summary['avg_exam_score'] !== null ? h($summary['avg_exam_score']).'%' : '-' ?></strong>
         </article>
       </div>
@@ -634,19 +634,19 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
       <section class="candidate-section candidate-account-section">
         <div class="section-head candidate-section-head">
           <div>
-            <h2 class="h1">Compte utilisateur</h2>
-            <p class="sub">Les informations d'administration et d'acces sont editees ici.</p>
+            <h2 class="h1"><?= h(t('admin.contact.account_title', [], $lang)) ?></h2>
+            <p class="sub"><?= h(t('admin.contact.account_subtitle', [], $lang)) ?></p>
           </div>
         </div>
 
         <?php if ($linkedUserId <= 0): ?>
-          <p class="empty-state">Aucun compte utilisateur n'est lie a cet email.</p>
+          <p class="empty-state"><?= h(t('admin.contact.no_account', [], $lang)) ?></p>
         <?php else: ?>
           <div class="candidate-account-summary">
             <span class="pill info"><?= h(admin_contact_role_label((string)($linkedUser['role'] ?? 'USER'))) ?></span>
-            <span class="candidate-account-summary-item">Programmes : <?= (int)count($editProgramRoles) ?></span>
+            <span class="candidate-account-summary-item"><?= h(t('admin.contact.programs_label', ['count' => count($editProgramRoles)], $lang)) ?></span>
             <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn && $editEmailControlBypass === 1): ?>
-              <span class="candidate-account-summary-item">Controle email : desactive</span>
+              <span class="candidate-account-summary-item"><?= h(t('admin.contact.email_ctrl_disabled', [], $lang)) ?></span>
             <?php endif; ?>
           </div>
 
@@ -662,20 +662,20 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
               <div class="candidate-account-layout">
                 <section class="candidate-account-card">
                   <div class="candidate-account-card-head">
-                    <h3 class="candidate-account-card-title">Identite</h3>
-                    <p class="sub">Coordonnees principales du compte.</p>
+                    <h3 class="candidate-account-card-title"><?= h(t('admin.contact.identity_title', [], $lang)) ?></h3>
+                    <p class="sub"><?= h(t('admin.contact.identity_subtitle', [], $lang)) ?></p>
                   </div>
                   <div class="users-edit-grid">
                     <div>
-                      <label class="label" for="contact-edit-first-name">Prenom</label>
+                      <label class="label" for="contact-edit-first-name"><?= h(t('admin.users.firstname', [], $lang)) ?></label>
                       <input class="input" id="contact-edit-first-name" name="first_name" type="text" maxlength="100" required value="<?= h($editFirstName) ?>">
                     </div>
                     <div>
-                      <label class="label" for="contact-edit-last-name">Nom</label>
+                      <label class="label" for="contact-edit-last-name"><?= h(t('admin.users.lastname', [], $lang)) ?></label>
                       <input class="input" id="contact-edit-last-name" name="last_name" type="text" maxlength="100" required value="<?= h($editLastName) ?>">
                     </div>
                     <div class="candidate-account-field-wide">
-                      <label class="label" for="contact-edit-email">Email</label>
+                      <label class="label" for="contact-edit-email"><?= h(t('admin.common.email', [], $lang)) ?></label>
                       <input class="input" id="contact-edit-email" name="email" type="email" required value="<?= h($editEmail) ?>">
                     </div>
                   </div>
@@ -683,16 +683,16 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
 
                 <section class="candidate-account-card">
                   <div class="candidate-account-card-head">
-                    <h3 class="candidate-account-card-title">Securite</h3>
-                    <p class="sub">Laisse vide pour conserver le mot de passe actuel.</p>
+                    <h3 class="candidate-account-card-title"><?= h(t('admin.contact.security_title', [], $lang)) ?></h3>
+                    <p class="sub"><?= h(t('admin.contact.security_subtitle', [], $lang)) ?></p>
                   </div>
                   <div class="users-edit-grid candidate-account-compact-grid">
                     <div>
-                      <label class="label" for="contact-edit-pass">Nouveau mot de passe</label>
+                      <label class="label" for="contact-edit-pass"><?= h(t('admin.users.password_new', [], $lang)) ?></label>
                       <input class="input" id="contact-edit-pass" name="new_password" type="password" minlength="8" autocomplete="new-password">
                     </div>
                     <div>
-                      <label class="label" for="contact-edit-pass2">Confirmer le mot de passe</label>
+                      <label class="label" for="contact-edit-pass2"><?= h(t('admin.users.password_new_confirm', [], $lang)) ?></label>
                       <input class="input" id="contact-edit-pass2" name="new_password2" type="password" minlength="8" autocomplete="new-password">
                     </div>
                   </div>
@@ -700,22 +700,22 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
 
                 <section class="candidate-account-card candidate-account-card-full">
                   <div class="candidate-account-card-head">
-                    <h3 class="candidate-account-card-title">Permissions avancees</h3>
-                    <p class="sub">Programme(s) visibles et exception email.</p>
+                    <h3 class="candidate-account-card-title"><?= h(t('admin.contact.permissions_title', [], $lang)) ?></h3>
+                    <p class="sub"><?= h(t('admin.contact.permissions_subtitle', [], $lang)) ?></p>
                   </div>
                   <div class="candidate-account-checklists">
                     <?php if (user_has_role($adminUser, 'ADMIN')): ?>
                       <div class="users-multiselect candidate-account-checklist">
-                        <span class="label">Administration globale</span>
+                        <span class="label"><?= h(t('admin.contact.global_admin_label', [], $lang)) ?></span>
                         <label class="admin-inline-checkbox">
                           <input type="checkbox" name="role" value="ADMIN" <?= $editIsGlobalAdmin ? 'checked' : '' ?>>
-                          <span>Compte administrateur global</span>
+                          <span><?= h(t('admin.contact.global_admin_checkbox', [], $lang)) ?></span>
                         </label>
-                        <p class="sub" style="margin:8px 0 0;">Donne acces a tous les programmes et aux reglages globaux.</p>
+                        <p class="sub" style="margin:8px 0 0;"><?= h(t('admin.contact.global_admin_hint', [], $lang)) ?></p>
                       </div>
                     <?php endif; ?>
                     <div class="users-multiselect candidate-account-checklist">
-                      <span class="label">Acces par programme</span>
+                      <span class="label"><?= h(t('admin.contact.program_access_label', [], $lang)) ?></span>
                       <div class="users-checkbox-list">
                         <?php foreach ($programRows as $programRow): ?>
                           <?php $programIdOption = (int)($programRow['id'] ?? 0); ?>
@@ -724,10 +724,10 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                           <label class="users-checkbox-item users-program-role-item">
                             <span><?= h((string)($programLabelsById[$programIdOption] ?? ($programRow['name'] ?? 'Programme'))) ?></span>
                             <select class="input users-program-role-select" name="program_roles[<?= $programIdOption ?>]">
-                              <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>>Aucun</option>
-                              <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>>Utilisateur</option>
+                              <option value="NONE" <?= $selectedProgramRole === 'NONE' ? 'selected' : '' ?>><?= h(t('admin.users.role_none', [], $lang)) ?></option>
+                              <option value="USER" <?= $selectedProgramRole === 'USER' ? 'selected' : '' ?>><?= h(t('admin.users.role_user', [], $lang)) ?></option>
                               <?php if (user_has_role($adminUser, ['ADMIN', 'OWNER'])): ?>
-                                <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>>Owner</option>
+                                <option value="OWNER" <?= $selectedProgramRole === 'OWNER' ? 'selected' : '' ?>><?= h(t('admin.users.role_owner', [], $lang)) ?></option>
                               <?php endif; ?>
                             </select>
                           </label>
@@ -736,10 +736,10 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                     </div>
                     <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn): ?>
                       <div class="users-multiselect candidate-account-checklist">
-                        <span class="label">Exception email</span>
+                        <span class="label"><?= h(t('admin.users.email_bypass', [], $lang)) ?></span>
                         <label class="admin-inline-checkbox">
                           <input type="checkbox" name="email_control_bypass" value="1" <?= $editEmailControlBypass === 1 ? 'checked' : '' ?>>
-                          <span>Ignorer le controle email pour ce compte</span>
+                          <span><?= h(t('admin.users.email_bypass_hint', [], $lang)) ?></span>
                         </label>
                       </div>
                     <?php endif; ?>
@@ -751,7 +751,7 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
               </div>
             </form>
           <?php else: ?>
-            <p class="empty-state">Vous pouvez consulter ce profil, mais pas modifier ce compte utilisateur.</p>
+            <p class="empty-state"><?= h(t('admin.contact.read_only_notice', [], $lang)) ?></p>
           <?php endif; ?>
         <?php endif; ?>
       </section>
@@ -760,37 +760,37 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
       <section class="candidate-section candidate-section-accent">
       <div class="section-head candidate-section-head">
         <div>
-          <h2 class="h1">Deblocage exam</h2>
-          <p class="sub">Rendre une certification de nouveau disponible pour ce candidat (un prochain lancement).</p>
+          <h2 class="h1"><?= h(t('admin.contact.unblock_title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.contact.unblock_subtitle', [], $lang)) ?></p>
         </div>
       </div>
 
       <?php if ($unlockOk === '1'): ?>
-        <p class="success">Deblocage enregistre. Le prochain lancement d'exam sur ce pack est autorise.</p>
+        <p class="success"><?= h(t('admin.contact.unlock_ok_msg', [], $lang)) ?></p>
       <?php endif; ?>
       <?php if ($unlockError !== ''): ?>
         <p class="error"><?= h($unlockError) ?></p>
       <?php endif; ?>
       <?php if ($reblockOk === '1'): ?>
-        <p class="success">Rebloquage enregistre. Le deblocage actif a ete retire.</p>
+        <p class="success"><?= h(t('admin.contact.reblock_ok_msg', [], $lang)) ?></p>
       <?php endif; ?>
       <?php if ($reblockError !== ''): ?>
         <p class="error"><?= h($reblockError) ?></p>
       <?php endif; ?>
 
       <?php if ($linkedUserId <= 0): ?>
-        <p class="error">Aucun compte utilisateur n'est lie a cet email. Deblocage impossible.</p>
+        <p class="error"><?= h(t('admin.contact.unlock_no_account', [], $lang)) ?></p>
       <?php elseif (!$canMutateReporting): ?>
-        <p class="sub">Consultation seule pour ce role.</p>
+        <p class="sub"><?= h(t('admin.contact.unlock_read_only', [], $lang)) ?></p>
       <?php elseif (!$packages): ?>
-        <p class="error">Aucune certification active disponible.</p>
+        <p class="error"><?= h(t('admin.contact.unlock_no_certs', [], $lang)) ?></p>
       <?php else: ?>
         <form method="post" class="filters-grid candidate-inline-form">
           <input type="hidden" name="action" value="unlock_exam">
           <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
 
           <div>
-            <label class="label" for="unlock-package-id">Certification</label>
+            <label class="label" for="unlock-package-id"><?= h(t('admin.contact.unlock_cert_label', [], $lang)) ?></label>
             <select class="input" id="unlock-package-id" name="unlock_package_id" required>
               <?php foreach ($packages as $pkg): ?>
                 <option value="<?= (int)$pkg['id'] ?>">
@@ -801,17 +801,17 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
           </div>
 
           <div>
-            <label class="label" for="unlock-days">Validite du deblocage (jours)</label>
+            <label class="label" for="unlock-days"><?= h(t('admin.contact.unlock_days_label', [], $lang)) ?></label>
             <input class="input" id="unlock-days" name="unlock_days" type="number" min="1" max="3650" value="<?= (int)$unlockDays ?>" required>
           </div>
 
           <div>
-            <label class="label" for="unlock-reason">Motif (optionnel)</label>
-            <input class="input" id="unlock-reason" name="unlock_reason" type="text" maxlength="255" placeholder="Ex: demande support">
+            <label class="label" for="unlock-reason"><?= h(t('admin.contact.unlock_reason_label', [], $lang)) ?></label>
+            <input class="input" id="unlock-reason" name="unlock_reason" type="text" maxlength="255" placeholder="<?= h(t('admin.contact.unlock_reason_placeholder', [], $lang)) ?>">
           </div>
 
           <div class="filters-actions">
-            <button class="btn" type="submit">Debloquer</button>
+            <button class="btn" type="submit"><?= h(t('admin.contact.unblock_btn', [], $lang)) ?></button>
           </div>
         </form>
       <?php endif; ?>
@@ -819,41 +819,41 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
       <?php if ($activeOverrides): ?>
         <div class="candidate-subsection-head">
           <div>
-            <h3 class="candidate-subsection-title">Deblocages actifs et historiques</h3>
-            <p class="sub sessions-meta">Page <?= (int)$overridePage ?> / <?= (int)$overrideTotalPages ?> (<?= (int)$overrideTotalRows ?> resultats)</p>
+            <h3 class="candidate-subsection-title"><?= h(t('admin.contact.unblock_history', [], $lang)) ?></h3>
+            <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $overridePage, 'total' => $overrideTotalPages, 'count' => $overrideTotalRows], $lang)) ?></p>
           </div>
         </div>
         <div class="table-wrap candidate-table-wrap">
           <table class="table questions-table overrides-table">
             <thead>
               <tr>
-                <th>Certification</th>
-                <th>Etat</th>
-                <th>Cree le</th>
-                <th>Expire le</th>
-                <th>Utilisé le</th>
-                <th>Motif</th>
-                <th>Cree par</th>
-                <th>Action</th>
+                <th><?= h(t('admin.contact.col_cert', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_state', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_created_at', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_expires', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_used_at', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_reason', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_created_by', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.action', [], $lang)) ?></th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($activeOverrides as $ov):
-                $state = 'Inactif';
+                $state = t('admin.contact.status_inactive', [], $lang);
                 $stateClass = 'badge';
                 $canReblock = false;
                 if ((int)($ov['is_active'] ?? 1) === 1 && empty($ov['used_at'])) {
                   $expired = !empty($ov['expires_at']) && strtotime((string)$ov['expires_at']) < time();
                   if ($expired) {
-                    $state = 'Expire';
+                    $state = t('admin.contact.status_expired', [], $lang);
                     $stateClass = 'badge bad';
                   } else {
-                    $state = 'Actif';
+                    $state = t('admin.contact.status_active', [], $lang);
                     $stateClass = 'badge ok';
                     $canReblock = true;
                   }
                 } elseif (!empty($ov['used_at'])) {
-                  $state = 'Utilisé';
+                  $state = t('admin.contact.status_used', [], $lang);
                   $stateClass = 'badge';
                 }
               ?>
@@ -874,9 +874,9 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                         <button
                           class="btn ghost icon-btn danger"
                           type="submit"
-                          aria-label="Rebloquer"
-                          title="Rebloquer"
-                          onclick="return confirm('Rebloquer cette certification pour ce candidat ?');"
+                          aria-label="<?= h(t('admin.contact.reblock_btn', [], $lang)) ?>"
+                          title="<?= h(t('admin.contact.reblock_btn', [], $lang)) ?>"
+                          onclick="return confirm('<?= h(t('admin.contact.reblock_confirm', [], $lang)) ?>');"
                         >
                           <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M6.7 5.3 12 10.6l5.3-5.3 1.4 1.4L13.4 12l5.3 5.3-1.4 1.4L12 13.4l-5.3 5.3-1.4-1.4L10.6 12 5.3 6.7z"/>
@@ -947,24 +947,24 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
       <section class="candidate-section">
       <div class="section-head candidate-section-head">
         <div>
-          <h2 class="h1">Certifications</h2>
-          <p class="sub">Derniere session certification reussie par certification.</p>
+          <h2 class="h1"><?= h(t('admin.contact.certs_title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.contact.certs_subtitle', [], $lang)) ?></p>
         </div>
       </div>
 
       <div class="table-wrap candidate-table-wrap">
         <?php if (!$certs): ?>
-          <p class="empty-state">Aucune certification reussie.</p>
+          <p class="empty-state"><?= h(t('admin.contact.certs_none', [], $lang)) ?></p>
         <?php else: ?>
           <table class="table questions-table certifications-table">
             <thead>
               <tr>
-                <th>Certification</th>
-                <th>Date debut</th>
-                <th>Fin de session</th>
-                <th>Expiration</th>
-                <th>Statut</th>
-                <th>Action</th>
+                <th><?= h(t('admin.contact.col_cert', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_start', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_end', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_expires', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.status', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.action', [], $lang)) ?></th>
               </tr>
             </thead>
             <tbody>
@@ -972,7 +972,8 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                 $certStatus = certification_status_from_last_success(
                   (string)$c['last_cert_date'],
                   null,
-                  (int)($c['cert_validity_days'] ?? 365)
+                  (int)($c['cert_validity_days'] ?? 365),
+                  $lang
                 );
                 $packageId = (int)($c['package_id'] ?? 0);
                 $isRevoked = false;
@@ -994,7 +995,7 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                 if ($isRevoked) {
                   $certStatus = [
                     'status_key' => 'REVOKED',
-                    'status_label' => 'Revoquee',
+                    'status_label' => t('admin.certs.status_revoked', [], $lang),
                     'status_class' => 'pill danger',
                     'expires_at' => $certStatus['expires_at'] ?? null,
                   ];
@@ -1022,11 +1023,11 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
 	                  <td><span style="<?= h(package_label_style((string)$c['package_name'], (string)($c['package_color_hex'] ?? ''))) ?>"><?= h($c['package_name']) ?></span></td>
                   <td><?= h((string)($c['last_started_at'] ?? '-')) ?></td>
                   <td><?= h($c['last_cert_date']) ?></td>
-                  <td><?= h(admin_contact_format_cert_expiry($expiresAt, $isRevoked)) ?></td>
+                  <td><?= h(admin_contact_format_cert_expiry($expiresAt, $isRevoked, $lang)) ?></td>
                   <td><span class="<?= h((string)$certStatus['status_class']) ?>"><?= h((string)$certStatus['status_label']) ?></span></td>
                   <td class="actions-cell">
                     <?php if ($sessionDetailUrl !== ''): ?>
-                      <a class="btn ghost icon-btn" href="<?= h($sessionDetailUrl) ?>" aria-label="Voir le detail de la session" title="Voir le detail de la session">
+                      <a class="btn ghost icon-btn" href="<?= h($sessionDetailUrl) ?>" aria-label="<?= h(t('admin.common.view_detail', [], $lang)) ?>" title="<?= h(t('admin.common.view_detail', [], $lang)) ?>">
                         <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                           <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                         </svg>
@@ -1037,11 +1038,11 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                       -
                     <?php elseif ((string)($certStatus['status_key'] ?? '') === 'REVOKED'): ?>
                         <a class="btn ghost cert-action-restore" href="/admin/certification_revoke.php?action=undo&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
-                           onclick="return confirm('Retablir cette certification ?');">Retablir</a>
+                           onclick="return confirm('<?= h(t('admin.contact.restore_confirm', [], $lang)) ?>');"><?= h(t('admin.certs.restore', [], $lang)) ?></a>
                       <?php else: ?>
                         <a class="btn ghost icon-btn danger" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
-                           aria-label="Revoquer" title="Revoquer"
-                           onclick="return confirm('Revoquer cette certification ?');">
+                           aria-label="<?= h(t('admin.certs.revoke', [], $lang)) ?>" title="<?= h(t('admin.certs.revoke', [], $lang)) ?>"
+                           onclick="return confirm('<?= h(t('admin.contact.revoke_confirm', [], $lang)) ?>');"
                           <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M6.7 5.3 12 10.6l5.3-5.3 1.4 1.4L13.4 12l5.3 5.3-1.4 1.4L12 13.4l-5.3 5.3-1.4-1.4L10.6 12 5.3 6.7z"/>
                           </svg>
@@ -1060,8 +1061,8 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
       <section class="candidate-section candidate-section-wide" id="history-sessions">
       <div class="section-head candidate-section-head">
         <div>
-          <h2 class="h1">Historique des sessions</h2>
-          <p class="sub">Suivi complet des examens et tests du candidat avec filtres de consultation.</p>
+          <h2 class="h1"><?= h(t('admin.contact.history_title', [], $lang)) ?></h2>
+          <p class="sub"><?= h(t('admin.contact.history_subtitle', [], $lang)) ?></p>
         </div>
       </div>
 
@@ -1071,18 +1072,18 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
         <input type="hidden" name="hdir" value="<?= h($hdir) ?>">
 
         <div>
-          <label class="label" for="htype">Type</label>
+          <label class="label" for="htype"><?= h(t('admin.sessions.filter_type', [], $lang)) ?></label>
           <select class="input" id="htype" name="htype">
-            <option value="ALL" <?= $htype==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="EXAM" <?= $htype==='EXAM'?'selected':'' ?>>Certification</option>
-            <option value="TRAINING" <?= $htype==='TRAINING'?'selected':'' ?>>Test</option>
+            <option value="ALL" <?= $htype==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="EXAM" <?= $htype==='EXAM'?'selected':'' ?>><?= h(t('admin.sessions.type_exam', [], $lang)) ?></option>
+            <option value="TRAINING" <?= $htype==='TRAINING'?'selected':'' ?>><?= h(t('admin.sessions.type_training', [], $lang)) ?></option>
           </select>
         </div>
 
         <div>
-          <label class="label" for="hpackage">Package</label>
+          <label class="label" for="hpackage"><?= h(t('admin.contact.col_package', [], $lang)) ?></label>
           <select class="input" id="hpackage" name="hpackage">
-            <option value="ALL" <?= $hpackage==='ALL'?'selected':'' ?>>Tous</option>
+            <option value="ALL" <?= $hpackage==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
             <?php foreach ($packages as $pkg): ?>
               <option value="<?= (int)$pkg['id'] ?>" <?= $hpackage===(string)$pkg['id']?'selected':'' ?>>
                 <?= h(localize_text((string)$pkg['name'], 'fr')) ?>
@@ -1092,21 +1093,21 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
         </div>
 
         <div>
-          <label class="label" for="hstatus">Statut</label>
+          <label class="label" for="hstatus"><?= h(t('admin.common.status', [], $lang)) ?></label>
           <select class="input" id="hstatus" name="hstatus">
-            <option value="ALL" <?= $hstatus==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="ACTIVE" <?= $hstatus==='ACTIVE'?'selected':'' ?>>Actif</option>
-            <option value="TERMINATED" <?= $hstatus==='TERMINATED'?'selected':'' ?>>Termine</option>
-            <option value="EXPIRED" <?= $hstatus==='EXPIRED'?'selected':'' ?>>Expire</option>
+            <option value="ALL" <?= $hstatus==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="ACTIVE" <?= $hstatus==='ACTIVE'?'selected':'' ?>><?= h(t('admin.common.active', [], $lang)) ?></option>
+            <option value="TERMINATED" <?= $hstatus==='TERMINATED'?'selected':'' ?>><?= h(t('admin.status.terminated', [], $lang)) ?></option>
+            <option value="EXPIRED" <?= $hstatus==='EXPIRED'?'selected':'' ?>><?= h(t('admin.status.expired', [], $lang)) ?></option>
           </select>
         </div>
 
         <div>
-          <label class="label" for="hresult">Resultat</label>
+          <label class="label" for="hresult"><?= h(t('admin.sessions.filter_result', [], $lang)) ?></label>
           <select class="input" id="hresult" name="hresult">
-            <option value="ALL" <?= $hresult==='ALL'?'selected':'' ?>>Tous</option>
-            <option value="PASSED" <?= $hresult==='PASSED'?'selected':'' ?>>Reussi</option>
-            <option value="FAILED" <?= $hresult==='FAILED'?'selected':'' ?>>Echoue</option>
+            <option value="ALL" <?= $hresult==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+            <option value="PASSED" <?= $hresult==='PASSED'?'selected':'' ?>><?= h(t('admin.common.passed', [], $lang)) ?></option>
+            <option value="FAILED" <?= $hresult==='FAILED'?'selected':'' ?>><?= h(t('admin.common.failed', [], $lang)) ?></option>
           </select>
         </div>
 
@@ -1118,9 +1119,9 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
 
       <div class="table-wrap candidate-table-wrap">
         <?php if (!$hist): ?>
-          <p class="empty-state">Aucune session.</p>
+          <p class="empty-state"><?= h(t('admin.contact.history_none', [], $lang)) ?></p>
         <?php else: ?>
-          <p class="sub sessions-meta">Page <?= (int)$historyPage ?> / <?= (int)$histTotalPages ?> (<?= (int)$histTotalRows ?> resultats)</p>
+          <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $historyPage, 'total' => $histTotalPages, 'count' => $histTotalRows], $lang)) ?></p>
           <table class="table questions-table">
             <thead>
               <tr>
@@ -1132,15 +1133,15 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                     $url = '/admin/contact.php?' . http_build_query($qs);
                   ?>
                   <a class="sort-link" href="<?= h($url) ?>">
-                    Date debut
+                    <?= h(t('admin.contact.col_start', [], $lang)) ?>
                     <?php if ($hsort === 'started_at'): ?>
                       <span><?= $hdir === 'DESC' ? '&darr;' : '&uarr;' ?></span>
                     <?php endif; ?>
                   </a>
                 </th>
-                <th>Type</th>
-                <th>Package</th>
-                <th>Statut</th>
+                <th><?= h(t('admin.sessions.filter_type', [], $lang)) ?></th>
+                <th><?= h(t('admin.contact.col_package', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.status', [], $lang)) ?></th>
                 <th>
                   <?php
                     $qs = $_GET;
@@ -1149,45 +1150,45 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                     $url = '/admin/contact.php?' . http_build_query($qs);
                   ?>
                   <a class="sort-link" href="<?= h($url) ?>">
-                    Score
+                    <?= h(t('admin.common.score', [], $lang)) ?>
                     <?php if ($hsort === 'score_percent'): ?>
                       <span><?= $hdir === 'DESC' ? '&darr;' : '&uarr;' ?></span>
                     <?php endif; ?>
                   </a>
                 </th>
-                <th>Resultat</th>
-                <th>Action</th>
+                <th><?= h(t('admin.sessions.filter_result', [], $lang)) ?></th>
+                <th><?= h(t('admin.common.action', [], $lang)) ?></th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($hist as $s): ?>
                 <tr>
                   <td><?= h($s['started_at']) ?></td>
-                  <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
+                  <td><?= h(admin_session_type_label((string)$s['session_type'], $lang)) ?></td>
 	                  <td><span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h($s['package_name']) ?></span></td>
                   <td>
                     <?php if ($s['status'] === 'TERMINATED'): ?>
-                      <span class="badge ok">Termine</span>
+                      <span class="badge ok"><?= h(t('admin.status.terminated', [], $lang)) ?></span>
                     <?php elseif ($s['status'] === 'EXPIRED'): ?>
-                      <span class="badge bad">Expire</span>
+                      <span class="badge bad"><?= h(t('admin.status.expired', [], $lang)) ?></span>
                     <?php else: ?>
-                      <span class="badge">Actif</span>
+                      <span class="badge"><?= h(t('admin.common.active', [], $lang)) ?></span>
                     <?php endif; ?>
                   </td>
                   <td><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></td>
                   <td>
                     <?php if (admin_contact_session_has_result($s)): ?>
                       <?php if ((int)$s['passed'] === 1): ?>
-                        <span class="badge ok">Reussi</span>
+                        <span class="badge ok"><?= h(t('admin.common.passed', [], $lang)) ?></span>
                       <?php else: ?>
-                        <span class="badge bad">Echoue</span>
+                        <span class="badge bad"><?= h(t('admin.common.failed', [], $lang)) ?></span>
                       <?php endif; ?>
                     <?php else: ?>
                       -
                     <?php endif; ?>
                   </td>
                   <td class="actions-cell">
-                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/contact.php?email=' . $contact['email']))) ?>" aria-label="Voir le detail" title="Voir le detail">
+                    <a class="btn ghost icon-btn" href="/admin/session.php?sid=<?= h($s['id']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>&return=<?= h(urlencode((string)($_SERVER['REQUEST_URI'] ?? '/admin/contact.php?email=' . $contact['email']))) ?>" aria-label="<?= h(t('admin.common.view_detail', [], $lang)) ?>" title="<?= h(t('admin.common.view_detail', [], $lang)) ?>">
                       <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1.2 1.2 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19S2.5 14.4 1.2 12.7a1.2 1.2 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5zm0 2C8 7 4.9 10.3 3.3 12 4.9 13.7 8 17 12 17s7.1-3.3 8.7-5C19.1 10.3 16 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
                       </svg>

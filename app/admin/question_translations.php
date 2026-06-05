@@ -172,7 +172,7 @@ function translation_packages_for_question(array $question, array $packageDefini
   return $matches;
 }
 
-function translation_package_usage_meta(array $usedPackages): array {
+function translation_package_usage_meta(array $usedPackages, string $lang = 'fr'): array {
   $count = count($usedPackages);
   $names = array_values(array_filter(array_map(static fn(array $pkg): string => trim((string)($pkg['name'] ?? '')), $usedPackages), static fn(string $name): bool => $name !== ''));
   $tooltip = implode(', ', $names);
@@ -198,7 +198,7 @@ function translation_package_usage_meta(array $usedPackages): array {
   }
 
   return [
-    'label' => $count . ' packs',
+    'label' => t('admin.translations.n_packs', ['n' => $count], $lang),
     'title' => $tooltip,
     'class' => 'translation-pack-usage-multi pill info',
     'color' => '',
@@ -237,7 +237,7 @@ foreach ($questionRows as $row) {
     'need' => (string)($row['need'] ?? ''),
     'level' => (int)($row['level'] ?? 0),
     'used_packages' => $usedPackages,
-    'usage_meta' => translation_package_usage_meta($usedPackages),
+    'usage_meta' => translation_package_usage_meta($usedPackages, $lang),
     'statuses' => $statuses,
   ];
 }
@@ -265,12 +265,12 @@ foreach ($filteredRows as $row) {
   }
 }
 
-function translation_status_meta(string $status): array {
+function translation_status_meta(string $status, string $lang = 'fr'): array {
   return match ($status) {
-    'complete' => ['label' => 'A jour', 'class' => 'pill success'],
-    'stale' => ['label' => 'A revoir', 'class' => 'pill warning'],
-    'partial' => ['label' => 'Partielle', 'class' => 'pill info'],
-    default => ['label' => 'Manquante', 'class' => 'pill danger'],
+    'complete' => ['label' => t('admin.translations.stat_ok', [], $lang), 'class' => 'pill success'],
+    'stale' => ['label' => t('admin.translations.stat_stale', [], $lang), 'class' => 'pill warning'],
+    'partial' => ['label' => t('admin.translations.stat_partial', [], $lang), 'class' => 'pill info'],
+    default => ['label' => t('admin.translations.stat_missing', [], $lang), 'class' => 'pill danger'],
   };
 }
 
@@ -304,18 +304,19 @@ function translation_export_url(int $activeProgramId): string {
 <head>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
-  <title>Admin &middot; Couverture traductions</title>
+  <title><?= h(t('admin.translations.title', [], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
 </head>
 <body>
 <div class="container admin-container">
-  <div class="card admin-card">
-    <div class="admin-head">
+  <div class="card admin-card admin-page-shell">
+    <div class="admin-head admin-page-hero">
       <div class="admin-head-copy">
-        <h2 class="h1">Admin &middot; Couverture traductions</h2>
-        <p class="sub">Suivi global des statuts de traduction sur les questions. Source: <?= h(question_translation_lang_label($programSourceLang)) ?>.</p>
+        <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
+        <h2 class="h1"><?= h(t('admin.translations.title', [], $lang)) ?></h2>
+        <p class="sub"><?= h(t('admin.translations.subtitle', ['source' => question_translation_lang_label($programSourceLang)], $lang)) ?></p>
       </div>
       <div class="admin-head-actions">
         <?php render_admin_tabs('translations'); ?>
@@ -330,10 +331,10 @@ function translation_export_url(int $activeProgramId): string {
           <span class="admin-stat-label"><?= h($langLabel) ?></span>
           <strong class="admin-stat-value"><?= (int)($summary[$langCode]['complete'] ?? 0) ?> / <?= (int)count($allQuestionIds) ?></strong>
           <div class="translation-summary-meta">
-            <span class="pill success">A jour <?= (int)($summary[$langCode]['complete'] ?? 0) ?></span>
-            <span class="pill warning">A revoir <?= (int)($summary[$langCode]['stale'] ?? 0) ?></span>
-            <span class="pill info">Partielle <?= (int)($summary[$langCode]['partial'] ?? 0) ?></span>
-            <span class="pill danger">Manquante <?= (int)($summary[$langCode]['missing'] ?? 0) ?></span>
+            <span class="pill success"><?= h(t('admin.translations.stat_ok', [], $lang)) ?> <?= (int)($summary[$langCode]['complete'] ?? 0) ?></span>
+            <span class="pill warning"><?= h(t('admin.translations.stat_stale', [], $lang)) ?> <?= (int)($summary[$langCode]['stale'] ?? 0) ?></span>
+            <span class="pill info"><?= h(t('admin.translations.stat_partial', [], $lang)) ?> <?= (int)($summary[$langCode]['partial'] ?? 0) ?></span>
+            <span class="pill danger"><?= h(t('admin.translations.stat_missing', [], $lang)) ?> <?= (int)($summary[$langCode]['missing'] ?? 0) ?></span>
           </div>
         </article>
       <?php endforeach; ?>
@@ -343,37 +344,37 @@ function translation_export_url(int $activeProgramId): string {
       <section class="admin-section-panel">
         <div class="admin-panel-toolbar">
           <div>
-            <h3 class="h1" style="margin:0;">Gestion du catalogue</h3>
-            <p class="sub" style="margin:6px 0 0;">Suivi, export et import de la banque de questions traduites.</p>
+            <h3 class="h1" style="margin:0;"><?= h(t('admin.translations.catalog_title', [], $lang)) ?></h3>
+            <p class="sub" style="margin:6px 0 0;"><?= h(t('admin.translations.catalog_subtitle', [], $lang)) ?></p>
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <a class="btn ghost" href="<?= h(translation_export_url($activeProgramId)) ?>">Exporter CSV</a>
-            <a class="btn admin-primary-action-btn" href="<?= h(translation_import_url($activeProgramId)) ?>">+ Importer</a>
+            <a class="btn ghost" href="<?= h(translation_export_url($activeProgramId)) ?>"><?= h(t('admin.common.export_csv', [], $lang)) ?></a>
+            <a class="btn admin-primary-action-btn" href="<?= h(translation_import_url($activeProgramId)) ?>">+ <?= h(t('admin.common.import', [], $lang)) ?></a>
           </div>
         </div>
 
         <form method="get" class="admin-panel-surface audit-config-panel">
           <div class="audit-filter-grid audit-filter-grid-main">
             <div>
-              <label class="label" for="translation_package_id">Packs</label>
+              <label class="label" for="translation_package_id"><?= h(t('admin.translations.filter_packs', [], $lang)) ?></label>
               <select class="input" id="translation_package_id" name="package_id">
-                <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>>Tous</option>
+                <option value="0" <?= $packageId === 0 ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
                 <?php foreach ($packages as $pkg): ?>
                   <option value="<?= (int)$pkg['id'] ?>" <?= $packageId === (int)$pkg['id'] ? 'selected' : '' ?>><?= h((string)$pkg['name']) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
             <div>
-              <label class="label" for="translation_need">Catégorie</label>
+              <label class="label" for="translation_need"><?= h(t('admin.questions.col_category', [], $lang)) ?></label>
               <select class="input" id="translation_need" name="need">
-                <option value="" <?= $needFilter === '' ? 'selected' : '' ?>>Toutes</option>
+                <option value="" <?= $needFilter === '' ? 'selected' : '' ?>><?= h(t('admin.translations.filter_all_cats', [], $lang)) ?></option>
                 <?php foreach ($allNeeds as $need): ?>
                   <option value="<?= h($need) ?>" <?= $needFilter === $need ? 'selected' : '' ?>><?= h($need) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
             <div>
-              <label class="label" for="translation_lang_filter">Langue</label>
+              <label class="label" for="translation_lang_filter"><?= h(t('admin.translations.filter_lang', [], $lang)) ?></label>
               <select class="input" id="translation_lang_filter" name="lang_filter">
                 <?php foreach ($translationLangs as $langCode => $langLabel): ?>
                   <option value="<?= h($langCode) ?>" <?= $langFilter === $langCode ? 'selected' : '' ?>><?= h($langLabel) ?></option>
@@ -381,19 +382,19 @@ function translation_export_url(int $activeProgramId): string {
               </select>
             </div>
             <div>
-              <label class="label" for="translation_state_filter">Statut</label>
+              <label class="label" for="translation_state_filter"><?= h(t('admin.common.status', [], $lang)) ?></label>
               <select class="input" id="translation_state_filter" name="state_filter">
-                <option value="ALL" <?= $stateFilter === 'ALL' ? 'selected' : '' ?>>Tous</option>
-                <option value="complete" <?= $stateFilter === 'complete' ? 'selected' : '' ?>>A jour</option>
-                <option value="stale" <?= $stateFilter === 'stale' ? 'selected' : '' ?>>A revoir</option>
-                <option value="partial" <?= $stateFilter === 'partial' ? 'selected' : '' ?>>Partielle</option>
-                <option value="missing" <?= $stateFilter === 'missing' ? 'selected' : '' ?>>Manquante</option>
+                <option value="ALL" <?= $stateFilter === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
+                <option value="complete" <?= $stateFilter === 'complete' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_ok', [], $lang)) ?></option>
+                <option value="stale" <?= $stateFilter === 'stale' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_stale', [], $lang)) ?></option>
+                <option value="partial" <?= $stateFilter === 'partial' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_partial', [], $lang)) ?></option>
+                <option value="missing" <?= $stateFilter === 'missing' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_missing', [], $lang)) ?></option>
               </select>
             </div>
           </div>
           <div class="filters-actions audit-config-actions">
-            <button class="btn" type="submit">Appliquer</button>
-            <a class="btn ghost" href="/admin/question_translations.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>">Reset</a>
+            <button class="btn" type="submit"><?= h(t('admin.translations.apply', [], $lang)) ?></button>
+            <a class="btn ghost" href="/admin/question_translations.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
           </div>
         </form>
       </section>
@@ -401,22 +402,22 @@ function translation_export_url(int $activeProgramId): string {
       <section class="admin-section-panel">
         <div class="section-head admin-section-head">
           <div>
-            <h3 class="h1">Questions suivies</h3>
-            <p class="sub sessions-meta">Page <?= (int)$page ?> / <?= (int)$totalPages ?> (<?= (int)$totalQuestions ?> question(s))</p>
+            <h3 class="h1"><?= h(t('admin.translations.questions_title', [], $lang)) ?></h3>
+            <p class="sub sessions-meta"><?= h(t('admin.common.page_of', ['page' => $page, 'total' => $totalPages, 'count' => $totalQuestions], $lang)) ?></p>
           </div>
         </div>
 
         <div class="table-wrap admin-table-panel">
           <?php if (!$coverageRows): ?>
-            <p class="empty-state">Aucune question pour ces filtres.</p>
+            <p class="empty-state"><?= h(t('admin.translations.none', [], $lang)) ?></p>
           <?php else: ?>
             <table class="table questions-table translation-coverage-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Question</th>
-                  <th>Catégorie</th>
-                  <th>Packs</th>
+                  <th><?= h(t('admin.questions.col_id', [], $lang)) ?></th>
+                  <th><?= h(t('admin.translations.col_question', [], $lang)) ?></th>
+                  <th><?= h(t('admin.questions.col_category', [], $lang)) ?></th>
+                  <th><?= h(t('admin.translations.filter_packs', [], $lang)) ?></th>
                   <?php foreach ($translationLangs as $langLabel): ?>
                     <th><?= h($langLabel) ?></th>
                   <?php endforeach; ?>
@@ -440,7 +441,7 @@ function translation_export_url(int $activeProgramId): string {
                       <?php endif; ?>
                     </td>
                     <?php foreach ($translationLangs as $langCode => $_langLabel): ?>
-                      <?php $meta = translation_status_meta((string)($row['statuses'][$langCode] ?? 'missing')); ?>
+                      <?php $meta = translation_status_meta((string)($row['statuses'][$langCode] ?? 'missing'), $lang); ?>
                       <td><span class="<?= h($meta['class']) ?>"><?= h($meta['label']) ?></span></td>
                     <?php endforeach; ?>
                     <td class="actions-cell">

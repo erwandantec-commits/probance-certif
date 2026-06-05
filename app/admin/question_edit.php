@@ -510,7 +510,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta charset="utf-8">
   <?php $displayQuestionId = $question['external_id'] !== null ? (int)$question['external_id'] : (int)$question['id']; ?>
-  <title><?= "Modifier question #".(int)$displayQuestionId ?></title>
+  <title><?= h(t('admin.questions.edit_title', ['id' => $displayQuestionId], $lang)) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
@@ -520,9 +520,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="card admin-card">
     <div class="admin-head">
       <div class="admin-head-copy">
-        <h2 class="h1"><?= "Admin &middot; Modifier question #".(int)$displayQuestionId ?></h2>
+        <h2 class="h1"><?= h(t('admin.questions.edit_title', ['id' => $displayQuestionId], $lang)) ?></h2>
         <?php if ($question['external_id'] !== null): ?>
-          <p class="sub">ID interne: #<?= (int)$question['id'] ?></p>
+          <p class="sub"><?= h(t('admin.questions.internal_id', ['id' => (int)$question['id']], $lang)) ?></p>
         <?php endif; ?>
       </div>
       <div class="admin-head-actions">
@@ -534,7 +534,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php if ($errors): ?>
       <div class="import-report question-errors">
-        <div class="import-report-title">Erreurs</div>
+        <div class="import-report-title"><?= h(t('admin.questions.errors', [], $lang)) ?></div>
         <div class="import-report-errors">
           <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
         </div>
@@ -544,13 +544,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form method="post" class="question-form">
       <input type="hidden" name="return" value="<?= h($returnTo) ?>">
       <section class="pack-config-section">
-        <h3 class="pack-config-title">Configuration de la question</h3>
+        <h3 class="pack-config-title"><?= h(t('admin.questions.section_config', [], $lang)) ?></h3>
         <div class="pack-config-grid">
           <article class="pack-config-card">
-            <h4 class="pack-config-card-title">Param&egrave;tres</h4>
+            <h4 class="pack-config-card-title"><?= h(t('admin.questions.card_params', [], $lang)) ?></h4>
             <div class="pack-config-fields">
               <div class="question-field">
-                <label class="label">Categorie</label>
+                <label class="label"><?= h(t('admin.questions.field_category', [], $lang)) ?></label>
                 <select class="input" name="need" required>
                   <?php foreach ($knownNeeds as $needOpt): ?>
                     <option value="<?= h($needOpt) ?>" <?= ((string)($question['need'] ?? '') === $needOpt) ? 'selected' : '' ?>>
@@ -561,7 +561,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </div>
 
               <div class="question-field">
-                <label class="label">Niveau question</label>
+                <label class="label"><?= h(t('admin.questions.field_level', [], $lang)) ?></label>
                 <select name="level" required>
                   <?php for ($i = 1; $i <= 3; $i++): ?>
                     <option value="<?= $i ?>" <?= ((int)($question['level'] ?? 1) === $i) ? 'selected' : '' ?>>
@@ -572,18 +572,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </div>
 
               <div class="question-field">
-                <label class="label">Th&eacute;matique</label>
-                <input class="input" type="text" name="theme" value="<?= h((string)($question['theme'] ?? '')) ?>" placeholder="Theme de la question">
+                <label class="label"><?= h(t('admin.questions.field_theme', [], $lang)) ?></label>
+                <input class="input" type="text" name="theme" value="<?= h((string)($question['theme'] ?? '')) ?>" placeholder="<?= h(t('admin.questions.field_theme_ph', [], $lang)) ?>">
               </div>
 
               <div class="question-field">
-                <label class="label">Type</label>
+                <label class="label"><?= h(t('admin.common.type', [], $lang)) ?></label>
                 <select name="question_type">
                   <?php
                   $typeLabels = [
-                    'MULTI' => 'Choix multiple',
-                    'SINGLE' => 'Choix unique',
-                    'TRUE_FALSE' => 'Vrai / Faux',
+                    'MULTI' => t('admin.questions.type_multi', [], $lang),
+                    'SINGLE' => t('admin.questions.type_single', [], $lang),
+                    'TRUE_FALSE' => t('admin.questions.type_tf', [], $lang),
                   ];
                   foreach ($typeLabels as $typeValue => $typeLabel):
                   ?>
@@ -596,15 +596,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </article>
 
           <article class="pack-config-card pack-config-card-wide">
-            <h4 class="pack-config-card-title">Enonc&eacute;</h4>
+            <h4 class="pack-config-card-title"><?= h(t('admin.questions.card_statement', [], $lang)) ?></h4>
             <div class="pack-config-fields">
               <div class="question-field-full">
-                <label class="label">Texte de la question</label>
+                <label class="label"><?= h(t('admin.questions.field_text', [], $lang)) ?></label>
                 <textarea name="text" rows="4" class="question-textarea" required><?= h($question['text']) ?></textarea>
               </div>
               <div class="question-field-full">
-                <label class="label">Explication d&eacute;taill&eacute;e en cas de mauvaise r&eacute;ponse</label>
-                <textarea name="explanation" rows="5" class="question-textarea" placeholder="Explication affichee apres la question, par exemple le raisonnement ou le rappel de la bonne reponse."><?= h((string)($question['explanation'] ?? '')) ?></textarea>
+                <label class="label"><?= h(t('admin.questions.field_explanation', [], $lang)) ?></label>
+                <textarea name="explanation" rows="5" class="question-textarea" placeholder="<?= h(t('admin.questions.field_explanation_ph', [], $lang)) ?>"><?= h((string)($question['explanation'] ?? '')) ?></textarea>
               </div>
             </div>
           </article>
@@ -612,9 +612,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </section>
 
       <section class="pack-config-section">
-        <h3 class="pack-config-title">Options de r&eacute;ponse</h3>
+        <h3 class="pack-config-title"><?= h(t('admin.questions.options_title', [], $lang)) ?></h3>
         <div class="question-options-head">
-          <p class="small">Coche la/les bonnes. Laisse vide une option si tu n'en as pas besoin.</p>
+          <p class="small"><?= h(t('admin.questions.options_hint', [], $lang)) ?></p>
         </div>
 
         <div class="question-options">
@@ -626,9 +626,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           ?>
             <div class="question-option-row">
               <b class="question-option-label"><?= h($label) ?>.</b>
-              <input class="input question-option-input" type="text" name="opt[<?= h($label) ?>]" value="<?= h($text) ?>" placeholder="Texte option <?= h($label) ?>">
+              <input class="input question-option-input" type="text" name="opt[<?= h($label) ?>]" value="<?= h($text) ?>" placeholder="<?= h($label) ?>">
               <label class="question-option-check">
-                <input type="checkbox" name="correct[<?= h($label) ?>]" <?= $isCorrect ? 'checked' : '' ?>> Correct
+                <input type="checkbox" name="correct[<?= h($label) ?>]" <?= $isCorrect ? 'checked' : '' ?>> <?= h(t('admin.questions.option_correct', [], $lang)) ?>
               </label>
               <input class="input question-option-score" type="number" name="score[<?= h($label) ?>]" value="<?= h($scoreValue) ?>" placeholder="score">
             </div>
@@ -637,7 +637,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </section>
 
       <section class="pack-config-section">
-        <h3 class="pack-config-title">Traductions</h3>
+        <h3 class="pack-config-title"><?= h(t('admin.questions.translations_title', [], $lang)) ?></h3>
         <div class="translation-edit-grid">
           <?php foreach ($translationLangs as $translationLang => $translationLabel): ?>
             <?php
@@ -649,23 +649,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <div class="translation-edit-head">
                 <h4 class="pack-config-card-title"><?= h($translationLabel) ?></h4>
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                  <button class="<?= h($reviewBtnClass) ?>" type="submit" name="set_translation_status" value="<?= h($translationLang) ?>:stale">A revoir</button>
-                  <button class="<?= h($upToDateBtnClass) ?>" type="submit" name="set_translation_status" value="<?= h($translationLang) ?>:complete">A jour</button>
+                  <button class="<?= h($reviewBtnClass) ?>" type="submit" name="set_translation_status" value="<?= h($translationLang) ?>:stale"><?= h(t('admin.questions.translation_stale', [], $lang)) ?></button>
+                  <button class="<?= h($upToDateBtnClass) ?>" type="submit" name="set_translation_status" value="<?= h($translationLang) ?>:complete"><?= h(t('admin.questions.translation_ok', [], $lang)) ?></button>
                 </div>
               </div>
               <div class="pack-config-fields">
                 <div class="question-field-full">
-                  <label class="label">Texte de la question</label>
+                  <label class="label"><?= h(t('admin.questions.translation_text', [], $lang)) ?></label>
                   <textarea name="translations[<?= h($translationLang) ?>][text]" rows="3" class="question-textarea"><?= h((string)($translationsByLang[$translationLang]['text'] ?? '')) ?></textarea>
                 </div>
                 <div class="question-field-full">
-                  <label class="label">Explication</label>
+                  <label class="label"><?= h(t('admin.questions.translation_explanation', [], $lang)) ?></label>
                   <textarea name="translations[<?= h($translationLang) ?>][explanation]" rows="4" class="question-textarea"><?= h((string)($translationsByLang[$translationLang]['explanation'] ?? '')) ?></textarea>
                 </div>
                 <?php foreach ($labels as $label): ?>
                   <div class="question-field-full">
-                    <label class="label">Option <?= h($label) ?></label>
-                    <input class="input" type="text" name="translations[<?= h($translationLang) ?>][options][<?= h($label) ?>]" value="<?= h((string)($translationsByLang[$translationLang]['options'][$label] ?? '')) ?>" placeholder="Traduction de l'option <?= h($label) ?>">
+                    <label class="label"><?= h(t('admin.questions.translation_option', ['label' => $label], $lang)) ?></label>
+                    <input class="input" type="text" name="translations[<?= h($translationLang) ?>][options][<?= h($label) ?>]" value="<?= h((string)($translationsByLang[$translationLang]['options'][$label] ?? '')) ?>" placeholder="<?= h($label) ?>">
                   </div>
                 <?php endforeach; ?>
               </div>
