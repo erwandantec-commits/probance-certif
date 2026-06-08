@@ -644,7 +644,19 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
         <?php else: ?>
           <div class="candidate-account-summary">
             <span class="pill info"><?= h(admin_contact_role_label((string)($linkedUser['role'] ?? 'USER'))) ?></span>
-            <span class="candidate-account-summary-item"><?= h(t('admin.contact.programs_label', ['count' => count($editProgramRoles)], $lang)) ?></span>
+            <?php
+              $progOwnerCount = count(array_filter($editProgramRoles, fn($r) => $r === 'OWNER'));
+              $progUserCount  = count(array_filter($editProgramRoles, fn($r) => $r !== 'OWNER'));
+            ?>
+            <?php if ($progOwnerCount > 0): ?>
+              <span class="candidate-account-summary-item"><?= h(t('admin.contact.programs_owner_label', ['count' => $progOwnerCount], $lang)) ?></span>
+            <?php endif; ?>
+            <?php if ($progUserCount > 0): ?>
+              <span class="candidate-account-summary-item"><?= h(t('admin.contact.programs_user_label', ['count' => $progUserCount], $lang)) ?></span>
+            <?php endif; ?>
+            <?php if ($progOwnerCount === 0 && $progUserCount === 0): ?>
+              <span class="candidate-account-summary-item"><?= h(t('admin.contact.programs_none_label', [], $lang)) ?></span>
+            <?php endif; ?>
             <?php if (user_has_role($adminUser, 'ADMIN') && $hasEmailControlBypassColumn && $editEmailControlBypass === 1): ?>
               <span class="candidate-account-summary-item"><?= h(t('admin.contact.email_ctrl_disabled', [], $lang)) ?></span>
             <?php endif; ?>
@@ -701,7 +713,7 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                 <section class="candidate-account-card candidate-account-card-full">
                   <div class="candidate-account-card-head">
                     <h3 class="candidate-account-card-title"><?= h(t('admin.contact.permissions_title', [], $lang)) ?></h3>
-                    <p class="sub"><?= h(t('admin.contact.permissions_subtitle', [], $lang)) ?></p>
+
                   </div>
                   <div class="candidate-account-checklists">
                     <?php if (user_has_role($adminUser, 'ADMIN')): ?>
