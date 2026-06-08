@@ -301,10 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
   }
   if (isset($_POST['abandon'])) {
-    $scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
-    $score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
-    // Business rule: an abandoned session is always failed.
-    mark_session_terminated($pdo, $sid, round($score, 2), 0, 'MANUAL');
+    mark_session_terminated($pdo, $sid, null, 0, 'ABANDONED');
     header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
     exit;
   }

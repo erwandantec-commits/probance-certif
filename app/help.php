@@ -416,10 +416,10 @@ $helpKicker = match ($lang) {
 };
 
 $dashboardLabel = match ($lang) {
-  'en' => 'Dashboard',
-  'es' => 'Panel principal',
-  'jp' => 'ダッシュボード',
-  default => 'Tableau de bord',
+  'en' => 'Back to candidate area',
+  'es' => 'Volver al espacio candidato',
+  'jp' => '候補者スペースに戻る',
+  default => 'Retour espace candidat',
 };
 
 $dashboardMeta = match ($lang) {
@@ -429,19 +429,34 @@ $dashboardMeta = match ($lang) {
   default => 'Retour espace candidat',
 };
 
-$adminDocLabel = match ($lang) {
-  'en' => 'Admin documentation',
-  'es' => 'Documentacion admin',
-  'jp' => '管理者ドキュメント',
-  default => 'Documentation admin',
-};
+$isOwnerNotAdmin = user_can_access_reporting_area($user) && !user_has_role($user, 'ADMIN');
+$adminDocLabel = $isOwnerNotAdmin
+  ? match ($lang) {
+      'en' => 'Owner documentation',
+      'es' => 'Documentación owner',
+      'jp' => 'オーナードキュメント',
+      default => 'Documentation owner',
+    }
+  : match ($lang) {
+      'en' => 'Admin documentation',
+      'es' => 'Documentacion admin',
+      'jp' => '管理者ドキュメント',
+      default => 'Documentation admin',
+    };
 
-$adminDocMeta = match ($lang) {
-  'en' => 'Open the administration guide',
-  'es' => 'Ver la guia de administracion',
-  'jp' => '管理者ガイドを開く',
-  default => "Voir le guide d'administration",
-};
+$adminDocMeta = $isOwnerNotAdmin
+  ? match ($lang) {
+      'en' => 'Open the owner guide',
+      'es' => 'Ver la guía del owner',
+      'jp' => 'オーナーガイドを開く',
+      default => "Voir le guide owner",
+    }
+  : match ($lang) {
+      'en' => 'Open the administration guide',
+      'es' => 'Ver la guia de administracion',
+      'jp' => '管理者ガイドを開く',
+      default => "Voir le guide d'administration",
+    };
 
 $tocTitle = match ($lang) {
   'en' => 'Contents',
@@ -484,28 +499,22 @@ $backToTopLabel = $lang === 'jp' ? 'Top' : $backToTopLabel;
 </head>
 <body>
 <div class="container doc-page">
-  <div class="doc-topbar">
-    <div class="doc-topbar-spacer"></div>
-    <div class="doc-topbar-lang">
-      <?php render_flag_lang_picker($lang, "'/help.php?lang={lang}'"); ?>
-    </div>
-  </div>
   <div class="card dashboard-card doc-shell doc-hero">
     <div class="doc-hero-copy">
-      <span class="doc-kicker"><?= h($helpKicker) ?></span>
       <h2 class="h1"><?= h($helpTitle) ?></h2>
       <p class="sub"><?= h($helpSubtitle) ?></p>
     </div>
     <div class="doc-hero-actions">
+      <div class="doc-hero-lang">
+        <?php render_flag_lang_picker($lang, "'/help.php?lang={lang}'"); ?>
+      </div>
       <div class="doc-action-stack">
-        <a class="doc-action-card" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?>">
-          <span class="doc-action-title"><?= h($dashboardLabel) ?></span>
-          <span class="doc-action-meta"><?= h($dashboardMeta) ?></span>
-        </a>
+        <a class="btn ghost dashboard-admin-btn" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?>"><?= h($dashboardLabel) ?></a>
         <?php if (user_can_access_reporting_area($user)): ?>
-          <a class="doc-action-card" href="/admin/help.php">
-            <span class="doc-action-title"><?= h($adminDocLabel) ?></span>
-            <span class="doc-action-meta"><?= h($adminDocMeta) ?></span>
+          <?php $adminHelpHref = user_has_role($user, 'ADMIN') ? '/admin/help.php' : '/admin/help_owner.php'; ?>
+          <a class="btn ghost dashboard-admin-btn" href="<?= h($adminHelpHref) ?>">
+            <?= h($adminDocLabel) ?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px;opacity:.75"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </a>
         <?php endif; ?>
       </div>

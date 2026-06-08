@@ -171,7 +171,7 @@ if (question_translation_normalize_lang($lang) !== $programSourceLang) {
   $blockingMissing = [];
   foreach ($qids as $questionId) {
     $translationStatus = question_translation_status($pdo, (int)$questionId, $lang, $programSourceLang);
-    if ($translationStatus !== 'complete') {
+    if ($translationStatus === 'missing') {
       $blockingMissing[] = (int)$questionId;
     }
   }

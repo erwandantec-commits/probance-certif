@@ -118,6 +118,41 @@ function package_edit_program_question_scope_sql(PDO $pdo, int $activeProgramId)
   )";
 }
 
+function package_edit_db_rule_templates(PDO $pdo, int $activeProgramId): array {
+  if (!table_column_exists($pdo, 'packages', 'selection_rules_json')) {
+    return [];
+  }
+  $params = [];
+  if ($activeProgramId > 0 && auth_program_package_links_enabled($pdo)) {
+    $sql = "SELECT pk.name, pk.selection_rules_json FROM packages pk
+            JOIN program_package_links ppl ON ppl.package_id = pk.id
+            WHERE ppl.program_id = ? AND pk.selection_rules_json IS NOT NULL AND pk.selection_rules_json != ''
+            ORDER BY pk.name ASC";
+    $params = [$activeProgramId];
+  } elseif ($activeProgramId > 0 && table_column_exists($pdo, 'packages', 'program_id')) {
+    $sql = "SELECT name, selection_rules_json FROM packages
+            WHERE program_id = ? AND selection_rules_json IS NOT NULL AND selection_rules_json != ''
+            ORDER BY name ASC";
+    $params = [$activeProgramId];
+  } else {
+    $sql = "SELECT name, selection_rules_json FROM packages
+            WHERE selection_rules_json IS NOT NULL AND selection_rules_json != ''
+            ORDER BY name ASC";
+  }
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  $result = [];
+  foreach ($stmt->fetchAll() as $row) {
+    $key = strtoupper(trim((string)($row['name'] ?? '')));
+    $raw = trim((string)($row['selection_rules_json'] ?? ''));
+    if ($key === '' || $raw === '') continue;
+    $rules = json_decode($raw, true);
+    if (!is_array($rules) || empty($rules['buckets'])) continue;
+    $result[$key] = $rules;
+  }
+  return $result;
+}
+
 function package_edit_rule_templates_for_program(PDO $pdo, int $activeProgramId, array $ruleTemplates): array {
   if ($activeProgramId <= 0) {
     return $ruleTemplates;
@@ -492,6 +527,8 @@ if ($activeProgramId > 0) {
 }
 
 $ruleTemplates = package_edit_rule_templates_for_program($pdo, $activeProgramId, $ruleTemplates);
+$dbRuleTemplates = package_edit_db_rule_templates($pdo, $activeProgramId);
+$ruleTemplates = array_merge($dbRuleTemplates, $ruleTemplates);
 $packNameColor = normalize_hex_color((string)($pk['name_color_hex'] ?? '')) ?? package_color_hex((string)($pk['name'] ?? ''));
 
 $selectedTemplate = '';
@@ -624,6 +661,9 @@ foreach (array_keys($allowedByNeed) as $needName) {
     unset($allowedByNeed[$needName]);
   }
 }
+// Save strict eligibility (from bucket rules only) before expanding for UI filters
+$eligibleByNeed = $allowedByNeed;
+
 if (empty($allowedByNeed)) {
   foreach ($knownNeeds as $knownNeed) {
     $allowedByNeed[$knownNeed] = [1 => true, 2 => true, 3 => true];
@@ -639,13 +679,14 @@ foreach ($knownNeeds as $knownNeed) {
 ksort($allowedByNeed);
 $defaultNeed = question_default_need($knownNeeds);
 
+$displayByNeed = $eligibleByNeed ?: $allowedByNeed;
 $filterNeeds = array_values(array_filter(
   $filterNeeds,
-  static fn(string $need): bool => isset($allowedByNeed[$need])
+  static fn(string $need): bool => isset($displayByNeed[$need])
 ));
 
 $dist = [];
-foreach (array_keys($allowedByNeed) as $needName) {
+foreach (array_keys($displayByNeed) as $needName) {
   $dist[$needName] = [1 => 0, 2 => 0, 3 => 0];
 }
 
@@ -666,7 +707,7 @@ foreach ($distStmt->fetchAll() as $r) {
     $tokens[$fallbackNeed] = true;
   }
   foreach (array_keys($tokens) as $tk) {
-    if (!isset($allowedByNeed[$tk]) || !isset($allowedByNeed[$tk][$level])) {
+    if (!isset($displayByNeed[$tk]) || !isset($displayByNeed[$tk][$level])) {
       continue;
     }
     $dist[$tk][$level] = (int)($dist[$tk][$level] ?? 0) + 1;
@@ -675,7 +716,7 @@ foreach ($distStmt->fetchAll() as $r) {
 
 $eligibleWhereParts = [];
 $eligibleParams = [];
-foreach ($allowedByNeed as $needKey => $levelsMap) {
+foreach (($eligibleByNeed ?: $allowedByNeed) as $needKey => $levelsMap) {
   $levels = array_keys($levelsMap);
   $levels = array_values(array_filter(array_map('intval', $levels), fn($x) => $x >= 1 && $x <= 9));
   if (!$levels) {
@@ -1113,13 +1154,25 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
             <div class="rule-toolbar">
               <div class="rule-template-group">
-                <label class="label" for="rule-template"><?= h(t('admin.pack.rules_model', [], $lang)) ?></label>
-                <select class="input" id="rule-template" name="rule_template">
-                  <option value=""><?= h(t('admin.pack.rules_none', [], $lang)) ?></option>
-                  <?php foreach (array_keys($ruleTemplates) as $tplName): ?>
-                    <option value="<?= h($tplName) ?>" <?= $selectedTemplate === $tplName ? 'selected' : '' ?>><?= h($tplName) ?></option>
-                  <?php endforeach; ?>
-                </select>
+                <label class="label"><?= h(t('admin.pack.rules_model', [], $lang)) ?></label>
+                <input type="hidden" id="rule-template" name="rule_template" value="<?= h($selectedTemplate) ?>">
+                <div class="rule-tpl-select" id="rule-tpl-select">
+                  <button type="button" class="input rule-tpl-trigger" id="rule-tpl-trigger" aria-haspopup="listbox" aria-expanded="false">
+                    <span id="rule-tpl-label"><?= h($selectedTemplate !== '' ? $selectedTemplate : t('admin.pack.rules_none', [], $lang)) ?></span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;opacity:.5"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div class="rule-tpl-dropdown" id="rule-tpl-dropdown" role="listbox" style="display:none;">
+                    <div class="rule-tpl-search-wrap">
+                      <input type="text" class="input rule-tpl-search" id="rule-tpl-search" placeholder="<?= h(match($lang) { 'en' => 'Search…', 'es' => 'Buscar…', 'jp' => '検索…', default => 'Rechercher…' }) ?>" autocomplete="off">
+                    </div>
+                    <div class="rule-tpl-list" id="rule-tpl-list">
+                      <div class="rule-tpl-item <?= $selectedTemplate === '' ? 'is-selected' : '' ?>" data-value="" role="option"><?= h(t('admin.pack.rules_none', [], $lang)) ?></div>
+                      <?php foreach ($ruleTemplates as $tplName => $tplData): ?>
+                        <div class="rule-tpl-item <?= $selectedTemplate === $tplName ? 'is-selected' : '' ?>" data-value="<?= h($tplName) ?>" role="option"><?= h($tplName) ?></div>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="rule-toolbar-actions">
                 <button class="btn ghost rule-action-btn rule-action-apply" type="button" id="apply-rule-template"><?= h(t('admin.pack.rules_apply', [], $lang)) ?></button>
@@ -1233,7 +1286,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       </p>
 
 	      <div class="distribution-grid" style="margin-top:10px;">
-	        <?php foreach (array_keys($allowedByNeed) as $need): ?>
+	        <?php foreach (array_keys($displayByNeed) as $need): ?>
           <?php
             $needIsActive = in_array($need, $filterNeeds, true);
             $nextNeeds = $filterNeeds;
@@ -1489,7 +1542,55 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     var tbody = document.getElementById('rule-rows-body');
     var addRowBtn = document.getElementById('add-rule-row');
     var applyTemplateBtn = document.getElementById('apply-rule-template');
-    var templateSelect = document.getElementById('rule-template');
+    var templateSelect = document.getElementById('rule-template'); // hidden input
+
+    // Searchable template dropdown
+    (function () {
+      var trigger   = document.getElementById('rule-tpl-trigger');
+      var dropdown  = document.getElementById('rule-tpl-dropdown');
+      var search    = document.getElementById('rule-tpl-search');
+      var list      = document.getElementById('rule-tpl-list');
+      var labelEl   = document.getElementById('rule-tpl-label');
+      var noneLabel = <?= json_encode(t('admin.pack.rules_none', [], $lang)) ?>;
+      if (!trigger || !dropdown || !templateSelect) return;
+
+      function open() {
+        dropdown.style.display = '';
+        trigger.setAttribute('aria-expanded', 'true');
+        if (search) { search.value = ''; filterItems(''); search.focus(); }
+      }
+      function close() {
+        dropdown.style.display = 'none';
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+      function filterItems(q) {
+        q = q.toLowerCase();
+        if (list) list.querySelectorAll('.rule-tpl-item').forEach(function (item) {
+          item.style.display = (item.textContent || '').toLowerCase().includes(q) ? '' : 'none';
+        });
+      }
+      function select(val, label) {
+        templateSelect.value = val;
+        if (labelEl) labelEl.textContent = label || noneLabel;
+        if (list) list.querySelectorAll('.rule-tpl-item').forEach(function (item) {
+          item.classList.toggle('is-selected', item.getAttribute('data-value') === val);
+        });
+        close();
+      }
+
+      trigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        dropdown.style.display !== 'none' ? close() : open();
+      });
+      document.addEventListener('click', close);
+      dropdown.addEventListener('click', function (e) { e.stopPropagation(); });
+      if (search) search.addEventListener('input', function () { filterItems(search.value); });
+      if (list) list.querySelectorAll('.rule-tpl-item').forEach(function (item) {
+        item.addEventListener('click', function () {
+          select(item.getAttribute('data-value') || '', item.textContent.trim());
+        });
+      });
+    })();
     var countInput = document.querySelector('input[name="selection_count"]');
     var form = document.querySelector('form[method="post"]');
     var totalTargetEl = document.getElementById('rule-total-target');

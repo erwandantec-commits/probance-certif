@@ -1,208 +1,103 @@
-# Guia del usuario
+# Guía del usuario
 
-Este documento explica como utilizar la herramienta de certificacion Probance en el dia a dia, sin entrar en detalles tecnicos.
-
-## Para que sirve la herramienta
-
-La herramienta permite:
-
-- iniciar sesion en tu espacio
-- comenzar un cuestionario de certificacion o de entrenamiento
-- responder preguntas dentro de un tiempo limitado
-- consultar tu resultado
-- seguir el historial de tus sesiones
-- visualizar tus certificaciones obtenidas o por renovar
-
-## Iniciar sesion
-
-Para acceder a la herramienta:
-
-1. abre la pagina de inicio de sesion
-2. introduce tu correo electronico y tu contrasena
-3. valida para llegar a tu panel principal
-
-Si aun no tienes cuenta, utiliza la pagina de registro.
-
-Si has olvidado tu contrasena, utiliza la funcion de restablecimiento.
+Esta guía explica cómo usar el espacio candidato de Probance: lanzar una sesión, responder preguntas, entender tu resultado y seguir tus certificaciones.
 
 ## Panel principal
 
-El panel principal es la pagina principal del usuario.
+El panel principal es tu página de inicio. Aquí encontrarás:
 
-Alli encontraras:
+- los packs de certificación disponibles
+- el estado de cada certificación (válida, próxima a expirar, expirada, no obtenida)
+- el historial de tus últimas sesiones
+- los botones para iniciar una nueva sesión
 
-- las certificaciones disponibles
-- los botones para iniciar una sesion
-- tu historial reciente
-- tus resultados anteriores
-- el estado de tus certificaciones
+Desde esta página, elige un pack, luego un modo y empieza.
 
-Desde esta pagina puedes elegir un paquete y comenzar una sesion.
+## Los dos modos de sesión
 
-## Los dos tipos de sesion
+### Modo Examen
 
-La herramienta suele ofrecer dos modos:
+El modo oficial. Respondes todas las preguntas sin corrección inmediata. El resultado se calcula al final y determina si obtienes la certificación.
 
-### Modo certificacion
+### Modo Entrenamiento
 
-El modo `Exam` sirve para realizar un intento real.
+El modo de práctica. Puedes validar cada pregunta una a una y ver inmediatamente si tu respuesta es correcta. Este modo no cuenta para tu certificación.
 
-En este modo:
+## Iniciar una sesión
 
-- respondes a las preguntas sin correccion inmediata
-- la puntuacion final se calcula al final
-- el resultado determina si la certificacion se obtiene o no
+1. Desde el panel, elige un pack
+2. Elige el modo (Examen o Entrenamiento)
+3. Haz clic en Empezar
 
-### Modo test
+En algunos casos, una sesión de Examen puede ser rechazada:
 
-El modo `Test` o `Training` sirve para practicar.
+- ya tienes una certificación válida para ese pack
+- hay un período de espera activo tras un fallo reciente
 
-En este modo:
+Se muestra un mensaje explicativo si es el caso.
 
-- puedes validar pregunta por pregunta
-- la herramienta puede mostrar comentarios inmediatos
-- puedes aprender de tus errores con mas facilidad
+## Durante la sesión
 
-## Iniciar una sesion
+- Se muestra una pregunta a la vez
+- Un temporizador indica el tiempo restante
+- Algunas preguntas tienen una sola respuesta correcta, otras tienen varias — lee bien el enunciado
 
-Para iniciar una sesion:
+En modo Examen, avanzas sin retorno hasta el final. En modo Entrenamiento, puedes validar pregunta a pregunta y ver la corrección antes de continuar.
 
-1. ve al panel principal
-2. elige el paquete deseado
-3. elige el tipo de sesion
-4. haz clic en el boton de inicio
+La sesión termina cuando validas la última pregunta, cuando haces clic en Terminar o cuando se acaba el tiempo.
 
-La herramienta abrira entonces la sesion de preguntas.
+## Entender tu resultado
 
-En algunos casos, una sesion de certificacion puede ser rechazada:
+La página de resultado muestra:
 
-- si ya existe una certificacion valida
-- si todavia hay un periodo de espera activo despues de un fallo
+- la puntuación obtenida y el umbral de aprobación
+- el estado: aprobado, suspenso o expirado
+- el pack correspondiente y la fecha del intento
 
-En ese caso se muestra un mensaje explicativo.
+En modo Entrenamiento, puedes revisar todas las preguntas con tus respuestas y las respuestas correctas resaltadas.
 
-## Responder a las preguntas
+Si hiciste un Examen:
 
-Durante una sesion:
-
-- se muestra una pregunta a la vez
-- un temporizador indica el tiempo restante
-- segun la pregunta, una o varias respuestas pueden ser correctas
-
-Consejos:
-
-- lee bien el enunciado antes de responder
-- verifica si se esperan varias opciones
-- vigila el tiempo restante
-
-Segun el modo de sesion:
-
-- en modo `Certification`, avanzas sin correccion inmediata
-- en modo `Test`, puedes ver un comentario antes de continuar
-
-## Fin de la sesion
-
-Una sesion puede terminar de varias maneras:
-
-- llegas a la ultima pregunta y validas
-- eliges terminar la sesion
-- se acaba el tiempo permitido
-
-Una vez finalizada, seras redirigido a la pagina de resultados.
-
-## Comprender el resultado
-
-La pagina de resultados muestra normalmente:
-
-- la puntuacion obtenida
-- el estado de la sesion
-- el paquete correspondiente
-- la fecha del intento
-- el resultado: aprobado, suspendido o expirado
-
-Si la sesion corresponde a una certificacion:
-
-- un exito puede validar la certificacion
-- un fallo significa que no se alcanzo el umbral requerido
-- una expiracion significa que se supero el tiempo limite
-
-## Revisar tus respuestas
-
-En algunos casos, especialmente en modo test, la herramienta permite revisar:
-
-- las preguntas mostradas
-- tus respuestas
-- las respuestas correctas
-- el estado de cada pregunta
-
-Esta funcion es util para progresar y entender tus errores.
+- un éxito valida tu certificación durante el período configurado en el pack
+- un fallo puede activar un período de espera antes de poder volver a intentarlo
+- una expiración (tiempo agotado) se trata como un fallo
 
 ## Historial y certificaciones
 
-Desde tu espacio puedes consultar:
+Desde tu panel puedes ver el estado de cada certificación:
 
-- el historial de tus sesiones
-- tus puntuaciones anteriores
-- el estado de tus certificaciones
+- **Válida** — estás certificado, se muestra la fecha de expiración
+- **Próxima a expirar** — tu certificación expira en menos de 30 días
+- **Expirada** — debes volver a pasar el examen
+- **No obtenida** — aún no has superado este pack
 
-Una certificacion puede aparecer como:
+El historial lista tus sesiones anteriores con su puntuación y resultado.
 
-- valida
-- proxima a expirar
-- expirada
-- ausente
+## Si algo está bloqueado
 
-Esto permite saber rapidamente si es necesario un nuevo intento.
-
-## Cambiar el idioma
-
-La herramienta puede ofrecer varios idiomas de visualizacion.
-
-Si esta opcion esta disponible:
-
-- elige el idioma en el selector previsto
-- la pagina se recarga con los textos correspondientes
-
-## En caso de problema
-
-Si encuentras un problema:
-
-- comprueba primero tu correo y tu contrasena
-- recarga la pagina si algo parece bloqueado
-- verifica si tu sesion ha expirado
-- contacta con un administrador si crees que un acceso o una certificacion estan bloqueados por error
+- No puedes iniciar un Examen mientras tienes una certificación válida → espera a que expire o contacta a un administrador
+- No puedes iniciar un Examen tras un fallo → hay un período de espera activo, un mensaje te indica cuándo podrás intentarlo de nuevo
+- La página no carga → recarga; si el problema persiste contacta a un administrador
+- Ya no tienes acceso a un pack → contacta a un administrador
 
 ## Preguntas frecuentes
 
-### Por que no puedo iniciar una certificacion?
+### No puedo iniciar una certificación, ¿por qué?
 
-Esto puede ocurrir si:
+Dos razones posibles: ya tienes una certificación válida para ese pack o hay un período de espera activo tras un fallo. Un mensaje en el panel te indica cuál se aplica.
 
-- ya tienes una certificacion todavia valida
-- existe un periodo de espera activo despues de un fallo
-- el paquete no esta disponible
+### ¿Es correcto mi resultado si seleccioné parcialmente las respuestas correctas?
 
-### Cual es la diferencia entre test y certificacion?
+Sí. Una pregunta vale 1 punto únicamente si seleccionas exactamente todas las respuestas correctas y ninguna incorrecta. Si marcas una de más u olvidas una correcta, la pregunta vale 0 — aunque hayas acertado en gran parte.
 
-El test sirve para practicar.
-La certificacion sirve para una evaluacion oficial.
+### ¿Qué diferencia hay entre Entrenamiento y Examen?
 
-### Que ocurre si me quedo sin tiempo?
+El Entrenamiento sirve para practicar con corrección inmediata pregunta a pregunta. El Examen es la evaluación oficial, sin corrección durante el intento, y su resultado cuenta para tu certificación.
 
-La sesion se considera expirada y el resultado se calcula segun el estado al final.
+### ¿Qué ocurre si se acaba el tiempo?
 
-### Puedo retomarla mas tarde?
+La sesión se cierra automáticamente y se trata como una expiración. El resultado se calcula a partir de las preguntas que respondiste en el momento del cierre.
 
-Depende de la configuracion activa y de tus permisos.
-En la mayoria de los casos de usuario estandar, es mejor considerar que una sesion debe terminarse en la misma franja de trabajo.
+### ¿Puedo retomar una sesión más tarde?
 
-## Resumen rapido
-
-Para utilizar la herramienta de forma sencilla:
-
-1. inicia sesion
-2. elige un paquete
-3. comienza una sesion
-4. responde a las preguntas antes de que termine el tiempo
-5. consulta tu resultado
-6. sigue tus certificaciones desde el panel principal
+No. Una sesión debe completarse de una sola vez. Si cierras la página o el tiempo expira, la sesión queda definitivamente cerrada.

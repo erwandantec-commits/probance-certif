@@ -138,10 +138,12 @@ foreach ($items as &$it) {
 unset($it);
 
 $terminationType = strtoupper(trim((string)($s['termination_type'] ?? '')));
-$statusLabel = match ((string)$s['status']) {
-  'TERMINATED' => ($terminationType === 'TIMEOUT' ? t('admin.session.status_timeout', [], $lang) : t('admin.session.status_terminated', [], $lang)),
-  'ACTIVE' => t('admin.session.status_active', [], $lang),
-  'EXPIRED' => t('admin.session.status_timeout', [], $lang),
+$statusLabel = match (true) {
+  $terminationType === 'ABANDONED' => t('dash.status.abandoned', [], $lang),
+  (string)$s['status'] === 'TERMINATED' && $terminationType === 'TIMEOUT' => t('admin.session.status_timeout', [], $lang),
+  (string)$s['status'] === 'TERMINATED' => t('admin.session.status_terminated', [], $lang),
+  (string)$s['status'] === 'ACTIVE' => t('admin.session.status_active', [], $lang),
+  (string)$s['status'] === 'EXPIRED' => t('admin.session.status_timeout', [], $lang),
   default => (string)$s['status'],
 };
 

@@ -1,208 +1,103 @@
-# User Guide
+# User guide
 
-This document explains how to use the Probance certification tool in daily practice, without going into technical details.
-
-## What is the tool for
-
-The tool allows you to:
-
-- sign in to your space
-- start a certification or training questionnaire
-- answer questions within a limited time
-- view your result
-- track your session history
-- see your certifications obtained or due for renewal
-
-## Sign in
-
-To access the tool:
-
-1. open the login page
-2. enter your email and password
-3. confirm to reach your dashboard
-
-If you do not have an account yet, use the registration page.
-
-If you forgot your password, use the reset feature.
+This guide explains how to use the Probance candidate area: launching a session, answering questions, understanding your result and tracking your certifications.
 
 ## Dashboard
 
-The dashboard is the user's main page.
+The dashboard is your starting page. You will find:
 
-There you can find:
+- the certification packs available to you
+- the status of each certification (valid, expiring soon, expired, not yet passed)
+- your recent session history
+- buttons to start a new session
 
-- available certifications
-- buttons to start a session
-- your recent history
-- your previous results
-- the status of your certifications
+From this page, choose a pack, then a mode, then start.
 
-From this page, you can choose a package and start a session.
+## The two session modes
 
-## The two session types
+### Exam mode
 
-The tool generally offers two modes:
+The official mode. You answer all questions without immediate feedback. The score is calculated at the end and determines whether you pass the certification.
 
-### Certification mode
+### Training mode
 
-The `Exam` mode is used for a real attempt.
-
-In this mode:
-
-- you answer questions without immediate correction
-- the final score is calculated at the end
-- the result determines whether the certification is obtained or not
-
-### Test mode
-
-The `Test` or `Training` mode is used for practice.
-
-In this mode:
-
-- you can validate question by question
-- the tool may display immediate feedback
-- you can learn from your mistakes more easily
+The practice mode. You can validate each question one by one and immediately see whether your answer is correct. This mode does not count towards your certification.
 
 ## Starting a session
 
-To start a session:
+1. From the dashboard, choose a pack
+2. Choose the mode (Exam or Training)
+3. Click Start
 
-1. go to the dashboard
-2. choose the desired package
-3. choose the session type
-4. click the start button
+In some cases, an Exam session may be refused:
 
-The tool then opens the question session.
+- you already have a valid certification for this pack
+- a waiting period is active following a recent failure
 
-In some cases, a certification session may be refused:
+An explanatory message is displayed if this applies.
 
-- if a valid certification already exists
-- if a waiting period is still active after a failure
+## During the session
 
-In that case, an explanatory message is shown.
+- One question is displayed at a time
+- A timer shows the time remaining
+- Some questions have only one correct answer, others have several — read the wording carefully
 
-## Answering questions
+In Exam mode, you proceed without feedback until the end. In Training mode, you can validate question by question and see the correction before continuing.
 
-During a session:
+The session ends when you submit the last question, when you click Finish, or when the time runs out.
 
-- one question is displayed at a time
-- a timer shows the remaining time
-- depending on the question, one or more answers may be correct
+## Understanding your result
 
-Tips:
+The result page shows:
 
-- read the statement carefully before answering
-- check whether multiple choices are expected
-- keep an eye on the remaining time
+- the score obtained and the passing threshold
+- the status: passed, failed, or expired
+- the pack concerned and the date of the attempt
 
-Depending on the session mode:
+In Training mode, you can then review all questions with your answers and the correct answers highlighted.
 
-- in `Certification` mode, you move on without immediate correction
-- in `Test` mode, you can get feedback before continuing
+If you took an Exam:
 
-## End of session
-
-A session can end in several ways:
-
-- you reach the last question and validate
-- you choose to end the session
-- the allowed time runs out
-
-Once finished, you are redirected to the result page.
-
-## Understanding the result
-
-The result page generally shows:
-
-- the score obtained
-- the session status
-- the related package
-- the session date
-- the outcome: passed, failed, or expired
-
-If the session is a certification:
-
-- a success may validate the certification
-- a failure means the required threshold was not reached
-- an expiration means the time limit was exceeded
-
-## Reviewing your answers
-
-In some cases, especially in test mode, the tool lets you review:
-
-- the questions asked
-- your answers
-- the correct answers
-- the status of each question
-
-This is useful to improve and understand your mistakes.
+- a pass validates your certification for the duration configured on the pack
+- a failure may trigger a waiting period before you can retake it
+- an expiry (time ran out) is treated as a failure
 
 ## History and certifications
 
-From your space, you can view:
+From your dashboard, you can view the status of each certification:
 
-- your session history
-- your previous scores
-- the status of your certifications
+- **Valid** — you are certified, the expiry date is shown
+- **Expiring soon** — your certification expires in less than 30 days
+- **Expired** — you need to retake the exam
+- **Not obtained** — you have not yet passed this pack
 
-A certification may appear as:
+The history lists your previous sessions with their score and result.
 
-- valid
-- expiring soon
-- expired
-- missing
+## If something is blocked
 
-This helps you quickly know whether a new attempt is needed.
-
-## Changing the language
-
-The tool may offer several display languages.
-
-If this option is available:
-
-- choose the language in the selector
-- the page reloads with the corresponding texts
-
-## In case of a problem
-
-If you encounter an issue:
-
-- first check your email and password
-- reload the page if something seems stuck
-- check whether your session has expired
-- contact an administrator if you think access or certification is blocked by mistake
+- You cannot start an Exam while a certification is still valid → wait for it to expire or contact an administrator
+- You cannot start an Exam after a failure → a waiting period is active, a message tells you when you can retake
+- The page does not load → refresh; if the problem persists contact an administrator
+- You no longer have access to a pack → contact an administrator
 
 ## Frequently asked questions
 
-### Why can I not start a certification?
+### I cannot start a certification — why?
 
-This may happen if:
+Two possible reasons: you already have a valid certification for this pack, or a waiting period is active after a failure. A message on the dashboard tells you which applies.
 
-- you already have a still valid certification
-- a waiting period is active after a failure
-- the package is not available
+### Is my score correct if I partially selected the right answers?
 
-### What is the difference between test and certification?
+Yes. A question is worth 1 point only if you select exactly all the correct answers and no wrong ones. If you tick one too many or miss a correct answer, the question scores 0 — even if you were largely right.
 
-The test is for practice.
-The certification is for official evaluation.
+### What is the difference between Training and Exam?
 
-### What happens if I run out of time?
+Training lets you practise with immediate feedback question by question. Exam is the official assessment, with no feedback during the attempt, and its result counts towards your certification.
 
-The session is considered expired and the result is calculated based on the state at the end.
+### What happens if the time runs out?
 
-### Can I resume later?
+The session is automatically closed and treated as an expiry. The result is calculated based on the questions you had answered at the time it ended.
 
-It depends on the active configuration and your permissions.
-In most standard user cases, it is better to assume that a session must be completed in the same working period.
+### Can I resume a session later?
 
-## Quick summary
-
-To use the tool simply:
-
-1. sign in
-2. choose a package
-3. start a session
-4. answer the questions before time runs out
-5. view your result
-6. track your certifications from the dashboard
+No. A session must be completed in one go. If you close the page or the time expires, the session is permanently closed.

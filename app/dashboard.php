@@ -25,12 +25,13 @@ $hasPackageBadgeImageColumn = table_column_exists($pdo, 'packages', 'badge_image
 $hasPackageCertValidityDaysColumn = table_column_exists($pdo, 'packages', 'cert_validity_days');
 $hasPackageFailedCooldownDaysColumn = table_column_exists($pdo, 'packages', 'failed_cooldown_days');
 $hasPackageProgramColumn = table_column_exists($pdo, 'packages', 'program_id');
+$hasPackageSelectionRulesColumn = table_column_exists($pdo, 'packages', 'selection_rules_json');
 $hasProgramPackageLinksTable = auth_program_package_links_enabled($pdo);
 
 $errKey = trim((string)($_GET['err_key'] ?? ''));
 $err = trim((string)($_GET['err'] ?? ''));
 
-$pkgCols = "id,name,name_color_hex,duration_limit_minutes";
+$pkgCols = "id,name,name_color_hex,duration_limit_minutes,selection_count" . ($hasPackageSelectionRulesColumn ? ",selection_rules_json" : "");
 if ($hasPackageProfileColumn) {
   $pkgCols .= ", profile";
 }
@@ -66,8 +67,12 @@ if (!in_array($latestType, ['EXAM', 'TRAINING'], true)) {
   $latestType = '';
 }
 $latestResult = strtoupper(trim((string)($_GET['latest_result'] ?? '')));
-if (!in_array($latestResult, ['PASSED', 'FAILED', 'ACTIVE', 'EXPIRED'], true)) {
+if (!in_array($latestResult, ['PASSED', 'FAILED'], true)) {
   $latestResult = '';
+}
+$latestStatus = strtoupper(trim((string)($_GET['latest_status'] ?? '')));
+if (!in_array($latestStatus, ['ACTIVE', 'TERMINATED', 'TIMEOUT', 'ABANDONED'], true)) {
+  $latestStatus = '';
 }
 $hasTerminationType = sessions_column_exists($pdo, 'termination_type');
 
@@ -91,14 +96,15 @@ if ($latestResult === 'PASSED') {
   $lastConds[] = "s.status='TERMINATED' AND s.passed=1";
 } elseif ($latestResult === 'FAILED') {
   $lastConds[] = "s.status='TERMINATED' AND s.passed=0";
-} elseif ($latestResult === 'ACTIVE') {
+}
+if ($latestStatus === 'ACTIVE') {
   $lastConds[] = "s.status='ACTIVE'";
-} elseif ($latestResult === 'EXPIRED') {
-  if ($hasTerminationType) {
-    $lastConds[] = "(s.status='EXPIRED' OR (s.status='TERMINATED' AND s.termination_type='TIMEOUT'))";
-  } else {
-    $lastConds[] = "s.status='EXPIRED'";
-  }
+} elseif ($latestStatus === 'TERMINATED') {
+  $lastConds[] = "s.status='TERMINATED' AND s.termination_type='MANUAL'";
+} elseif ($latestStatus === 'TIMEOUT') {
+  $lastConds[] = "s.status='TERMINATED' AND s.termination_type='TIMEOUT'";
+} elseif ($latestStatus === 'ABANDONED') {
+  $lastConds[] = "s.status='TERMINATED' AND s.termination_type='ABANDONED'";
 }
 
 $lastWhere = implode(' AND ', $lastConds);
@@ -249,9 +255,14 @@ if (!empty($certCards)) {
   });
 }
 $examBlockedByPackage = [];
+$examBlockReasonByPackage = [];
 foreach ($certCards as $pkgId => $card) {
   $statusKey = (string)($card['status_key'] ?? '');
-  $examBlockedByPackage[(int)$pkgId] = in_array($statusKey, ['CERTIFIED', 'SOON'], true);
+  $isBlocked = in_array($statusKey, ['CERTIFIED', 'SOON'], true);
+  $examBlockedByPackage[(int)$pkgId] = $isBlocked;
+  if ($isBlocked) {
+    $examBlockReasonByPackage[(int)$pkgId] = ['reason' => 'certified', 'date' => (string)($card['expires_at'] ?? '')];
+  }
 }
 
 $activeOverrideByPackage = [];
@@ -309,6 +320,11 @@ if ($hasPackageFailedCooldownDaysColumn) {
 
     if (($cooldownStatus['status_key'] ?? 'AVAILABLE') === 'COOLDOWN') {
       $blocked = true;
+      $availAt = $cooldownStatus['available_at'] ?? null;
+      $examBlockReasonByPackage[$pkgId] = [
+        'reason' => 'cooldown',
+        'date'   => ($availAt instanceof DateTimeImmutable) ? $availAt->format('d/m/Y') : '',
+      ];
     }
 
     if (!empty($activeOverrideByPackage[$pkgId])) {
@@ -328,6 +344,55 @@ foreach ($packages as $pk) {
     $examBlockedByPackage[$pkgId] = false;
   } elseif (!array_key_exists($pkgId, $examBlockedByPackage)) {
     $examBlockedByPackage[$pkgId] = false;
+  }
+}
+
+$packNotEnoughQuestions = [];
+if ($packageIdList) {
+  // Mirror admin compute_availability logic:
+  // - packs WITH bucket rules → count via program_question_links (modern schema)
+  // - packs WITHOUT bucket rules → count via questions.package_id (legacy, same as admin legacyCounts)
+  $bucketPkgIds = [];
+  $legacyPkgIds = [];
+  foreach ($packages as $pk) {
+    $raw = $hasPackageSelectionRulesColumn ? trim((string)($pk['selection_rules_json'] ?? '')) : '';
+    $rules = $raw !== '' ? json_decode($raw, true) : null;
+    if (is_array($rules) && !empty($rules['buckets'])) {
+      $bucketPkgIds[] = (int)$pk['id'];
+    } else {
+      $legacyPkgIds[] = (int)$pk['id'];
+    }
+  }
+  $qCountByPkg = [];
+  if ($bucketPkgIds && $hasProgramPackageLinksTable && table_exists($pdo, 'program_question_links')) {
+    $bList = implode(',', array_fill(0, count($bucketPkgIds), '?'));
+    $qcStmt = $pdo->prepare("
+      SELECT ppl.package_id, COUNT(DISTINCT pql.question_id) AS cnt
+      FROM program_package_links ppl
+      JOIN program_question_links pql ON pql.program_id = ppl.program_id
+      WHERE ppl.package_id IN ($bList)
+      GROUP BY ppl.package_id
+    ");
+    $qcStmt->execute($bucketPkgIds);
+    foreach ($qcStmt->fetchAll() as $r) {
+      $qCountByPkg[(int)$r['package_id']] = (int)$r['cnt'];
+    }
+  }
+  if ($legacyPkgIds) {
+    $lList = implode(',', array_fill(0, count($legacyPkgIds), '?'));
+    $qcStmt = $pdo->prepare("SELECT package_id, COUNT(*) AS cnt FROM questions WHERE package_id IN ($lList) GROUP BY package_id");
+    $qcStmt->execute($legacyPkgIds);
+    foreach ($qcStmt->fetchAll() as $r) {
+      $qCountByPkg[(int)$r['package_id']] = (int)$r['cnt'];
+    }
+  }
+  foreach ($packages as $pk) {
+    $pkgId = (int)($pk['id'] ?? 0);
+    $required = (int)($pk['selection_count'] ?? 0);
+    $available = (int)($qCountByPkg[$pkgId] ?? 0);
+    if ($required > 0 && $available < $required) {
+      $packNotEnoughQuestions[$pkgId] = true;
+    }
   }
 }
 
@@ -426,7 +491,15 @@ function dash_is_timeout_session(array $s): bool {
     );
 }
 
+function dash_is_abandoned_session(array $s): bool {
+  return (string)($s['status'] ?? '') === 'TERMINATED'
+    && strtoupper(trim((string)($s['termination_type'] ?? ''))) === 'ABANDONED';
+}
+
 function dash_display_status(array $s): string {
+  if (dash_is_abandoned_session($s)) {
+    return 'ABANDONED';
+  }
   if (dash_is_timeout_session($s)) {
     return 'EXPIRED';
   }
@@ -438,6 +511,7 @@ function dash_status_label(string $status, string $lang): string {
     'TERMINATED' => t('dash.status.terminated', [], $lang),
     'ACTIVE' => t('dash.status.active', [], $lang),
     'EXPIRED' => t('dash.status.expired', [], $lang),
+    'ABANDONED' => t('dash.status.abandoned', [], $lang),
     default => $status,
   };
 }
@@ -447,6 +521,7 @@ function dash_status_badge_class(string $status): string {
     'TERMINATED' => 'pill success',
     'ACTIVE' => 'pill info',
     'EXPIRED' => 'pill warning',
+    'ABANDONED' => 'pill danger',
     default => 'pill',
   };
 }
@@ -685,63 +760,82 @@ function dash_remaining_label(int $seconds): string {
 	    <form method="post" action="/start.php" class="dashboard-start-form">
 	      <input type="hidden" name="lang" value="<?= h($lang) ?>">
 	      <input type="hidden" name="program_id" value="<?= (int)$activeProgramId ?>">
-	      <div class="dashboard-start-grid">
-		        <div class="dashboard-field dashboard-cert-field">
-		          <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
-		          <?php if ($packages): ?>
-		            <?php $selectedPkg = $packages[0]; ?>
-		            <input id="dash-package-input" type="hidden" name="package_id" value="<?= (int)$selectedPkg['id'] ?>">
-		          <?php endif; ?>
-		          <?php if ($packages): ?>
-		            <?php
-		              $firstPkg = $packages[0];
-		            ?>
-		            <div class="dash-cert-grid" id="dash-cert-grid">
-		              <?php foreach ($packages as $pk): ?>
-	                <?php
-	                  $pkName = localize_text((string)$pk['name'], $lang);
-	                  $pkProfile = trim(localize_text((string)($pk['profile'] ?? ''), $lang));
-	                  $pkCode = strtoupper(trim((string)$pk['name']));
-	                  $pkTone = package_color_hex((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''));
-	                  $pkDuration = (int)$pk['duration_limit_minutes'];
-	                  $isFirst = ((int)$pk['id'] === (int)$firstPkg['id']);
-                    $isExamLocked = !empty($examBlockedByPackage[(int)$pk['id']]);
-	                ?>
-		                <button
-		                  type="button"
-		                  class="dash-cert-tile<?= $isFirst ? ' is-active' : '' ?><?= $pkCode === 'BLACK' ? ' pkg-black' : '' ?>"
-		                  data-package-value="<?= (int)$pk['id'] ?>"
-		                  data-package-name="<?= h($pkName) ?>"
-		                  data-active-sid-exam="<?= h((string)($activeByPackage[(int)$pk['id']]['EXAM']['id'] ?? '')) ?>"
-		                  data-active-p-exam="<?= (int)($activeByPackage[(int)$pk['id']]['EXAM']['resume_p'] ?? 1) ?>"
-		                  data-active-sid-training="<?= h((string)($activeByPackage[(int)$pk['id']]['TRAINING']['id'] ?? '')) ?>"
-		                  data-active-p-training="<?= (int)($activeByPackage[(int)$pk['id']]['TRAINING']['resume_p'] ?? 1) ?>"
-		                  data-package-exam-locked="<?= $isExamLocked ? '1' : '0' ?>"
-		                  data-package-duration="<?= (int)$pkDuration ?>"
-		                  data-package-tone="<?= h($pkTone) ?>"
-		                  style="--cert-tone: <?= h($pkTone) ?>;"
-		                >
-	                  <span class="dash-cert-tile-name"><?= h($pkName) ?></span>
-                    <?php if ($pkProfile !== ''): ?>
-	                  <span class="dash-cert-tile-profile"><?= h($pkProfile) ?></span>
-                    <?php endif; ?>
-	                  <span class="dash-cert-tile-time"><?= (int)$pkDuration ?> min</span>
-	                </button>
-		              <?php endforeach; ?>
-		            </div>
-		          <?php else: ?>
-		            <div class="dash-cert-empty"><?= h(t('dash.no_active_packages', [], $lang)) ?></div>
-		          <?php endif; ?>
-		        </div>
+	      <input id="dash-package-input" type="hidden" name="package_id" value="">
 
-        <div class="dashboard-field dashboard-session-mode">
-          <label class="label"><?= h(t('dash.session_type', [], $lang)) ?></label>
-          <div class="dashboard-mode-group" role="radiogroup" aria-label="<?= h(t('dash.session_type', [], $lang)) ?>">
-            <label class="dashboard-mode-option">
-              <input type="radio" name="session_type" value="EXAM" checked>
-              <span class="dashboard-mode-content">
-                <span class="dashboard-mode-title"><?= h(t('dash.session_type.exam', [], $lang)) ?></span>
-                <span class="dashboard-mode-hint"><?= h(t('dash.session_type.exam_hint', [], $lang)) ?></span>
+      <!-- Étape 1 : choisir le pack -->
+      <div class="dash-step is-active" id="dash-step-1">
+        <label class="label"><?= h(t('dash.cert', [], $lang)) ?></label>
+        <?php if ($packages): ?>
+          <input type="text" id="dash-pack-search" class="input dash-pack-search" placeholder="<?= h(match($lang) { 'en' => 'Search…', 'es' => 'Buscar…', 'jp' => '検索…', default => 'Rechercher…' }) ?>" autocomplete="off">
+          <div class="dash-cert-grid" id="dash-cert-grid">
+            <?php foreach ($packages as $pk): ?>
+              <?php
+                $pkName      = localize_text((string)$pk['name'], $lang);
+                $pkProfile   = trim(localize_text((string)($pk['profile'] ?? ''), $lang));
+                $pkCode      = strtoupper(trim((string)$pk['name']));
+                $pkTone      = package_color_hex((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''));
+                $pkDuration  = (int)$pk['duration_limit_minutes'];
+                $isExamLocked = !empty($examBlockedByPackage[(int)$pk['id']]);
+                $blockReason  = $examBlockReasonByPackage[(int)$pk['id']] ?? null;
+                $isIncomplete = !empty($packNotEnoughQuestions[(int)$pk['id']]);
+              ?>
+              <button
+                type="button"
+                class="dash-cert-tile<?= $pkCode === 'BLACK' ? ' pkg-black' : '' ?>"
+                data-package-value="<?= (int)$pk['id'] ?>"
+                data-package-name="<?= h($pkName) ?>"
+                data-package-profile="<?= h($pkProfile) ?>"
+                data-active-sid-exam="<?= h((string)($activeByPackage[(int)$pk['id']]['EXAM']['id'] ?? '')) ?>"
+                data-active-p-exam="<?= (int)($activeByPackage[(int)$pk['id']]['EXAM']['resume_p'] ?? 1) ?>"
+                data-active-sid-training="<?= h((string)($activeByPackage[(int)$pk['id']]['TRAINING']['id'] ?? '')) ?>"
+                data-active-p-training="<?= (int)($activeByPackage[(int)$pk['id']]['TRAINING']['resume_p'] ?? 1) ?>"
+                data-package-exam-locked="<?= $isExamLocked ? '1' : '0' ?>"
+                data-package-incomplete="<?= $isIncomplete ? '1' : '0' ?>"
+                data-block-reason="<?= h($blockReason['reason'] ?? '') ?>"
+                data-block-date="<?= h($blockReason['date'] ?? '') ?>"
+                data-package-duration="<?= (int)$pkDuration ?>"
+                style="--cert-tone: <?= h($pkTone) ?>;"
+              >
+                <span class="dash-cert-tile-name"><?= h($pkName) ?></span>
+                <?php if ($pkProfile !== ''): ?>
+                  <span class="dash-cert-tile-profile"><?= h($pkProfile) ?></span>
+                <?php endif; ?>
+                <span class="dash-cert-tile-time"><?= (int)$pkDuration ?> min</span>
+                <?php if ($isIncomplete): ?>
+                  <span class="dash-cert-tile-badge dash-cert-tile-badge--incomplete">
+                    <?= h(match($lang) { 'en' => 'Incomplete', 'es' => 'Incompleto', 'jp' => '未完了', default => 'Incomplet' }) ?>
+                  </span>
+                <?php elseif ($blockReason): ?>
+                  <span class="dash-cert-tile-badge dash-cert-tile-badge--<?= h($blockReason['reason']) ?>">
+                    <?php if ($blockReason['reason'] === 'certified'): ?>
+                      ✓ <?= h(match($lang) { 'en' => 'Valid · exp. ', 'es' => 'Válida · exp. ', 'jp' => '有効 · ', default => 'Valide · ' }) . h($blockReason['date']) ?>
+                    <?php else: ?>
+                      ⏳ <?= h(match($lang) { 'en' => 'Retry ', 'es' => 'Reintento ', 'jp' => '再試験 ', default => 'Réessai ' }) . h($blockReason['date']) ?>
+                    <?php endif; ?>
+                  </span>
+                <?php endif; ?>
+              </button>
+            <?php endforeach; ?>
+          </div>
+        <?php else: ?>
+          <div class="dash-cert-empty"><?= h(t('dash.no_active_packages', [], $lang)) ?></div>
+        <?php endif; ?>
+      </div>
+
+      <!-- Étape 2 : choisir le mode + démarrer -->
+      <div class="dash-step" id="dash-step-2">
+        <div class="dash-step2-head">
+          <button type="button" class="btn ghost dash-back-btn" id="dash-back-btn">
+            ← <?= h(match($lang) { 'en' => 'Change pack', 'es' => 'Cambiar pack', 'jp' => 'パックを変更', default => 'Changer de pack' }) ?>
+          </button>
+          <span class="dash-step2-packname" id="dash-step2-packname"></span>
+        </div>
+        <div class="dashboard-mode-group" role="radiogroup" aria-label="<?= h(t('dash.session_type', [], $lang)) ?>">
+
+          <label class="dashboard-mode-option">
+            <input type="radio" name="session_type" value="EXAM" checked>
+            <span class="dashboard-mode-content">
+              <span class="dashboard-mode-header">
                 <span class="dashboard-mode-icon" aria-hidden="true">
                   <svg class="dashboard-mode-icon-cert" viewBox="0 0 24 24" focusable="false">
                     <path d="m12 3.35 1.42.96 1.7.02.8 1.5 1.55.68.02 1.7 1.1 1.28-.48 1.63.48 1.63-1.1 1.28-.02 1.7-1.55.68-.8 1.5-1.7.02-1.42.96-1.42-.96-1.7-.02-.8-1.5-1.55-.68-.02-1.7-1.1-1.28.48-1.63-.48-1.63 1.1-1.28.02-1.7 1.55-.68.8-1.5 1.7-.02L12 3.35Z"/>
@@ -751,13 +845,42 @@ function dash_remaining_label(int $seconds): string {
                     <path d="m15.65 16.45 1.1 4.2-2-.95-1.15 1.75-1.1-3.95"/>
                   </svg>
                 </span>
+                <span class="dashboard-mode-title"><?= h(t('dash.session_type.exam', [], $lang)) ?></span>
               </span>
-            </label>
-            <label class="dashboard-mode-option">
-              <input type="radio" name="session_type" value="TRAINING">
-              <span class="dashboard-mode-content">
-                <span class="dashboard-mode-title"><?= h(t('dash.session_type.training', [], $lang)) ?></span>
-                <span class="dashboard-mode-hint"><?= h(t('dash.session_type.training_hint', [], $lang)) ?></span>
+              <ul class="dashboard-mode-features">
+                <?php foreach (match($lang) {
+                  'en' => [
+                    'No feedback during the session — score revealed at the end',
+                    'Cannot be paused — the timer keeps running',
+                    'Quitting or abandoning invalidates the exam',
+                  ],
+                  'es' => [
+                    'Sin corrección durante la sesión — puntuación revelada al final',
+                    'No se puede pausar — el temporizador sigue corriendo',
+                    'Salir o abandonar invalida el examen',
+                  ],
+                  'jp' => [
+                    'セッション中はフィードバックなし — スコアは最後に表示',
+                    '一時停止不可 — タイマーは常に動いています',
+                    '中断または放棄すると試験が無効になります',
+                  ],
+                  default => [
+                    'Aucune correction pendant la session',
+                    'Le score est affiché à la fin sans les réponses',
+                    'Impossible de mettre en pause',
+                    'Quitter ou abandonner rend l\'examen invalide',
+                  ],
+                } as $feat): ?>
+                  <li><?= h($feat) ?></li>
+                <?php endforeach; ?>
+              </ul>
+            </span>
+          </label>
+
+          <label class="dashboard-mode-option">
+            <input type="radio" name="session_type" value="TRAINING">
+            <span class="dashboard-mode-content">
+              <span class="dashboard-mode-header">
                 <span class="dashboard-mode-icon" aria-hidden="true">
                   <svg class="dashboard-mode-icon-training" viewBox="0 0 24 24" focusable="false">
                     <circle cx="12" cy="4" r="2.2"/>
@@ -766,22 +889,50 @@ function dash_remaining_label(int $seconds): string {
                     <path d="M10.1 11.2h3.8v2.9l1.6 2.2v4.2h-2.1v-3.4L12 15.5l-1.3 1.6v3.4H8.6v-4.2l1.5-2.2z"/>
                   </svg>
                 </span>
+                <span class="dashboard-mode-title"><?= h(t('dash.session_type.training', [], $lang)) ?></span>
               </span>
-            </label>
+              <ul class="dashboard-mode-features">
+                <?php foreach (match($lang) {
+                  'en' => [
+                    'Immediate feedback after each question — see correct answers as you go',
+                    'Can be paused and resumed at any time',
+                    'Stopping a training session has no consequences — it can be restarted freely',
+                  ],
+                  'es' => [
+                    'Corrección inmediata tras cada pregunta — ve las respuestas correctas al instante',
+                    'Se puede pausar y reanudar en cualquier momento',
+                    'Detener un entrenamiento no tiene consecuencias — puede reiniciarse libremente',
+                  ],
+                  'jp' => [
+                    '各問題後に即時フィードバック — 正解をすぐに確認できます',
+                    'いつでも一時停止・再開が可能',
+                    'トレーニングを中断しても影響なし — 自由に再開できます',
+                  ],
+                  default => [
+                    'Correction immédiate après chaque question',
+                    'Possibilité de revoir chaque question à la fin de l\'entraînement',
+                    'Possibilité de mettre en pause et de reprendre à tout moment',
+                    'Possible de relancer un entraînement stoppé',
+                  ],
+                } as $feat): ?>
+                  <li><?= h($feat) ?></li>
+                <?php endforeach; ?>
+              </ul>
+            </span>
+          </label>
+
+        </div>
+        <div class="dash-exam-block-info" id="dash-exam-block-info" style="display:none;">
+          <span class="dash-exam-block-icon" id="dash-exam-block-icon"></span>
+          <span id="dash-exam-block-msg"></span>
+        </div>
+        <div class="dashboard-start-foot">
+          <div class="dashboard-start-action">
+            <button id="dash-start-btn" class="btn" type="submit" disabled><?= h(t('dash.start', [], $lang)) ?></button>
+            <a id="dash-continue-btn" class="btn ghost" href="#" style="display:none;"><?= h(t('dash.continue_current', [], $lang)) ?></a>
           </div>
         </div>
       </div>
-
-		      <div class="dashboard-start-foot">
-		        <div class="dashboard-start-action">
-		          <button id="dash-start-btn" class="btn" type="submit" <?= $packages ? '' : 'disabled' ?>><?= h(t('dash.start', [], $lang)) ?></button>
-              <a id="dash-continue-btn"
-                 class="btn ghost"
-                 href="#"
-                 style="display:none;"
-              ><?= h(t('dash.continue_current', [], $lang)) ?></a>
-		        </div>
-		      </div>
 		    </form>
   </div>
 
@@ -838,14 +989,14 @@ function dash_remaining_label(int $seconds): string {
       <span class="badge"><?= count($last) ?></span>
     </div>
 
-    <form method="get" class="filters-grid" style="margin-bottom:12px;">
+    <form method="get" class="filters-grid" style="margin-bottom:12px; grid-template-columns: repeat(4, minmax(0,1fr)) auto;">
       <input type="hidden" name="lang" value="<?= h($lang) ?>">
       <?php if ($activeProgramId > 0): ?>
         <input type="hidden" name="program_id" value="<?= (int)$activeProgramId ?>">
       <?php endif; ?>
       <div>
         <label class="label"><?= h(t('dash.col.cert', [], $lang)) ?></label>
-        <select name="latest_cert">
+        <select name="latest_cert" onchange="this.form.submit()">
           <option value="">--</option>
           <?php foreach ($packages as $pk): ?>
             <?php $pkId = (int)$pk['id']; ?>
@@ -857,7 +1008,7 @@ function dash_remaining_label(int $seconds): string {
       </div>
       <div>
         <label class="label"><?= h(t('dash.col.type', [], $lang)) ?></label>
-        <select name="latest_type">
+        <select name="latest_type" onchange="this.form.submit()">
           <option value="">--</option>
           <option value="EXAM" <?= $latestType === 'EXAM' ? 'selected' : '' ?>><?= h(t('dash.session_type.exam', [], $lang)) ?></option>
           <option value="TRAINING" <?= $latestType === 'TRAINING' ? 'selected' : '' ?>><?= h(t('dash.session_type.training', [], $lang)) ?></option>
@@ -865,16 +1016,23 @@ function dash_remaining_label(int $seconds): string {
       </div>
       <div>
         <label class="label"><?= h(t('dash.col.result', [], $lang)) ?></label>
-        <select name="latest_result">
+        <select name="latest_result" onchange="this.form.submit()">
           <option value="">--</option>
           <option value="PASSED" <?= $latestResult === 'PASSED' ? 'selected' : '' ?>><?= h(t('dash.result.passed', [], $lang)) ?></option>
           <option value="FAILED" <?= $latestResult === 'FAILED' ? 'selected' : '' ?>><?= h(t('dash.result.failed', [], $lang)) ?></option>
-          <option value="ACTIVE" <?= $latestResult === 'ACTIVE' ? 'selected' : '' ?>><?= h(t('dash.status.active', [], $lang)) ?></option>
-          <option value="EXPIRED" <?= $latestResult === 'EXPIRED' ? 'selected' : '' ?>><?= h(t('dash.status.expired', [], $lang)) ?></option>
         </select>
       </div>
-      <div class="filters-actions">
-        <button class="btn ghost" type="submit">Filtrer</button>
+      <div>
+        <label class="label"><?= h(t('dash.col.status', [], $lang)) ?></label>
+        <select name="latest_status" onchange="this.form.submit()">
+          <option value="">--</option>
+          <option value="ACTIVE" <?= $latestStatus === 'ACTIVE' ? 'selected' : '' ?>><?= h(t('dash.status.active', [], $lang)) ?></option>
+          <option value="TERMINATED" <?= $latestStatus === 'TERMINATED' ? 'selected' : '' ?>><?= h(t('dash.status.terminated', [], $lang)) ?></option>
+          <option value="TIMEOUT" <?= $latestStatus === 'TIMEOUT' ? 'selected' : '' ?>><?= h(t('dash.status.timeout', [], $lang)) ?></option>
+          <option value="ABANDONED" <?= $latestStatus === 'ABANDONED' ? 'selected' : '' ?>><?= h(t('dash.status.abandoned', [], $lang)) ?></option>
+        </select>
+      </div>
+      <div class="filters-actions" style="grid-column: auto; margin-bottom: 0;">
         <a class="btn ghost" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>#sec-latest">Reinitialiser</a>
       </div>
     </form>
@@ -957,64 +1115,83 @@ function dash_remaining_label(int $seconds): string {
 <script src="/assets/package-colors.js"></script>
 <script>
   (function () {
-    var form = document.querySelector('.dashboard-start-form');
-    var input = document.getElementById('dash-package-input');
-    var tiles = document.querySelectorAll('.dash-cert-tile');
-    var startBtn = document.getElementById('dash-start-btn');
+    var form        = document.querySelector('.dashboard-start-form');
+    var input       = document.getElementById('dash-package-input');
+    var step1       = document.getElementById('dash-step-1');
+    var step2       = document.getElementById('dash-step-2');
+    var backBtn     = document.getElementById('dash-back-btn');
+    var packNameEl  = document.getElementById('dash-step2-packname');
+    var startBtn    = document.getElementById('dash-start-btn');
     var continueBtn = document.getElementById('dash-continue-btn');
-    var startDefaultLabel = <?= json_encode(t('dash.start', [], $lang)) ?>;
-    var startNewExamLabel = <?= json_encode(t('dash.start_new_exam', [], $lang)) ?>;
-    var startNewTrainingLabel = <?= json_encode(t('dash.start_new_training', [], $lang)) ?>;
-    var continueExamLabel = <?= json_encode(t('dash.continue_current_exam', [], $lang)) ?>;
-    var continueTrainingLabel = <?= json_encode(t('dash.continue_current_training', [], $lang)) ?>;
-    var overwriteConfirmExamText = <?= json_encode(t('dash.confirm_overwrite_session_exam', [], $lang)) ?>;
-    var overwriteConfirmTrainingText = <?= json_encode(t('dash.confirm_overwrite_session_training', [], $lang)) ?>;
+    var searchInput = document.getElementById('dash-pack-search');
+    var blockInfoEl = document.getElementById('dash-exam-block-info');
+    var blockMsgEl  = document.getElementById('dash-exam-block-msg');
+    var blockIconEl = document.getElementById('dash-exam-block-icon');
+    var tiles       = document.querySelectorAll('.dash-cert-tile');
+
+    var certifiedMsg = <?= json_encode(match($lang) {
+      'en' => 'Your certification is valid until {date}. You cannot retake the exam before this date. Training remains available.',
+      'es' => 'Tu certificación es válida hasta el {date}. No puedes volver a presentarte antes de esa fecha. El entrenamiento sigue disponible.',
+      'jp' => '認定は{date}まで有効です。それ以前に再受験することはできません。トレーニングは引き続き利用できます。',
+      default => 'Votre certification est valide jusqu\'au {date}. Vous ne pouvez pas repasser l\'examen avant cette date. L\'entraînement reste disponible.',
+    }) ?>;
+    var cooldownMsg = <?= json_encode(match($lang) {
+      'en' => 'You can retake the exam from {date}. Training remains available.',
+      'es' => 'Podrás volver a presentarte al examen a partir del {date}. El entrenamiento sigue disponible.',
+      'jp' => '{date}から再受験できます。トレーニングは引き続き利用できます。',
+      default => 'Vous pourrez repasser l\'examen à partir du {date}. L\'entraînement reste disponible.',
+    }) ?>;
+    var incompleteMsg = <?= json_encode(match($lang) {
+      'en' => 'This pack is not yet ready — not enough questions have been configured. Contact an administrator.',
+      'es' => 'Este pack aún no está listo — no hay suficientes preguntas configuradas. Contacta con un administrador.',
+      'jp' => 'このパックはまだ準備できていません — 問題数が不足しています。管理者に連絡してください。',
+      default => 'Ce pack n\'est pas encore prêt — pas assez de questions configurées. Contactez un administrateur.',
+    }) ?>;
+
+    var startDefaultLabel      = <?= json_encode(t('dash.start', [], $lang)) ?>;
+    var startNewExamLabel      = <?= json_encode(t('dash.start_new_exam', [], $lang)) ?>;
+    var startNewTrainingLabel  = <?= json_encode(t('dash.start_new_training', [], $lang)) ?>;
+    var continueTrainingLabel  = <?= json_encode(t('dash.continue_current_training', [], $lang)) ?>;
+    var overwriteConfirmExam   = <?= json_encode(t('dash.confirm_overwrite_session_exam', [], $lang)) ?>;
+    var overwriteConfirmTrain  = <?= json_encode(t('dash.confirm_overwrite_session_training', [], $lang)) ?>;
+
+    var selectedTile      = null;
     var selectedActiveSid = '';
-    var selectedMode = 'EXAM';
-    if (!input || !tiles.length) return;
+    var selectedMode      = 'EXAM';
 
     function getMode() {
       var checked = document.querySelector('input[name="session_type"]:checked');
-      var mode = checked ? checked.value : 'EXAM';
-      return mode === 'TRAINING' ? 'TRAINING' : 'EXAM';
+      return (checked && checked.value === 'TRAINING') ? 'TRAINING' : 'EXAM';
     }
 
-    function setActive(value) {
-      var activeSid = '';
-      var activeP = '1';
-      var selectedExamLocked = false;
+    function updateStartBtn() {
+      if (!selectedTile) return;
       selectedMode = getMode();
-      tiles.forEach(function (tile) {
-        var active = (tile.getAttribute('data-package-value') === value);
-        var examLocked = (tile.getAttribute('data-package-exam-locked') === '1');
-        tile.classList.toggle('is-active', active);
-        tile.classList.toggle('is-exam-locked', active && selectedMode === 'EXAM' && examLocked);
-        if (active) {
-          selectedExamLocked = examLocked;
-          if (selectedMode === 'TRAINING') {
-            activeSid = tile.getAttribute('data-active-sid-training') || '';
-            activeP = tile.getAttribute('data-active-p-training') || '1';
-          } else {
-            activeSid = tile.getAttribute('data-active-sid-exam') || '';
-            activeP = tile.getAttribute('data-active-p-exam') || '1';
-          }
-        }
-      });
+      var examLocked = selectedTile.getAttribute('data-package-exam-locked') === '1';
+      var incomplete = selectedTile.getAttribute('data-package-incomplete') === '1';
+      var activeSid  = selectedMode === 'TRAINING'
+        ? (selectedTile.getAttribute('data-active-sid-training') || '')
+        : (selectedTile.getAttribute('data-active-sid-exam') || '');
+      var activeP = selectedMode === 'TRAINING'
+        ? (selectedTile.getAttribute('data-active-p-training') || '1')
+        : (selectedTile.getAttribute('data-active-p-exam') || '1');
 
       if (startBtn) {
-        if (selectedMode === 'EXAM' && selectedExamLocked) {
+        if (incomplete) {
           startBtn.textContent = startDefaultLabel;
           startBtn.disabled = true;
-        } else if (!activeSid) {
+        } else if (selectedMode === 'EXAM' && examLocked) {
           startBtn.textContent = startDefaultLabel;
-          startBtn.disabled = false;
+          startBtn.disabled = true;
         } else {
-          startBtn.textContent = (selectedMode === 'TRAINING') ? startNewTrainingLabel : startNewExamLabel;
+          startBtn.textContent = activeSid
+            ? (selectedMode === 'TRAINING' ? startNewTrainingLabel : startNewExamLabel)
+            : startDefaultLabel;
           startBtn.disabled = false;
         }
       }
       if (continueBtn) {
-        if (activeSid && selectedMode === 'TRAINING' && !(selectedMode === 'EXAM' && selectedExamLocked)) {
+        if (!incomplete && activeSid && selectedMode === 'TRAINING') {
           continueBtn.style.display = '';
           continueBtn.textContent = continueTrainingLabel;
           continueBtn.setAttribute('href', '/exam.php?sid=' + encodeURIComponent(activeSid) + '&p=' + encodeURIComponent(activeP) + '&lang=' + encodeURIComponent(<?= json_encode($lang) ?>));
@@ -1026,30 +1203,73 @@ function dash_remaining_label(int $seconds): string {
       selectedActiveSid = activeSid;
     }
 
+    function goToStep2(tile) {
+      selectedTile = tile;
+      input.value  = tile.getAttribute('data-package-value');
+      if (packNameEl) packNameEl.textContent = tile.getAttribute('data-package-name');
+
+      var blockReason = tile.getAttribute('data-block-reason') || '';
+      var blockDate   = tile.getAttribute('data-block-date') || '';
+      var incomplete  = tile.getAttribute('data-package-incomplete') === '1';
+      if (blockInfoEl && blockMsgEl) {
+        if (incomplete) {
+          blockInfoEl.className = 'dash-exam-block-info dash-exam-block-info--incomplete';
+          blockMsgEl.textContent = incompleteMsg;
+          if (blockIconEl) blockIconEl.textContent = '⚠';
+          blockInfoEl.style.display = '';
+        } else if (blockReason === 'certified') {
+          blockInfoEl.className = 'dash-exam-block-info dash-exam-block-info--certified';
+          blockMsgEl.textContent = certifiedMsg.replace('{date}', blockDate);
+          if (blockIconEl) blockIconEl.textContent = '✓';
+          blockInfoEl.style.display = '';
+        } else if (blockReason === 'cooldown') {
+          blockInfoEl.className = 'dash-exam-block-info dash-exam-block-info--cooldown';
+          blockMsgEl.textContent = cooldownMsg.replace('{date}', blockDate);
+          if (blockIconEl) blockIconEl.textContent = '⏳';
+          blockInfoEl.style.display = '';
+        } else {
+          blockInfoEl.style.display = 'none';
+        }
+      }
+
+      step1.classList.remove('is-active');
+      step2.classList.add('is-active');
+      updateStartBtn();
+    }
+
+    function goToStep1() {
+      step2.classList.remove('is-active');
+      step1.classList.add('is-active');
+    }
+
     tiles.forEach(function (tile) {
-      tile.addEventListener('click', function () {
-        var value = tile.getAttribute('data-package-value');
-        if (!value) return;
-        input.value = value;
-        setActive(value);
-      });
+      tile.addEventListener('click', function () { goToStep2(tile); });
     });
 
-    document.querySelectorAll('input[name="session_type"]').forEach(function (radio) {
-      radio.addEventListener('change', function () {
-        setActive(input.value);
-      });
+    if (backBtn) backBtn.addEventListener('click', goToStep1);
+
+    document.querySelectorAll('input[name="session_type"]').forEach(function (r) {
+      r.addEventListener('change', updateStartBtn);
     });
 
-    setActive(input.value);
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        var q = searchInput.value.toLowerCase();
+        tiles.forEach(function (tile) {
+          var haystack = [
+            tile.getAttribute('data-package-name') || '',
+            tile.getAttribute('data-package-profile') || '',
+          ].join(' ').toLowerCase();
+          tile.style.display = haystack.includes(q) ? '' : 'none';
+        });
+      });
+    }
 
     if (form) {
       form.addEventListener('submit', function (e) {
         if (!selectedActiveSid) return;
-        var confirmText = (selectedMode === 'TRAINING') ? overwriteConfirmTrainingText : overwriteConfirmExamText;
-        if (!window.confirm(confirmText)) {
-          e.preventDefault();
-        }
+        var msg = selectedMode === 'TRAINING' ? overwriteConfirmTrain : overwriteConfirmExam;
+        if (!window.confirm(msg)) e.preventDefault();
       });
     }
   })();

@@ -524,9 +524,7 @@ $docSections = [];
 if (preg_match_all('/^##\s+(.+)$/m', $guideMarkdown, $matches)) {
   foreach ($matches[1] as $heading) {
     $label = trim((string)$heading);
-    $slug = strtolower($label);
-    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
-    $slug = trim((string)$slug, '-');
+    $slug = app_markdown_slugify($label);
     if ($slug !== '') {
       $docSections[] = ['label' => $label, 'slug' => $slug];
     }

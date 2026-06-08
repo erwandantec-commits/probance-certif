@@ -36,7 +36,7 @@ if (!in_array($sort, $allowedSort, true)) $sort = 'started_at';
 if (!in_array($dir, $allowedDir, true)) $dir = 'DESC';
 
 $allowedTypes = ['ALL', 'EXAM', 'TRAINING'];
-$allowedStatus = ['ALL', 'ACTIVE', 'TERMINATED', 'EXPIRED'];
+$allowedStatus = ['ALL', 'ACTIVE', 'TERMINATED', 'TIMEOUT', 'ABANDONED'];
 
 if (!in_array($type, $allowedTypes, true)) $type = 'ALL';
 if (!in_array($status, $allowedStatus, true)) $status = 'ALL';
@@ -60,7 +60,7 @@ function admin_session_type_label(string $type): string {
 }
 
 function admin_session_has_result(array $session): bool {
-  return in_array((string)($session['status'] ?? ''), ['TERMINATED', 'EXPIRED'], true)
+  return (string)($session['status'] ?? '') === 'TERMINATED'
     && $session['passed'] !== null
     && $session['passed'] !== '';
 }
@@ -76,9 +76,14 @@ if ($type !== 'ALL') {
   $where[] = "s.session_type = ?";
   $params[] = $type;
 }
-if ($status !== 'ALL') {
-  $where[] = "s.status = ?";
-  $params[] = $status;
+if ($status === 'ACTIVE') {
+  $where[] = "s.status = 'ACTIVE'";
+} elseif ($status === 'TERMINATED') {
+  $where[] = "s.status = 'TERMINATED' AND s.termination_type = 'MANUAL'";
+} elseif ($status === 'TIMEOUT') {
+  $where[] = "s.status = 'TERMINATED' AND s.termination_type = 'TIMEOUT'";
+} elseif ($status === 'ABANDONED') {
+  $where[] = "s.status = 'TERMINATED' AND s.termination_type = 'ABANDONED'";
 }
 if ($search !== '') {
   $where[] = "c.email LIKE ?";
@@ -89,9 +94,9 @@ if ($package !== 'ALL') {
   $params[] = (int)$package;
 }
 if ($result === 'PASSED') {
-  $where[] = "s.status IN ('TERMINATED', 'EXPIRED') AND s.passed=1";
+  $where[] = "s.status = 'TERMINATED' AND s.passed=1";
 } elseif ($result === 'FAILED') {
-  $where[] = "s.status IN ('TERMINATED', 'EXPIRED') AND s.passed=0";
+  $where[] = "s.status = 'TERMINATED' AND s.passed=0";
 }
 
 $whereSql = $where ? ("WHERE " . implode(" AND ", $where)) : "";
@@ -207,8 +212,8 @@ $statsWhere = $activeProgramId > 0
 $stats = $pdo->query("
   SELECT
     SUM(s.status='ACTIVE') AS active_count,
-    SUM(s.status='TERMINATED') AS terminated_count,
-    SUM(s.status='EXPIRED') AS expired_count,
+    SUM(s.status='TERMINATED' AND s.termination_type='ABANDONED') AS abandoned_count,
+    SUM(s.status='TERMINATED' AND s.termination_type='TIMEOUT') AS timeout_count,
     SUM(s.passed=1 AND s.status='TERMINATED' AND s.session_type='EXAM') AS passed_exam_count
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
@@ -250,12 +255,12 @@ $stats = $pdo->query("
           <strong class="admin-stat-value"><?= (int)$stats['passed_exam_count'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_terminated', [], $lang)) ?></span>
-          <strong class="admin-stat-value"><?= (int)$stats['terminated_count'] ?></strong>
+          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_timeout', [], $lang)) ?></span>
+          <strong class="admin-stat-value"><?= (int)$stats['timeout_count'] ?></strong>
         </article>
         <article class="admin-stat-card">
-          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_expired', [], $lang)) ?></span>
-          <strong class="admin-stat-value"><?= (int)$stats['expired_count'] ?></strong>
+          <span class="admin-stat-label"><?= h(t('admin.sessions.stat_abandoned', [], $lang)) ?></span>
+          <strong class="admin-stat-value"><?= (int)$stats['abandoned_count'] ?></strong>
         </article>
       </div>
 
@@ -301,7 +306,8 @@ $stats = $pdo->query("
             <option value="ALL" <?= $status==='ALL'?'selected':'' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
             <option value="ACTIVE" <?= $status==='ACTIVE'?'selected':'' ?>><?= h(t('admin.status.active', [], $lang)) ?></option>
             <option value="TERMINATED" <?= $status==='TERMINATED'?'selected':'' ?>><?= h(t('admin.status.terminated', [], $lang)) ?></option>
-            <option value="EXPIRED" <?= $status==='EXPIRED'?'selected':'' ?>><?= h(t('admin.status.expired', [], $lang)) ?></option>
+            <option value="TIMEOUT" <?= $status==='TIMEOUT'?'selected':'' ?>><?= h(t('admin.status.timeout', [], $lang)) ?></option>
+            <option value="ABANDONED" <?= $status==='ABANDONED'?'selected':'' ?>><?= h(t('admin.status.abandoned', [], $lang)) ?></option>
           </select>
         </div>
 
@@ -385,8 +391,10 @@ $stats = $pdo->query("
                   <td><?= h(admin_session_type_label((string)$s['session_type'])) ?></td>
 	                  <td><span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h($s['package_name']) ?></span></td>
 	                  <td>
-                      <?php $isTimeout = strtoupper(trim((string)($s['termination_type'] ?? ''))) === 'TIMEOUT'; ?>
-	                    <?php if ($s['status'] === 'TERMINATED' && !$isTimeout): ?>
+                      <?php $ttype = strtoupper(trim((string)($s['termination_type'] ?? ''))); $isTimeout = $ttype === 'TIMEOUT'; $isAbandoned = $ttype === 'ABANDONED'; ?>
+	                    <?php if ($isAbandoned): ?>
+	                      <span class="badge"><?= h(t('dash.status.abandoned', [], $lang)) ?></span>
+	                    <?php elseif ($s['status'] === 'TERMINATED' && !$isTimeout): ?>
 	                      <span class="badge ok"><?= h(t('admin.status.terminated', [], $lang)) ?></span>
 	                    <?php elseif ($s['status'] === 'EXPIRED' || $isTimeout): ?>
 	                      <span class="badge bad"><?= h(t('admin.status.expired', [], $lang)) ?></span>

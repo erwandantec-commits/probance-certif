@@ -44,8 +44,10 @@ if (!function_exists('render_admin_program_switcher')) {
       if ($programName === '') {
         $programName = 'Programme #' . (int)($program['id'] ?? $activeProgramId);
       }
+      $monitorSvg = '<svg class="admin-program-switcher-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h18v12H3z"/><path d="M10 16h4v3h4v2H6v-2h4z"/></svg>';
       echo '<div class="admin-program-switcher admin-program-current">';
       echo '<div class="admin-program-switcher-head">';
+      echo $monitorSvg;
       echo '<span class="admin-program-switcher-copy">';
       echo '<span class="admin-program-switcher-label">' . h(t('admin.common.program', [], function_exists('get_lang') ? get_lang() : 'fr')) . '</span>';
       echo '</span>';
@@ -70,7 +72,9 @@ if (!function_exists('render_admin_program_switcher')) {
       }
       echo '<input type="hidden" name="' . h((string)$key) . '" value="' . h((string)$value) . '">';
     }
+    $monitorSvg = '<svg class="admin-program-switcher-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h18v12H3z"/><path d="M10 16h4v3h4v2H6v-2h4z"/></svg>';
     echo '<div class="admin-program-switcher-head">';
+    echo $monitorSvg;
     echo '<span class="admin-program-switcher-copy">';
     echo '<label class="admin-program-switcher-label" for="admin-program-id">' . h(t('admin.common.program', [], function_exists('get_lang') ? get_lang() : 'fr')) . '</label>';
     echo '</span>';
@@ -161,7 +165,8 @@ function render_admin_tabs(string $active = ''): void
 {
   $user = current_user() ?? ['role' => 'USER'];
   $candidateTab = ['key' => 'candidate', 'href' => '/dashboard.php', 'label' => 'Espace candidat'];
-  $helpTab = ['key' => 'help', 'href' => '/admin/help.php', 'label' => 'Documentation'];
+  $helpHref = user_has_role($user, 'ADMIN') ? '/admin/help.php' : '/admin/help_owner.php';
+  $helpTab = ['key' => 'help', 'href' => $helpHref, 'label' => 'Documentation'];
   $logoutTab = ['key' => 'logout', 'href' => '/logout.php', 'label' => 'D&eacute;connexion', 'extra_class' => 'admin-logout-btn'];
   $navLang = function_exists('get_lang') ? get_lang() : 'fr';
   $reportingTabs = [
@@ -196,10 +201,31 @@ function render_admin_tabs(string $active = ''): void
     parse_str((string)$uriParts['query'], $uriQuery);
   }
 
+  $flagMap = ['fr' => 'fr', 'en' => 'gb', 'es' => 'es', 'jp' => 'jp'];
+  $activeFlag = $flagMap[$adminLang] ?? 'fr';
+
   echo '<nav class="admin-tabs" aria-label="Navigation administration">';
+  echo '<div class="admin-tabs-top">';
   echo '<a class="btn ghost admin-tab admin-tab-candidate" href="' . $candidateTab['href'] . '">';
   echo '<span class="admin-tab-label">' . h(t('admin.nav.candidate_space', [], $adminLang)) . '</span>';
   echo '</a>';
+  echo '<div class="admin-lang-picker" id="adminLangPicker">';
+  echo '<button class="admin-lang-picker-btn" id="adminLangPickerBtn" type="button" aria-haspopup="true" aria-expanded="false">';
+  echo '<img src="https://flagcdn.com/20x15/' . $activeFlag . '.png" width="20" height="15" alt="' . h(strtoupper($adminLang)) . '" style="border-radius:2px;">';
+  echo '</button>';
+  echo '<div class="admin-lang-picker-dropdown" id="adminLangPickerDropdown" role="menu">';
+  foreach ($flagMap as $code => $flagCode) {
+    $q = $uriQuery;
+    $q['lang'] = $code;
+    $href = $uriPath . '?' . http_build_query($q);
+    $isActive = $adminLang === $code;
+    echo '<a class="admin-lang-picker-option' . ($isActive ? ' is-active' : '') . '" href="' . h($href) . '" role="menuitem">';
+    echo '<img src="https://flagcdn.com/20x15/' . $flagCode . '.png" width="20" height="15" alt="' . h(strtoupper($code)) . '" style="border-radius:2px;">';
+    echo '</a>';
+  }
+  echo '</div>';
+  echo '</div>';
+  echo '</div>';
   echo '<div class="admin-tabs-quick-actions">';
   echo '<a class="btn ghost admin-tab admin-quick-action admin-logout-btn" href="' . h((string)$logoutTab['href']) . '">';
   echo '<span class="admin-tab-icon">' . admin_tab_icon_svg('logout') . '</span>';
@@ -225,26 +251,6 @@ function render_admin_tabs(string $active = ''): void
   }
   if ($contentTabs) {
     render_admin_tab_group(t('admin.nav.group_content', [], $navLang), 'packages', $contentTabs, $active);
-  }
-  echo '</div>';
-  echo '</div>';
-
-  // Language picker — ancré en bas de la sidebar
-  $flagMap = ['fr' => 'fr', 'en' => 'gb', 'es' => 'es', 'jp' => 'jp'];
-  $activeFlag = $flagMap[$adminLang] ?? 'fr';
-  echo '<div class="admin-lang-picker" id="adminLangPicker">';
-  echo '<button class="admin-lang-picker-btn" id="adminLangPickerBtn" type="button" aria-haspopup="true" aria-expanded="false">';
-  echo '<img src="https://flagcdn.com/20x15/' . $activeFlag . '.png" width="20" height="15" alt="' . h(strtoupper($adminLang)) . '" style="border-radius:2px;">';
-  echo '</button>';
-  echo '<div class="admin-lang-picker-dropdown" id="adminLangPickerDropdown" role="menu">';
-  foreach ($flagMap as $code => $flagCode) {
-    $q = $uriQuery;
-    $q['lang'] = $code;
-    $href = $uriPath . '?' . http_build_query($q);
-    $isActive = $adminLang === $code;
-    echo '<a class="admin-lang-picker-option' . ($isActive ? ' is-active' : '') . '" href="' . h($href) . '" role="menuitem">';
-    echo '<img src="https://flagcdn.com/20x15/' . $flagCode . '.png" width="20" height="15" alt="' . h(strtoupper($code)) . '" style="border-radius:2px;">';
-    echo '</a>';
   }
   echo '</div>';
   echo '</div>';

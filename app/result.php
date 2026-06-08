@@ -77,7 +77,15 @@ function result_is_timeout_session(array $s): bool {
     );
 }
 
+function result_is_abandoned_session(array $s): bool {
+  return (string)($s['status'] ?? '') === 'TERMINATED'
+    && strtoupper(trim((string)($s['termination_type'] ?? ''))) === 'ABANDONED';
+}
+
 function result_display_status(array $s): string {
+  if (result_is_abandoned_session($s)) {
+    return 'ABANDONED';
+  }
   if (result_is_timeout_session($s)) {
     return 'EXPIRED';
   }
@@ -89,12 +97,16 @@ function result_status_label(string $status, string $lang): string {
     'TERMINATED' => t('dash.status.terminated', [], $lang),
     'ACTIVE' => t('dash.status.active', [], $lang),
     'EXPIRED' => t('dash.status.expired', [], $lang),
+    'ABANDONED' => t('dash.status.abandoned', [], $lang),
     default => $status,
   };
 }
 
 function result_session_passed(array $s): ?bool {
   $displayStatus = result_display_status($s);
+  if ($displayStatus === 'ABANDONED') {
+    return false;
+  }
   if (!in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)) {
     return null;
   }
@@ -118,9 +130,11 @@ $reviewPosition = max(0, (int)($_GET['review_p'] ?? 0));
 $reviewItems = [];
 $selectedReviewItem = null;
 $selectedReviewOptions = [];
+$isAbandonedSession = ($displayStatus === 'ABANDONED');
 $isTerminatedExam = (
   (string)($s['session_type'] ?? '') === 'EXAM' &&
-  in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)
+  in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true) &&
+  !$isAbandonedSession
 );
 $isPassedTerminatedExam = $isTerminatedExam && ($resultPassed === true);
 $validUntil = '';
@@ -307,6 +321,8 @@ if ($canShowReview) {
           <?php endif; ?>
         <?php elseif ($displayStatus === 'EXPIRED'): ?>
           <span class="badge bad"><?= h(t('result.badge.expired', [], $lang)) ?></span>
+        <?php elseif ($displayStatus === 'ABANDONED'): ?>
+          <span class="badge bad"><?= h(t('result.badge.failed', [], $lang)) ?></span>
         <?php else: ?>
           <span class="badge"><?= h(t('result.badge.active', [], $lang)) ?></span>
         <?php endif; ?>
@@ -322,7 +338,14 @@ if ($canShowReview) {
         <?php endif; ?>
       </div>
 
-	      <?php if (in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)): ?>
+	      <?php if ($isAbandonedSession): ?>
+          <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border); margin-bottom:14px;">
+            <p style="margin:0; font-size:16px;"><?= h(t('result.abandoned_message', [], $lang)) ?></p>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
+          </div>
+        <?php elseif (in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true)): ?>
           <?php if ($isTerminatedExam): ?>
             <div class="result-blue-hero">
               <img class="result-blue-hero-badge" src="<?= h($heroImagePath) ?>" alt="Badge Resultat">
@@ -503,8 +526,6 @@ if ($canShowReview) {
             <?php endif; ?>
           </div>
         </div>
-      <?php else: ?>
-	      <p class="small" style="margin-top:14px;"><?= h(t('result.answers_admin_only', [], $lang)) ?></p>
       <?php endif; ?>
 	  </div>
 </body>

@@ -709,14 +709,14 @@ function create_session_record(
 function mark_session_terminated(
   PDO $pdo,
   string $sessionId,
-  float $scorePercent,
+  ?float $scorePercent,
   int $passed,
   string $terminationType = 'MANUAL'
 ): void {
   $hasEndedAt = sessions_column_exists($pdo, 'ended_at');
   $hasTerminationType = sessions_column_exists($pdo, 'termination_type');
   $terminationType = strtoupper(trim($terminationType));
-  if (!in_array($terminationType, ['MANUAL', 'TIMEOUT'], true)) {
+  if (!in_array($terminationType, ['MANUAL', 'TIMEOUT', 'ABANDONED'], true)) {
     $terminationType = 'MANUAL';
   }
 
