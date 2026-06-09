@@ -268,7 +268,7 @@ foreach ($certCards as $pkgId => $card) {
 $activeOverrideByPackage = [];
 if (table_exists($pdo, 'exam_cooldown_overrides')) {
   $overrideListStmt = $pdo->prepare("
-    SELECT package_id
+    SELECT package_id, expires_at
     FROM exam_cooldown_overrides
     WHERE user_id=?
       AND is_active=1
@@ -280,7 +280,7 @@ if (table_exists($pdo, 'exam_cooldown_overrides')) {
   foreach ($overrideRows as $r) {
     $pid = (int)($r['package_id'] ?? 0);
     if ($pid > 0) {
-      $activeOverrideByPackage[$pid] = true;
+      $activeOverrideByPackage[$pid] = ['expires_at' => $r['expires_at'] ?? null];
     }
   }
 }
@@ -345,6 +345,16 @@ foreach ($packages as $pk) {
   } elseif (!array_key_exists($pkgId, $examBlockedByPackage)) {
     $examBlockedByPackage[$pkgId] = false;
   }
+}
+
+foreach ($activeOverrideByPackage as $ovPid => $ovData) {
+  if (($examBlockReasonByPackage[$ovPid]['reason'] ?? null) === 'certified') continue;
+  $ovExpiresAt = is_array($ovData) ? ($ovData['expires_at'] ?? null) : null;
+  $ovDateFmt = '';
+  if ($ovExpiresAt) {
+    try { $ovDateFmt = (new DateTimeImmutable($ovExpiresAt))->format('d/m/Y'); } catch (Exception $e) {}
+  }
+  $examBlockReasonByPackage[$ovPid] = ['reason' => 'override', 'date' => $ovDateFmt];
 }
 
 $packNotEnoughQuestions = [];
@@ -809,6 +819,12 @@ function dash_remaining_label(int $seconds): string {
                   <span class="dash-cert-tile-badge dash-cert-tile-badge--<?= h($blockReason['reason']) ?>">
                     <?php if ($blockReason['reason'] === 'certified'): ?>
                       ✓ <?= h(match($lang) { 'en' => 'Valid · exp. ', 'es' => 'Válida · exp. ', 'jp' => '有効 · ', default => 'Valide · ' }) . h($blockReason['date']) ?>
+                    <?php elseif ($blockReason['reason'] === 'override'): ?>
+                      🔓 <?php if ($blockReason['date']): ?>
+                        <?= h(match($lang) { 'en' => 'Unlocked until ', 'es' => 'Desbloqueado hasta ', 'jp' => '解除済 ', default => 'Débloqué jusqu\'au ' }) . h($blockReason['date']) ?>
+                      <?php else: ?>
+                        <?= h(match($lang) { 'en' => 'Unlocked', 'es' => 'Desbloqueado', 'jp' => '解除済', default => 'Débloqué' }) ?>
+                      <?php endif; ?>
                     <?php else: ?>
                       ⏳ <?= h(match($lang) { 'en' => 'Retry ', 'es' => 'Reintento ', 'jp' => '再試験 ', default => 'Réessai ' }) . h($blockReason['date']) ?>
                     <?php endif; ?>
@@ -1141,6 +1157,18 @@ function dash_remaining_label(int $seconds): string {
       'jp' => '{date}から再受験できます。トレーニングは引き続き利用できます。',
       default => 'Vous pourrez repasser l\'examen à partir du {date}. L\'entraînement reste disponible.',
     }) ?>;
+    var overrideMsg = <?= json_encode(match($lang) {
+      'en' => 'Your access has been unlocked until {date}. You can take the exam now.',
+      'es' => 'Tu acceso ha sido desbloqueado hasta el {date}. Puedes realizar el examen ahora.',
+      'jp' => '{date}までアクセスが解除されています。今すぐ試験を受けることができます。',
+      default => 'Votre accès a été débloqué jusqu\'au {date}. Vous pouvez passer l\'examen dès maintenant.',
+    }) ?>;
+    var overrideMsgPermanent = <?= json_encode(match($lang) {
+      'en' => 'Your access has been unlocked. You can take the exam now.',
+      'es' => 'Tu acceso ha sido desbloqueado. Puedes realizar el examen ahora.',
+      'jp' => 'アクセスが解除されています。今すぐ試験を受けることができます。',
+      default => 'Votre accès a été débloqué. Vous pouvez passer l\'examen dès maintenant.',
+    }) ?>;
     var incompleteMsg = <?= json_encode(match($lang) {
       'en' => 'This pack is not yet ready — not enough questions have been configured. Contact an administrator.',
       'es' => 'Este pack aún no está listo — no hay suficientes preguntas configuradas. Contacta con un administrador.',
@@ -1226,6 +1254,11 @@ function dash_remaining_label(int $seconds): string {
           blockInfoEl.className = 'dash-exam-block-info dash-exam-block-info--cooldown';
           blockMsgEl.textContent = cooldownMsg.replace('{date}', blockDate);
           if (blockIconEl) blockIconEl.textContent = '⏳';
+          blockInfoEl.style.display = '';
+        } else if (blockReason === 'override') {
+          blockInfoEl.className = 'dash-exam-block-info dash-exam-block-info--override';
+          blockMsgEl.textContent = blockDate ? overrideMsg.replace('{date}', blockDate) : overrideMsgPermanent;
+          if (blockIconEl) blockIconEl.textContent = '🔓';
           blockInfoEl.style.display = '';
         } else {
           blockInfoEl.style.display = 'none';

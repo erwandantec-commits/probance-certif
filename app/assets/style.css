@@ -5808,6 +5808,16 @@ body.admin-with-sidebar .admin-tabs-bottom {
   color: #94a3b8;
   border-color: rgba(148, 163, 184, 0.22);
 }
+.dash-cert-tile-badge--override {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+:root[data-theme="dark"] .dash-cert-tile-badge--override {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.25);
+}
 
 .dash-exam-block-info {
   display: flex;
@@ -5848,6 +5858,16 @@ body.admin-with-sidebar .admin-tabs-bottom {
   background: rgba(148, 163, 184, 0.08);
   border-color: rgba(148, 163, 184, 0.18);
   color: #94a3b8;
+}
+.dash-exam-block-info--override {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  color: #1e3a8a;
+}
+:root[data-theme="dark"] .dash-exam-block-info--override {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(147, 197, 253, 0.2);
+  color: #bfdbfe;
 }
 .dash-exam-block-icon {
   font-size: 16px;
