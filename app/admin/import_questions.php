@@ -272,7 +272,7 @@ function mapping_fields(string $importMode = 'source', string $lang = 'fr'): arr
   }
 
   $sourceFields = $common + [
-    'knowledge_required' => ['label' => t('admin.import.field_category', [], $lang), 'required' => true, 'aliases' => ['categorie', 'toolconcerned', 'connaissancesrequises', 'knowledgerequired', 'knowledge', 'need', 'needs']],
+    'knowledge_required' => ['label' => t('admin.import.field_category', [], $lang), 'required' => true, 'aliases' => ['categorie', 'category', 'toolconcerned', 'connaissancesrequises', 'knowledgerequired', 'knowledge', 'need', 'needs']],
     'theme' => ['label' => t('admin.import.field_theme', [], $lang), 'required' => false, 'aliases' => ['themequestion', 'theme']],
     'level' => ['label' => t('admin.import.field_level', [], $lang), 'required' => true, 'aliases' => ['niveauquestion', 'level', 'niveau']],
     'correct' => ['label' => t('admin.import.field_correct', [], $lang), 'required' => true, 'aliases' => ['bonnesreponses', 'bonnereponse', 'correctanswers', 'goodanswers', 'correct']],
@@ -873,6 +873,12 @@ if (!isset($_SESSION[$stateKey]) || !is_array($_SESSION[$stateKey])) {
 }
 $state = $_SESSION[$stateKey];
 
+// Pre-select mode when arriving via GET with ?mode= (e.g. from translations page)
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['mode']) && import_mode_normalize($_GET['mode']) !== 'source') {
+  $_SESSION[$stateKey] = [];
+  $state = [];
+}
+
 $schemaErrors = [];
 foreach (['external_id', 'package_id', 'text', 'need', 'knowledge_required_csv', 'level', 'question_type', 'allow_skip', 'theme', 'category', 'profile', 'explanation', 'meta_json', 'updated_at'] as $col) {
   if (!table_column_exists($pdo, 'questions', $col)) {
@@ -883,7 +889,7 @@ if (table_column_exists($pdo, 'questions', 'package_id') && !db_column_nullable(
   $schemaErrors[] = "questions.package_id est NOT NULL. Lance les migrations SQL du projet.";
 }
 
-$importMode = import_mode_normalize((string)($_POST['import_mode'] ?? ($state['import_mode'] ?? 'source')));
+$importMode = import_mode_normalize((string)($_POST['import_mode'] ?? ($state['import_mode'] ?? ($_GET['mode'] ?? 'source'))));
 $importLang = import_effective_lang($importMode, (string)($_POST['import_lang'] ?? ($state['import_lang'] ?? $activeProgramSourceLang)), $activeProgramSourceLang);
 $mappingDefs = mapping_fields($importMode, $lang);
 $mapping = $state['mapping'] ?? [];
@@ -892,7 +898,7 @@ $verifyDone = false;
 $action = trim((string)($_POST['action'] ?? ''));
 $lastAction = '';
 
-if (isset($_GET['cancel_import']) && (string)$_GET['cancel_import'] === '1') {
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['cancel_import']) && (string)$_GET['cancel_import'] === '1') {
   $_SESSION[$stateKey] = [];
 }
 
@@ -1206,6 +1212,63 @@ function import_lang_label(string $lang): string {
             <?php endforeach; ?>
           </select>
         </div>
+        <?php
+        $colGuideInfo = [
+          'id'                 => ['csv' => 'id',          'desc' => t('admin.import.guide_col_id', [], $lang),                    'ex' => '42',                     'type' => t('admin.import.guide_type_int', [], $lang),       'len' => ''],
+          'knowledge_required' => ['csv' => 'category',    'desc' => t('admin.import.guide_col_category', [], $lang),              'ex' => 'PHM',                    'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '128'],
+          'theme'              => ['csv' => 'theme',        'desc' => t('admin.import.guide_col_theme', [], $lang),                 'ex' => 'Recommandations',        'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '255'],
+          'level'              => ['csv' => 'level',        'desc' => t('admin.import.guide_col_level', [], $lang),                 'ex' => '2',                      'type' => t('admin.import.guide_type_int_1_3', [], $lang),   'len' => ''],
+          'question'           => ['csv' => 'question',    'desc' => t('admin.import.guide_col_question', [], $lang),              'ex' => '',                       'type' => t('admin.import.guide_type_text', [], $lang),      'len' => ''],
+          'answer1'            => ['csv' => 'answer1',     'desc' => t('admin.import.guide_col_answer', ['n' => 1], $lang),        'ex' => '',                       'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '500'],
+          'answer2'            => ['csv' => 'answer2',     'desc' => t('admin.import.guide_col_answer', ['n' => 2], $lang),        'ex' => '',                       'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '500'],
+          'answer3'            => ['csv' => 'answer3',     'desc' => t('admin.import.guide_col_answer', ['n' => 3], $lang),        'ex' => '',                       'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '500'],
+          'answer4'            => ['csv' => 'answer4',     'desc' => t('admin.import.guide_col_answer', ['n' => 4], $lang),        'ex' => '',                       'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '500'],
+          'answer5'            => ['csv' => 'answer5',     'desc' => t('admin.import.guide_col_answer', ['n' => 5], $lang),        'ex' => '',                       'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '500'],
+          'answer6'            => ['csv' => 'answer6',     'desc' => t('admin.import.guide_col_answer', ['n' => 6], $lang),        'ex' => '',                       'type' => t('admin.import.guide_type_string', [], $lang),    'len' => '500'],
+          'correct'            => ['csv' => 'correct',     'desc' => t('admin.import.guide_col_correct', [], $lang),               'ex' => '3  ou  1;3',             'type' => t('admin.import.guide_type_int_1_6', [], $lang),   'len' => ''],
+          'explanation'        => ['csv' => 'explanation', 'desc' => t('admin.import.guide_col_explanation', [], $lang),           'ex' => '',                       'type' => t('admin.import.guide_type_text', [], $lang),      'len' => ''],
+        ];
+        ?>
+        <div class="import-field import-field-full">
+          <label class="label"><?= h(t('admin.import.guide_label', [], $lang)) ?></label>
+          <?php foreach (['source' => ['source', 'update'], 'translation' => ['translation']] as $guideMode => $guideModes): ?>
+            <div class="import-col-guide" data-col-guide="<?= h($guideMode) ?>" style="<?= in_array($importMode, $guideModes, true) ? '' : 'display:none;' ?>">
+              <table class="import-col-table">
+                <thead>
+                  <tr>
+                    <th><?= h(t('admin.import.guide_header_col', [], $lang)) ?></th>
+                    <th><?= h(t('admin.import.guide_header_desc', [], $lang)) ?></th>
+                    <th><?= h(t('admin.import.guide_header_ex', [], $lang)) ?></th>
+                    <th><?= h(t('admin.import.guide_header_req', [], $lang)) ?></th>
+                    <th><?= h(t('admin.import.guide_header_type', [], $lang)) ?></th>
+                    <th><?= h(t('admin.import.guide_header_len', [], $lang)) ?></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php $guideModeFields = mapping_fields($guideMode, $lang);
+                  foreach ($colGuideInfo as $fieldKey => $info):
+                    if (!isset($guideModeFields[$fieldKey])) continue;
+                    $fieldDef = $guideModeFields[$fieldKey]; ?>
+                  <tr>
+                    <td class="import-col-key">
+                      <code class="import-col-code"><?= h($info['csv'] ?? $fieldKey) ?></code>
+                    </td>
+                    <td class="import-col-desc"><?= h($info['desc'] ?? $fieldDef['label']) ?></td>
+                    <td class="import-col-ex"><?= h($info['ex'] ?? '') ?></td>
+                    <td>
+                      <span class="import-col-badge <?= $fieldDef['required'] ? 'import-col-badge--req' : 'import-col-badge--opt' ?>">
+                        <?= $fieldDef['required'] ? h(t('admin.import.guide_req_yes', [], $lang)) : h(t('admin.import.guide_req_no', [], $lang)) ?>
+                      </span>
+                    </td>
+                    <td class="import-col-ex"><?= h($info['type'] ?? '') ?></td>
+                    <td class="import-col-ex"><?= h($info['len'] ?? '') ?></td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          <?php endforeach; ?>
+        </div>
         <div class="import-field import-field-full">
           <label class="label"><?= h(t('admin.import.file_label', [], $lang)) ?></label>
           <input class="input" type="file" name="import_file" accept=".csv,.xlsx" <?= $hasLoadedRows ? '' : 'required' ?>>
@@ -1291,6 +1354,8 @@ function import_lang_label(string $lang): string {
     var importModeSummaryEls = Array.prototype.slice.call(document.querySelectorAll('[data-import-summary-mode]'));
     var importLangSummaryEls = Array.prototype.slice.call(document.querySelectorAll('[data-import-summary-lang]'));
     var sourceLang = <?= json_encode($activeProgramSourceLang) ?>;
+    var colGuideSource = importForm.querySelector('[data-col-guide="source"]');
+    var colGuideTranslation = importForm.querySelector('[data-col-guide="translation"]');
 
     function modeLabel(value) {
       value = String(value || '');
@@ -1312,6 +1377,8 @@ function import_lang_label(string $lang): string {
       if (sourceLangNote) sourceLangNote.style.display = currentMode === 'source' ? '' : 'none';
       if (updateLangNote) updateLangNote.style.display = currentMode === 'update' ? '' : 'none';
       if (langSelect) langSelect.style.display = currentMode === 'translation' ? '' : 'none';
+      if (colGuideSource) colGuideSource.style.display = (currentMode === 'source' || currentMode === 'update') ? '' : 'none';
+      if (colGuideTranslation) colGuideTranslation.style.display = currentMode === 'translation' ? '' : 'none';
 
       mappingModeSummaryEls.forEach(function (el) { el.textContent = modeLabel(currentMode); });
       mappingLangSummaryEls.forEach(function (el) { el.textContent = langLabel(currentLang); });

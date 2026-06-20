@@ -863,6 +863,7 @@ function dash_remaining_label(int $seconds): string {
                 </span>
                 <span class="dashboard-mode-title"><?= h(t('dash.session_type.exam', [], $lang)) ?></span>
               </span>
+              <span class="dashboard-mode-duration" id="dash-exam-duration-display" style="display:none;"></span>
               <ul class="dashboard-mode-features">
                 <?php foreach (match($lang) {
                   'en' => [
@@ -907,6 +908,7 @@ function dash_remaining_label(int $seconds): string {
                 </span>
                 <span class="dashboard-mode-title"><?= h(t('dash.session_type.training', [], $lang)) ?></span>
               </span>
+              <span class="dashboard-mode-duration" id="dash-training-duration-display" style="display:none;"></span>
               <ul class="dashboard-mode-features">
                 <?php foreach (match($lang) {
                   'en' => [
@@ -1235,6 +1237,15 @@ function dash_remaining_label(int $seconds): string {
       selectedTile = tile;
       input.value  = tile.getAttribute('data-package-value');
       if (packNameEl) packNameEl.textContent = tile.getAttribute('data-package-name');
+
+      var dur = parseInt(tile.getAttribute('data-package-duration') || '0', 10);
+      var durationEl = document.getElementById('dash-exam-duration-display');
+      var durationTrainEl = document.getElementById('dash-training-duration-display');
+      [durationEl, durationTrainEl].forEach(function (el) {
+        if (!el) return;
+        if (dur > 0) { el.textContent = '⏱ ' + dur + ' min'; el.style.display = ''; }
+        else { el.style.display = 'none'; }
+      });
 
       var blockReason = tile.getAttribute('data-block-reason') || '';
       var blockDate   = tile.getAttribute('data-block-date') || '';

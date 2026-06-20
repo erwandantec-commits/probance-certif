@@ -288,7 +288,11 @@ function translation_cover_query(array $overrides = []): string {
 }
 
 function translation_import_url(int $activeProgramId): string {
-  return '/admin/import_questions.php' . ($activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '');
+  $params = ['mode' => 'translation'];
+  if ($activeProgramId > 0) {
+    $params['program_id'] = (int)$activeProgramId;
+  }
+  return '/admin/import_questions.php?' . http_build_query($params);
 }
 
 function translation_export_url(int $activeProgramId): string {

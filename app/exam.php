@@ -21,7 +21,7 @@ if (!$sid) {
 }
 
 $stmt = $pdo->prepare("
-  SELECT s.*, pk.duration_limit_minutes, pk.name AS package_name, pk.name_color_hex AS package_color_hex
+  SELECT s.*, pk.duration_limit_minutes, pk.pass_threshold_percent, pk.name AS package_name, pk.name_color_hex AS package_color_hex
   FROM sessions s
   JOIN packages pk ON pk.id = s.package_id
   WHERE s.id=?
@@ -114,6 +114,13 @@ if (!in_array($qType, ['MULTI', 'SINGLE', 'TRUE_FALSE'], true)) {
 $allowSkip = (int)($q['allow_skip'] ?? 0) === 1;
 $isTraining = (($sess['session_type'] ?? 'EXAM') === 'TRAINING');
 $showFeedback = $isTraining && $checked;
+
+$pkgCooldownDays = 0;
+if (!$isTraining && table_column_exists($pdo, 'packages', 'failed_cooldown_days')) {
+  $cdStmt = $pdo->prepare("SELECT failed_cooldown_days FROM packages WHERE id=?");
+  $cdStmt->execute([(int)$sess['package_id']]);
+  $pkgCooldownDays = (int)(($cdStmt->fetchColumn()) ?: 0);
+}
 
 $optStmt = $pdo->prepare("
   SELECT id, label, option_text, is_correct
@@ -301,7 +308,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
   }
   if (isset($_POST['abandon'])) {
-    mark_session_terminated($pdo, $sid, null, 0, 'ABANDONED');
+    if ($isTraining) {
+      $scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
+      $score = round((float)($scoreSnapshot['score_percent'] ?? 0.0), 2);
+      $threshold = (int)$sess['pass_threshold_percent'];
+      $passed = ($score >= $threshold) ? 1 : 0;
+      mark_session_terminated($pdo, $sid, $score, $passed, 'MANUAL');
+    } else {
+      mark_session_terminated($pdo, $sid, null, 0, 'ABANDONED');
+    }
     header("Location: /result.php?sid=" . urlencode($sid) . "&lang=" . urlencode($lang));
     exit;
   }
@@ -453,6 +468,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 </div>
 
+<?php
+$_abandonTitle = match($lang) {
+  'en' => $isTraining ? 'End training session?' : 'Abandon this exam?',
+  'es' => $isTraining ? '¿Terminar el entrenamiento?' : '¿Abandonar el examen?',
+  'jp' => $isTraining ? 'トレーニングを終了しますか？' : '試験を放棄しますか？',
+  default => $isTraining ? "Terminer l'entraînement ?" : "Abandonner l'examen ?",
+};
+$_abandonWarning = $isTraining ? '' : match($lang) {
+  'en' => 'This action is irreversible.',
+  'es' => 'Esta acción es irreversible.',
+  'jp' => 'この操作は取り消せません。',
+  default => 'Cette action est irréversible.',
+};
+$_abandonBody = match($lang) {
+  'en' => $isTraining ? 'Your score will be calculated on questions answered so far.' : 'Your session will be cancelled and no score will be calculated.',
+  'es' => $isTraining ? 'Tu puntuación se calculará con las preguntas respondidas hasta ahora.' : 'Tu sesión será cancelada y no se calculará ninguna puntuación.',
+  'jp' => $isTraining ? 'ここまで回答した問題でスコアが計算されます。' : 'セッションがキャンセルされ、スコアは計算されません。',
+  default => $isTraining ? 'Votre score sera calculé sur les questions répondues jusqu\'ici.' : 'Votre session sera annulée et aucun score ne sera calculé.',
+};
+$_abandonCooldown = '';
+if (!$isTraining && $pkgCooldownDays > 0) {
+  $_abandonCooldown = match($lang) {
+    'en' => "You will not be able to retake this exam for {$pkgCooldownDays} days.",
+    'es' => "No podrás volver a presentarte a este examen durante {$pkgCooldownDays} días.",
+    'jp' => "{$pkgCooldownDays}日間、この試験を再受験できません。",
+    default => "Vous ne pourrez pas repasser cet examen avant {$pkgCooldownDays} jours.",
+  };
+}
+$_abandonConfirmLabel = match($lang) {
+  'en' => $isTraining ? 'End session' : 'Confirm abandon',
+  'es' => $isTraining ? 'Terminar sesión' : 'Confirmar abandono',
+  'jp' => $isTraining ? 'セッション終了' : '放棄を確認',
+  default => $isTraining ? 'Terminer la session' : "Confirmer l'abandon",
+};
+$_abandonCancelLabel = match($lang) { 'en' => 'Cancel', 'es' => 'Cancelar', 'jp' => 'キャンセル', default => 'Annuler' };
+?>
+<div id="exam-abandon-modal" class="exam-abandon-overlay" style="display:none;">
+  <div class="exam-abandon-dialog">
+    <div class="exam-abandon-icon"><?= $isTraining ? '⏹' : '⚠️' ?></div>
+    <h3 class="exam-abandon-title"><?= h($_abandonTitle) ?></h3>
+    <?php if ($_abandonWarning): ?>
+      <p class="exam-abandon-warning"><?= h($_abandonWarning) ?></p>
+    <?php endif; ?>
+    <p class="exam-abandon-body"><?= h($_abandonBody) ?></p>
+    <?php if ($_abandonCooldown): ?>
+      <p class="exam-abandon-cooldown"><?= h($_abandonCooldown) ?></p>
+    <?php endif; ?>
+    <div class="exam-abandon-actions">
+      <button type="button" id="exam-abandon-cancel" class="btn ghost"><?= h($_abandonCancelLabel) ?></button>
+      <button type="button" id="exam-abandon-confirm" class="btn danger"><?= h($_abandonConfirmLabel) ?></button>
+    </div>
+  </div>
+</div>
+
 <script>
   window.__examIntentionalNavigation = false;
 
@@ -540,18 +609,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       });
     }
 
+    var abandonModal   = document.getElementById('exam-abandon-modal');
+    var abandonConfirm = document.getElementById('exam-abandon-confirm');
+    var abandonCancel  = document.getElementById('exam-abandon-cancel');
+
     form.addEventListener('submit', function (e) {
       var submitter = e.submitter;
       if (!submitter) return;
-      markIntentionalNavigation();
-      if (submitter.name !== 'abandon') return;
-
-      var message = submitter.getAttribute('data-confirm-message') || 'Confirmer ?';
-      if (!window.confirm(message)) {
-        window.__examIntentionalNavigation = false;
-        e.preventDefault();
-      }
+      if (submitter.name !== 'abandon') { markIntentionalNavigation(); return; }
+      e.preventDefault();
+      if (abandonModal) abandonModal.style.display = 'flex';
     });
+
+    if (abandonConfirm) {
+      abandonConfirm.addEventListener('click', function () {
+        if (abandonModal) abandonModal.style.display = 'none';
+        markIntentionalNavigation();
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = 'abandon'; inp.value = '1';
+        form.appendChild(inp);
+        form.submit();
+      });
+    }
+
+    if (abandonCancel) {
+      abandonCancel.addEventListener('click', function () {
+        if (abandonModal) abandonModal.style.display = 'none';
+      });
+    }
+
+    if (abandonModal) {
+      abandonModal.addEventListener('click', function (e) {
+        if (e.target === abandonModal) abandonModal.style.display = 'none';
+      });
+    }
 
     if (langSelect) {
       langSelect.addEventListener('change', markIntentionalNavigation);

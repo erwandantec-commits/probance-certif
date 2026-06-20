@@ -67,25 +67,52 @@ Elle permet de:
 - modifier certaines informations utilisateur
 - ajuster le role si necessaire
 
+### Suppression d'un utilisateur
+
+Supprimer un compte est irreversible. Voici ce qui se passe:
+
+- **Supprime definitivement**: le compte (email, mot de passe, role), les acces programmes, les deblocages de pack accordes a cet utilisateur.
+- **Conserve mais anonymise**: toutes les sessions et resultats d'examens restent en base mais ne sont plus rattaches a un compte (`user_id` mis a NULL). L'historique reste visible dans l'admin via l'email du contact.
+- **Certifications**: restent consultables dans l'onglet Certifications via l'email du contact, tant que le contact n'est pas lui-meme supprime.
+
 ## Packs
 
 La page `Packs` sert a gerer les certifications disponibles dans l'outil.
 
-Un pack peut definir:
+Un pack definit:
 
 - son nom
 - sa couleur d'affichage
 - sa duree
 - son seuil de reussite
-- son nombre de questions
-- sa logique de selection
+- ses paliers de selection (voir ci-dessous)
 - sa validite de certification
 - le cooldown apres echec
+
+### Paliers de selection (regles de tirage)
+
+Les paliers definissent quelles questions sont tirees lors d'un examen. Pour chaque palier, on indique une categorie (besoin), les niveaux cibles (L1/L2/L3) et le nombre de questions a piocher.
+
+**Le total des paliers est le nombre de questions de l'examen** — il n'existe plus de champ separe "Nombre de questions tirées".
+
+Lors de l'enregistrement :
+
+- Si aucun palier n'est configure : une popup bloque et explique que le pack ne peut pas etre utilise.
+- Si les paliers demandent plus de questions qu'il n'en existe en base : une popup d'avertissement permet de corriger ou d'enregistrer quand meme.
+
+### Statuts d'un pack
+
+| Badge | Signification |
+|---|---|
+| **OK** | Le pack est pret, les questions en base couvrent les paliers |
+| **A completer** | Les paliers sont configures mais il n'y a pas assez de questions en base |
+| **Sans paliers** | Aucun palier configure — le pack ne peut pas etre utilise |
 
 Depuis `Modifier pack`, il est possible de:
 
 - ajuster les parametres du pack
-- revoir les questions associees
+- configurer les paliers de tirage
+- revoir les questions associees (visible uniquement si des paliers sont configures)
 - ouvrir l'edition d'une question
 - ouvrir la vue performance d'une question
 

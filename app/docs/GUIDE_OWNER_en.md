@@ -202,15 +202,26 @@ The `Packs` page lists the certification packs available in your programme.
 For each pack:
 
 - its name
-- the number of available questions vs the number required per session
-- the breakdown by need and level if selection rules are defined
+- the duration and pass threshold
+- the number of questions drawn per session (defined by tiers)
+- its configuration status
+
+### Pack statuses
+
+| Badge | Meaning |
+|---|---|
+| **OK** | The pack is ready; questions in the database cover the tiers |
+| **Incomplete** | Tiers are configured but there are not enough questions in the database |
+| **No tiers** | No tiers configured — the pack cannot be used |
+
+A pack showing **No tiers** or **Incomplete** will not work correctly for candidates.
 
 ### What you can do
 
 - **Reorder**: use the up/down arrows to change the display order in the candidate space
 - **Activate / Deactivate**: a deactivated pack is no longer shown to candidates
 
-You cannot modify pack settings (threshold, duration, cooldown…) or delete a pack. Contact the administrator for such changes.
+You cannot modify pack settings (threshold, duration, tiers…) or delete a pack. Contact the administrator for such changes.
 
 ---
 

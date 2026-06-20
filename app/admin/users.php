@@ -1100,16 +1100,18 @@ function admin_users_sort_link(array $qs, string $key): string {
                           <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.12z"/>
                         </svg>
                       </a>
-                      <form method="post" class="inline-action-form">
+                      <?php if (user_has_role($adminUser, 'ADMIN')): ?>
+                      <form method="post" class="inline-action-form js-delete-user-form">
                         <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
                         <input type="hidden" name="action" value="delete_user">
                         <input type="hidden" name="user_id" value="<?= $uid ?>">
                         <button
-                          class="btn ghost icon-btn danger"
-                          type="submit"
+                          class="btn ghost icon-btn danger js-delete-user-btn"
+                          type="button"
                           <?= (!$canManageTarget || $isSelf) ? 'disabled' : '' ?>
                           <?= $isSelf ? ('title="' . h(t('admin.users.delete_self_title', [], $lang)) . '"') : (!$canManageTarget ? ('title="' . h(t('admin.users.delete_forbidden_title', [], $lang)) . '"') : '') ?>
-                          onclick="return confirm('<?= h(t('admin.users.delete_confirm', [], $lang)) ?>');"
+                          data-user-email="<?= h((string)$u['email']) ?>"
+                          data-user-name="<?= h(trim((string)$u['first_name'] . ' ' . (string)$u['last_name'])) ?>"
                           aria-label="<?= h(t('admin.users.delete_user', [], $lang)) ?>"
                           title="<?= h(t('admin.common.delete', [], $lang)) ?>"
                         >
@@ -1118,6 +1120,7 @@ function admin_users_sort_link(array $qs, string $key): string {
                           </svg>
                         </button>
                       </form>
+                      <?php endif; ?>
                     </div>
                   </td>
                 </tr>
@@ -1256,6 +1259,24 @@ function admin_users_sort_link(array $qs, string $key): string {
       </div>
     </div>
   </div>
+  <div id="delete-user-modal" class="exam-abandon-overlay" style="display:none;">
+    <div class="exam-abandon-dialog">
+      <div class="exam-abandon-icon">⚠️</div>
+      <h3 class="exam-abandon-title"><?= h(match($lang) { 'en' => 'Delete this user?', 'es' => '¿Eliminar este usuario?', 'jp' => 'このユーザーを削除しますか？', default => 'Supprimer cet utilisateur ?' }) ?></h3>
+      <p class="exam-abandon-warning" id="delete-user-modal-email" style="color:var(--text);font-weight:600;font-size:14px;"></p>
+      <p class="exam-abandon-body"><?= h(match($lang) {
+        'en' => 'The account is permanently deleted. Session history is kept but anonymised. Certifications remain visible via the contact\'s email.',
+        'es' => 'La cuenta se elimina definitivamente. El historial de sesiones se conserva pero anonimizado. Las certificaciones siguen visibles mediante el email del contacto.',
+        'jp' => 'アカウントは完全に削除されます。セッション履歴は保持されますが匿名化されます。認定はコンタクトのメールから確認できます。',
+        default => 'Le compte est supprimé définitivement. L\'historique des sessions est conservé mais anonymisé. Les certifications restent visibles via l\'email du contact.',
+      }) ?></p>
+      <div class="exam-abandon-actions">
+        <button type="button" id="delete-user-cancel" class="btn ghost"><?= h(match($lang) { 'en' => 'Cancel', 'es' => 'Cancelar', 'jp' => 'キャンセル', default => 'Annuler' }) ?></button>
+        <button type="button" id="delete-user-confirm" class="btn danger"><?= h(match($lang) { 'en' => 'Delete', 'es' => 'Eliminar', 'jp' => '削除', default => 'Supprimer' }) ?></button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var toggleBtn = document.getElementById('users-create-toggle-btn');
@@ -1296,6 +1317,45 @@ function admin_users_sort_link(array $qs, string $key): string {
         syncProgramRoleVisibility();
         adminToggle.addEventListener('change', syncProgramRoleVisibility);
       });
+    })();
+
+    (function () {
+      var modal      = document.getElementById('delete-user-modal');
+      var modalEmail = document.getElementById('delete-user-modal-email');
+      var confirmBtn = document.getElementById('delete-user-confirm');
+      var cancelBtn  = document.getElementById('delete-user-cancel');
+      var pendingForm = null;
+
+      document.querySelectorAll('.js-delete-user-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.disabled) return;
+          pendingForm = btn.closest('.js-delete-user-form');
+          var name  = btn.getAttribute('data-user-name') || '';
+          var email = btn.getAttribute('data-user-email') || '';
+          if (modalEmail) modalEmail.textContent = name ? name + ' — ' + email : email;
+          if (modal) modal.style.display = 'flex';
+        });
+      });
+
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+          if (modal) modal.style.display = 'none';
+          if (pendingForm) pendingForm.submit();
+        });
+      }
+
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', function () {
+          if (modal) modal.style.display = 'none';
+          pendingForm = null;
+        });
+      }
+
+      if (modal) {
+        modal.addEventListener('click', function (e) {
+          if (e.target === modal) { modal.style.display = 'none'; pendingForm = null; }
+        });
+      }
     })();
   </script>
 </body>

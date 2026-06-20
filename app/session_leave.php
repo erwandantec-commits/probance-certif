@@ -36,9 +36,7 @@ if (strtoupper(trim((string)($sess['session_type'] ?? 'EXAM'))) !== 'EXAM') {
   exit;
 }
 
-$scoreSnapshot = compute_session_score_snapshot($pdo, $sid);
-$score = (float)($scoreSnapshot['score_percent'] ?? 0.0);
-mark_session_terminated($pdo, $sid, round($score, 2), 0, 'MANUAL');
+mark_session_terminated($pdo, $sid, null, 0, 'ABANDONED');
 
 http_response_code(204);
 exit;

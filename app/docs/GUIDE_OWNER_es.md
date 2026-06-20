@@ -202,15 +202,26 @@ La página `Packs` lista los packs de certificación disponibles en tu programa.
 Para cada pack:
 
 - su nombre
-- el número de preguntas disponibles vs el número requerido por sesión
-- el desglose por necesidad y nivel si las reglas de selección están definidas
+- la duración y el umbral de aprobación
+- el número de preguntas extraídas por sesión (definido por los paliers)
+- su estado de configuración
+
+### Estados de un pack
+
+| Badge | Significado |
+|---|---|
+| **Listo** | El pack está listo; las preguntas en la base cubren los paliers |
+| **Incompleto** | Los paliers están configurados pero no hay suficientes preguntas en la base |
+| **Sin paliers** | Ningún palier configurado — el pack no puede utilizarse |
+
+Un pack con estado **Sin paliers** o **Incompleto** no funcionará correctamente para los candidatos.
 
 ### Lo que puedes hacer
 
 - **Reordenar**: usa las flechas arriba/abajo para cambiar el orden de visualización en el espacio candidato
 - **Activar / Desactivar**: un pack desactivado ya no se muestra a los candidatos
 
-No puedes modificar los parámetros de un pack (umbral, duración, espera…) ni eliminarlo. Contacta al administrador para este tipo de cambios.
+No puedes modificar los parámetros de un pack (umbral, duración, paliers…) ni eliminarlo. Contacta al administrador para este tipo de cambios.
 
 ---
 

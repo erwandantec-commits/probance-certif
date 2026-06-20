@@ -205,7 +205,6 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
       foreach ($rules['buckets'] as $b) {
         $need = normalize_question_need((string)($b['need'] ?? ''));
         $take = (int)($b['take'] ?? 0);
-        $targetTotal = (int)($b['target_total'] ?? 0);
         $levels = $b['levels'] ?? [];
         if ($need === '' || !is_array($levels)) {
           continue;
@@ -226,15 +225,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
           $take = $remainingToRequired;
         }
 
-        $canTake = min($take, $bucketAvail);
-        if ($targetTotal > 0) {
-          $remainingToTarget = $targetTotal - $sumAvail;
-          if ($remainingToTarget <= 0) {
-            continue;
-          }
-          $canTake = min($canTake, $remainingToTarget);
-        }
-        $canTake = min($canTake, $remainingToRequired);
+        $canTake = min($take, $bucketAvail, $remainingToRequired);
         if ($canTake <= 0) {
           continue;
         }
@@ -321,7 +312,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
           <thead>
             <tr>
               <th><?= h(t('admin.common.name', [], $lang)) ?></th>
-              <?php if ($hasProfileColumn): ?><th><?= h(t('admin.packages.col_profile', [], $lang)) ?></th><?php endif; ?>
+              <?php if ($hasProfileColumn): ?><th class="pack-profile-cell"><?= h(t('admin.packages.col_profile', [], $lang)) ?></th><?php endif; ?>
               <?php if ($hasDisplayOrderColumn): ?>
                 <th>
                   <span class="order-help-wrap">
@@ -351,10 +342,15 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
           </thead>
           <tbody>
             <?php foreach ($packages as $idx => $pk): ?>
-              <?php [$avail, $req, $ok] = compute_availability($pk, $counts, $legacyCounts); ?>
+              <?php
+                [$avail, $req, $ok] = compute_availability($pk, $counts, $legacyCounts);
+                $pkRaw = trim((string)($pk['selection_rules_json'] ?? ''));
+                $pkRules = $pkRaw !== '' ? json_decode($pkRaw, true) : null;
+                $pkHasBuckets = is_array($pkRules) && !empty($pkRules['buckets']);
+              ?>
               <tr>
                 <td><span style="<?= h(package_label_style((string)$pk['name'], (string)($pk['name_color_hex'] ?? ''))) ?>"><?= h($pk['name']) ?></span></td>
-                <?php if ($hasProfileColumn): ?><td><?= h((string)($pk['profile'] ?? '-')) ?></td><?php endif; ?>
+                <?php if ($hasProfileColumn): ?><td class="pack-profile-cell" title="<?= h((string)($pk['profile'] ?? '')) ?>"><?= h((string)($pk['profile'] ?? '-')) ?></td><?php endif; ?>
                 <?php if ($hasDisplayOrderColumn): ?>
                   <td>
                     <div style="display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap;">
@@ -369,7 +365,7 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                 <?php endif; ?>
                 <td><?= (int)$pk['pass_threshold_percent'] ?></td>
                 <td><?= (int)$pk['duration_limit_minutes'] ?></td>
-                <td><?= (int)$pk['selection_count'] ?></td>
+                <td><?= $pkHasBuckets ? (int)$pk['selection_count'] : '-' ?></td>
                 <td>
                   <?php $isActive = ($hasProgramPackageLinksTable && $activeProgramId > 0)
                     ? ((int)($pk['program_link_is_active'] ?? 1) === 1)
@@ -379,9 +375,13 @@ function compute_availability(array $pk, array $counts, array $legacyCounts): ar
                   </span>
                 </td>
                 <td>
-                  <span class="pill <?= $ok ? 'success' : 'warning' ?>" title="<?= (int)$avail ?> / <?= (int)$req ?>">
-                    <?= $ok ? h(t('admin.packages.ready', [], $lang)) : h(t('admin.packages.incomplete', [], $lang)) ?>
-                  </span>
+                  <?php if (!$pkHasBuckets): ?>
+                    <span class="pill warning"><?= h(t('admin.packages.no_tiers', [], $lang)) ?></span>
+                  <?php else: ?>
+                    <span class="pill <?= $ok ? 'success' : 'warning' ?>" title="<?= (int)$avail ?> / <?= (int)$req ?>">
+                      <?= $ok ? h(t('admin.packages.ready', [], $lang)) : h(t('admin.packages.incomplete', [], $lang)) ?>
+                    </span>
+                  <?php endif; ?>
                 </td>
                 <td class="actions-cell">
                   <a class="btn ghost icon-btn" href="/admin/package_edit.php?id=<?= (int)$pk['id'] ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>" aria-label="<?= h(t('admin.packages.edit', [], $lang)) ?>" title="<?= h(t('admin.packages.edit', [], $lang)) ?>">

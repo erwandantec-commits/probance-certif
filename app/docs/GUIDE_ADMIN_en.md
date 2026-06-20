@@ -67,25 +67,52 @@ It lets you:
 - edit certain user information
 - adjust the role if needed
 
+### Deleting a user
+
+Deleting an account is irreversible. Here is what happens:
+
+- **Permanently deleted**: the account (email, password, role), program access, and any pack unlocks granted to that user.
+- **Kept but anonymised**: all sessions and exam results remain in the database but are no longer linked to an account (user_id set to NULL). The history stays visible in the admin via the contact's email.
+- **Certifications**: remain accessible in the Certifications tab via the contact's email, as long as the contact itself is not deleted.
+
 ## Packs
 
 The `Packs` page is used to manage the certifications available in the tool.
 
-A pack can define:
+A pack defines:
 
 - its name
 - its display color
 - its duration
 - its pass threshold
-- its number of questions
-- its selection logic
+- its selection tiers (see below)
 - its certification validity period
 - the cooldown after failure
+
+### Selection tiers (draw rules)
+
+Tiers define which questions are drawn during an exam. For each tier, you specify a category (need), target levels (L1/L2/L3), and the number of questions to draw.
+
+**The total of all tiers is the number of questions in the exam** — there is no longer a separate "Number of questions" field.
+
+When saving:
+
+- If no tiers are configured: a popup blocks saving and explains the pack cannot be used.
+- If tiers request more questions than exist in the database: a warning popup lets you fix or save anyway.
+
+### Pack statuses
+
+| Badge | Meaning |
+|---|---|
+| **OK** | The pack is ready; questions in the database cover the tiers |
+| **Incomplete** | Tiers are configured but there are not enough questions in the database |
+| **No tiers** | No tiers configured — the pack cannot be used |
 
 From `Edit pack`, you can:
 
 - adjust pack settings
-- review associated questions
+- configure selection tiers
+- review associated questions (only visible when tiers are configured)
 - open question editing
 - open a question's performance view
 

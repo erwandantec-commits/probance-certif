@@ -67,25 +67,52 @@ Permite:
 - modificar cierta información de usuario
 - ajustar el rol si es necesario
 
+### Eliminación de un usuario
+
+Eliminar una cuenta es irreversible. Esto es lo que ocurre:
+
+- **Eliminado definitivamente**: la cuenta (email, contraseña, rol), los accesos a programas y los desbloqueos de paquetes concedidos a ese usuario.
+- **Conservado pero anonimizado**: todas las sesiones y resultados de exámenes permanecen en la base de datos pero ya no están vinculados a ninguna cuenta (user_id puesto a NULL). El historial sigue visible en el admin mediante el email del contacto.
+- **Certificaciones**: siguen consultables en la pestaña Certificaciones mediante el email del contacto, siempre que el contacto no sea eliminado.
+
 ## Paquetes
 
 La página `Paquetes` sirve para gestionar las certificaciones disponibles en la herramienta.
 
-Un paquete puede definir:
+Un paquete define:
 
 - su nombre
 - su color de visualización
 - su duración
 - su umbral de aprobación
-- su número de preguntas
-- su lógica de selección
+- sus paliers de selección (ver abajo)
 - su validez de certificación
 - el tiempo de espera después de un fallo
+
+### Paliers de selección (reglas de extracción)
+
+Los paliers definen qué preguntas se extraen durante un examen. Para cada palier se indica una categoría (necesidad), los niveles objetivo (N1/N2/N3) y el número de preguntas a extraer.
+
+**El total de los paliers es el número de preguntas del examen** — ya no existe un campo separado "Número de preguntas".
+
+Al guardar:
+
+- Si no hay paliers configurados: una ventana emergente bloquea el guardado e indica que el paquete no puede utilizarse.
+- Si los paliers solicitan más preguntas de las disponibles en la base: una ventana de advertencia permite corregir o guardar de todas formas.
+
+### Estados de un paquete
+
+| Badge | Significado |
+|---|---|
+| **Listo** | El paquete está listo; las preguntas en la base cubren los paliers |
+| **Incompleto** | Los paliers están configurados pero no hay suficientes preguntas en la base |
+| **Sin paliers** | Ningún palier configurado — el paquete no puede utilizarse |
 
 Desde `Modificar paquete`, es posible:
 
 - ajustar los parámetros del paquete
-- revisar las preguntas asociadas
+- configurar los paliers de selección
+- revisar las preguntas asociadas (visible solo si hay paliers configurados)
 - abrir la edición de una pregunta
 - abrir la vista de rendimiento de una pregunta
 

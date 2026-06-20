@@ -378,14 +378,14 @@ function package_edit_validate_rule_rows(array $rows, int $selectionCount): stri
     $line = $idx + 1;
     $targetTotal = (int)($row['target_total'] ?? 0);
 
-    if ($targetTotal < 0 || $targetTotal > $selectionCount) {
-      return "Cible cumulee invalide ligne {$line} (0 a {$selectionCount}).";
+    if ($targetTotal < 1 || $targetTotal > $selectionCount) {
+      return "Nombre de questions invalide ligne {$line} (1 a {$selectionCount}).";
     }
 
     if ($targetTotal > 0) {
       $targetSum += $targetTotal;
       if ($targetSum > $selectionCount) {
-        return "Cible cumulee totale invalide (0 a {$selectionCount}).";
+        return "Nombre de questions total invalide (0 a {$selectionCount}).";
       }
     }
   }
@@ -567,9 +567,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   }
   if (isset($_GET['draft_failed_cooldown_days']) && $_GET['draft_failed_cooldown_days'] !== '') {
     $failedCooldownDays = (int)$_GET['draft_failed_cooldown_days'];
-  }
-  if (isset($_GET['draft_count']) && $_GET['draft_count'] !== '') {
-    $count = (int)$_GET['draft_count'];
   }
   if (isset($threshold)) $threshold = max(0, min(100, (int)$threshold));
   if (isset($certValidityDays)) $certValidityDays = max(1, min(3650, (int)$certValidityDays));
@@ -821,7 +818,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $certValidityDays = (int)($_POST['cert_validity_days'] ?? (int)($pk['cert_validity_days'] ?? 365));
   $failedCooldownDays = (int)($_POST['failed_cooldown_days'] ?? (int)($pk['failed_cooldown_days'] ?? 0));
   $duration = (int)($_POST['duration_limit_minutes'] ?? 120);
-  $count = (int)($_POST['selection_count'] ?? 5);
   $antiRepeatSessions = 1;
   $isActive = ((int)($pk['is_active'] ?? 1) === 1) ? 1 : 0;
   $profile = trim((string)($_POST['profile'] ?? ''));
@@ -832,6 +828,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $selectedTemplate = '';
   }
   $ruleRows = package_rule_rows_from_post();
+  $count = 0;
+  foreach ($ruleRows as $r) { $count += max(0, (int)($r['target_total'] ?? 0)); }
+  if ($count < 1) { $count = max(1, (int)($pk['selection_count'] ?? 10)); }
   $postedColor = trim((string)($_POST['name_color_hex'] ?? ''));
   $normalizedColor = normalize_hex_color($postedColor);
   if ($normalizedColor !== null) {
@@ -1073,18 +1072,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
                     required
                   >
                 </div>
-                <div>
-                  <label class="label"><?= h(t('admin.pack.field_count', [], $lang)) ?></label>
-                  <input
-                    class="input"
-                    type="number"
-                    name="selection_count"
-                    min="1"
-                    max="200"
-                    value="<?= (int)$formCount ?>"
-                    required
-                  >
-                </div>
               </div>
             </article>
 
@@ -1154,7 +1141,10 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
 
             <div class="rule-toolbar">
               <div class="rule-template-group">
-                <label class="label"><?= h(t('admin.pack.rules_model', [], $lang)) ?></label>
+                <div class="rule-tpl-label">
+                  <span class="label" style="margin-bottom:0;"><?= h(t('admin.pack.rules_model', [], $lang)) ?></span>
+                  <span class="rule-tpl-optional"><?= h(t('admin.pack.rules_model_optional', [], $lang)) ?></span>
+                </div>
                 <input type="hidden" id="rule-template" name="rule_template" value="<?= h($selectedTemplate) ?>">
                 <div class="rule-tpl-select" id="rule-tpl-select">
                   <button type="button" class="input rule-tpl-trigger" id="rule-tpl-trigger" aria-haspopup="listbox" aria-expanded="false">
@@ -1258,6 +1248,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         </div>
       </form>
 
+      <?php if (!empty($ruleRows)): ?>
       <hr class="separator">
 
       <h3 class="distribution-title"><?= h(t('admin.pack.questions_title', [], $lang)) ?></h3>
@@ -1453,8 +1444,43 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           <button class="btn ghost" disabled>&rarr;</button>
         <?php endif; ?>
       </div>
+      <?php endif; ?>
     </div>
   </div>
+<div id="insufficient-questions-modal" class="exam-abandon-overlay" style="display:none;">
+  <div class="exam-abandon-dialog">
+    <div class="exam-abandon-icon">⚠️</div>
+    <h3 class="exam-abandon-title"><?= h(match($lang) { 'en' => 'Insufficient questions', 'es' => 'Preguntas insuficientes', 'jp' => '質問数が不足しています', default => 'Questions insuffisantes' }) ?></h3>
+    <p class="exam-abandon-warning"><?= h(match($lang) { 'en' => 'This pack cannot be used as is.', 'es' => 'Este pack no puede utilizarse tal como está.', 'jp' => 'このパックは現状では使用できません。', default => 'Ce pack ne peut pas être utilisé tel quel.' }) ?></p>
+    <p class="exam-abandon-body"><?= h(match($lang) {
+      'en' => 'One or more tiers have a target higher than the number of available questions. Exams may fail to start. You can save now and add questions later.',
+      'es' => 'Uno o más paliers tienen un objetivo superior al número de preguntas disponibles. Los exámenes pueden fallar al iniciarse. Puede guardar ahora y añadir preguntas más tarde.',
+      'jp' => '1つ以上のルールで目標数が利用可能な質問数を超えています。試験が開始できない場合があります。今すぐ保存して、後で質問を追加することもできます。',
+      default => 'Un ou plusieurs paliers ont un objectif supérieur au nombre de questions disponibles. Les examens risquent d\'échouer au démarrage. Vous pouvez enregistrer maintenant et compléter les questions plus tard.',
+    }) ?></p>
+    <div class="exam-abandon-actions">
+      <button type="button" id="insufficient-cancel" class="btn ghost"><?= h(match($lang) { 'en' => 'Fix it', 'es' => 'Corregir', 'jp' => '修正する', default => 'Corriger' }) ?></button>
+      <button type="button" id="insufficient-confirm" class="btn danger"><?= h(match($lang) { 'en' => 'Save anyway', 'es' => 'Guardar de todas formas', 'jp' => 'このまま保存', default => 'Enregistrer quand même' }) ?></button>
+    </div>
+  </div>
+</div>
+<div id="no-rules-warning-modal" class="exam-abandon-overlay" style="display:none;">
+  <div class="exam-abandon-dialog">
+    <div class="exam-abandon-icon">⚠️</div>
+    <h3 class="exam-abandon-title"><?= h(match($lang) { 'en' => 'No selection tiers configured', 'es' => 'Sin paliers de selección configurados', 'jp' => '選択ルールが未設定', default => 'Aucun palier configuré' }) ?></h3>
+    <p class="exam-abandon-warning"><?= h(match($lang) { 'en' => 'This pack cannot be used.', 'es' => 'Este pack no puede utilizarse.', 'jp' => 'このパックは使用できません。', default => 'Ce pack ne pourra pas être utilisé.' }) ?></p>
+    <p class="exam-abandon-body"><?= h(match($lang) {
+      'en' => 'Without at least one selection tier, users will not be able to start an exam with this pack. You can save now and add tiers later.',
+      'es' => 'Sin al menos un palier de selección, los usuarios no podrán iniciar un examen con este pack. Puedes guardar ahora y añadir paliers más tarde.',
+      'jp' => '選択ルールが1つも設定されていないと、ユーザーはこのパックで試験を開始できません。今すぐ保存して、後でルールを追加することもできます。',
+      default => 'Sans au moins un palier de sélection, les utilisateurs ne pourront pas démarrer un examen avec ce pack. Vous pouvez enregistrer maintenant et ajouter des paliers plus tard.',
+    }) ?></p>
+    <div class="exam-abandon-actions">
+      <button type="button" id="no-rules-cancel" class="btn ghost"><?= h(match($lang) { 'en' => 'Add a tier', 'es' => 'Añadir un palier', 'jp' => 'ルールを追加', default => 'Ajouter un palier' }) ?></button>
+      <button type="button" id="no-rules-confirm" class="btn danger"><?= h(match($lang) { 'en' => 'Save anyway', 'es' => 'Guardar de todas formas', 'jp' => 'このまま保存', default => 'Enregistrer quand même' }) ?></button>
+    </div>
+  </div>
+</div>
   <script>
   (function () {
     var packEditForm = document.querySelector('form[method="post"]');
@@ -1501,7 +1527,6 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           returnUrl.searchParams.set('draft_cert_validity_days', editFieldValue('cert_validity_days') || String(<?= (int)$formCertValidityDays ?>));
           returnUrl.searchParams.set('draft_failed_cooldown_days', editFieldValue('failed_cooldown_days') || String(<?= (int)$formFailedCooldownDays ?>));
           returnUrl.searchParams.set('draft_duration', editFieldValue('duration_limit_minutes') || String(<?= (int)$formDuration ?>));
-          returnUrl.searchParams.set('draft_count', editFieldValue('selection_count') || String(<?= (int)$formCount ?>));
           returnUrl.searchParams.set('draft_color', editFieldValue('name_color_hex') || '<?= h($packNameColor) ?>');
           returnUrl.searchParams.set('draft_template', editFieldValue('rule_template'));
           var draftRules = buildEditDraftRules();
@@ -1611,6 +1636,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
     function updateRuleTotals() {
       if (!tbody) return;
       var totalTarget = 0;
+      var rowCount = tbody.querySelectorAll('.rule-row').length;
       tbody.querySelectorAll('.rule-row').forEach(function (row) {
         var targetInput = row.querySelector('.rule-target-total');
         var targetVal = targetInput ? parseInt(String(targetInput.value || '0'), 10) : 0;
@@ -1834,9 +1860,9 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
         }
 
         var line = idx + 1;
-        if (targetVal < 0 || targetVal > maxTotal) {
+        if (targetVal < 1 || targetVal > maxTotal) {
           invalidInput = targetInput;
-          message = 'Cible cumulée invalide ligne ' + line + ' (0 à ' + maxTotal + ').';
+          message = 'Nombre de questions invalide ligne ' + line + ' (1 à ' + maxTotal + ').';
           return;
         }
 
@@ -1844,7 +1870,7 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
           targetSum += targetVal;
           if (targetSum > maxTotal) {
             invalidInput = targetInput;
-            message = 'Cible cumulée totale invalide (0 à ' + maxTotal + ').';
+            message = 'Nombre de questions total invalide (0 à ' + maxTotal + ').';
           }
         }
       });
@@ -1923,12 +1949,74 @@ $formBadgeImageFilename = isset($badgeImageFilename) ? $badgeImageFilename : ((s
       });
     }
 
+    var noRulesModal          = document.getElementById('no-rules-warning-modal');
+    var noRulesConfirm        = document.getElementById('no-rules-confirm');
+    var noRulesCancel         = document.getElementById('no-rules-cancel');
+    var insufficientModal     = document.getElementById('insufficient-questions-modal');
+    var insufficientConfirm   = document.getElementById('insufficient-confirm');
+    var insufficientCancel    = document.getElementById('insufficient-cancel');
+    var skipRulesCheck = false;
+
+    if (noRulesConfirm) {
+      noRulesConfirm.addEventListener('click', function () {
+        if (noRulesModal) noRulesModal.style.display = 'none';
+        skipRulesCheck = true;
+        syncRuleInputNames();
+        form.submit();
+      });
+    }
+    if (noRulesCancel) {
+      noRulesCancel.addEventListener('click', function () {
+        if (noRulesModal) noRulesModal.style.display = 'none';
+      });
+    }
+    if (noRulesModal) {
+      noRulesModal.addEventListener('click', function (e) {
+        if (e.target === noRulesModal) noRulesModal.style.display = 'none';
+      });
+    }
+    if (insufficientConfirm) {
+      insufficientConfirm.addEventListener('click', function () {
+        if (insufficientModal) insufficientModal.style.display = 'none';
+        skipRulesCheck = true;
+        syncRuleInputNames();
+        form.submit();
+      });
+    }
+    if (insufficientCancel) {
+      insufficientCancel.addEventListener('click', function () {
+        if (insufficientModal) insufficientModal.style.display = 'none';
+      });
+    }
+    if (insufficientModal) {
+      insufficientModal.addEventListener('click', function (e) {
+        if (e.target === insufficientModal) insufficientModal.style.display = 'none';
+      });
+    }
+
     if (form) {
       form.addEventListener('submit', function (e) {
         syncRuleInputNames();
         if (!validateRuleTargets(true)) {
           e.preventDefault();
+          return;
         }
+        if (!skipRulesCheck) {
+          var tbody = document.querySelector('#rule-rows-table tbody');
+          var rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+          if (rowCount === 0 && noRulesModal) {
+            e.preventDefault();
+            noRulesModal.style.display = 'flex';
+            return;
+          }
+          var warnings = document.querySelectorAll('.rule-target-warning:not([hidden])');
+          if (warnings.length > 0 && insufficientModal) {
+            e.preventDefault();
+            insufficientModal.style.display = 'flex';
+            return;
+          }
+        }
+        skipRulesCheck = false;
       });
     }
 

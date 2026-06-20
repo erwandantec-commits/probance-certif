@@ -202,15 +202,26 @@ La page `Packs` liste les packs de certification disponibles dans ton programme.
 Pour chaque pack :
 
 - son nom
-- le nombre de questions disponibles vs le nombre requis pour une session
-- la répartition par besoin et niveau si les règles de sélection sont définies
+- la durée et le seuil de réussite
+- le nombre de questions tirées par session (défini par les paliers)
+- son statut de configuration
+
+### Statuts d'un pack
+
+| Badge | Signification |
+|---|---|
+| **OK** | Le pack est prêt, les questions en base couvrent les paliers |
+| **À compléter** | Les paliers sont configurés mais il n'y a pas assez de questions en base |
+| **Sans paliers** | Aucun palier configuré — le pack ne peut pas être utilisé |
+
+Un pack affiché **Sans paliers** ou **À compléter** ne sera pas proposé correctement aux candidats.
 
 ### Ce que tu peux faire
 
 - **Réordonner** : utilise les flèches haut/bas pour changer l'ordre d'affichage dans l'espace candidat
 - **Activer / Désactiver** : un pack désactivé n'est plus proposé aux candidats
 
-Tu ne peux pas modifier les paramètres d'un pack (seuil, durée, cooldown…) ni le supprimer. Contacte l'administrateur pour ce type de modification.
+Tu ne peux pas modifier les paramètres d'un pack (seuil, durée, paliers…) ni le supprimer. Contacte l'administrateur pour ce type de modification.
 
 ---
 
