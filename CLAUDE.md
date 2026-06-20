@@ -132,6 +132,7 @@ Translations are stored per-question for target languages derived from the progr
 
 ## Git rules
 
+- **NEVER commit or push without an explicit instruction from the user.** Finish the code changes, then stop. Wait for the user to say "commit", "push", or "commit et push".
 - Push to the GitLab remote (`gitlab`), not just GitHub origin
 - If push is rejected because remote has advanced: `fetch` + `rebase` + `push`
 - No temporary files, debug artifacts, or local backups in commits

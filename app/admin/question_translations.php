@@ -333,12 +333,9 @@ function translation_export_url(int $activeProgramId): string {
     var langSel = document.getElementById('translation_lang_filter');
     var stateSel = document.getElementById('translation_state_filter');
     if (!langSel || !stateSel) return;
-    function syncState() {
-      stateSel.disabled = langSel.value === '';
-      if (stateSel.disabled) stateSel.value = 'ALL';
-    }
-    langSel.addEventListener('change', syncState);
-    syncState();
+    langSel.addEventListener('change', function () {
+      if (langSel.value === '') stateSel.value = 'ALL';
+    });
   });
   </script>
 </head>
@@ -418,7 +415,7 @@ function translation_export_url(int $activeProgramId): string {
             </div>
             <div>
               <label class="label" for="translation_state_filter"><?= h(t('admin.common.status', [], $lang)) ?></label>
-              <select class="input" id="translation_state_filter" name="state_filter" <?= $langFilter === '' ? 'disabled' : '' ?>>
+              <select class="input" id="translation_state_filter" name="state_filter">
                 <option value="ALL" <?= $stateFilter === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
                 <option value="complete" <?= $stateFilter === 'complete' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_ok', [], $lang)) ?></option>
                 <option value="stale" <?= $stateFilter === 'stale' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_stale', [], $lang)) ?></option>
@@ -426,11 +423,11 @@ function translation_export_url(int $activeProgramId): string {
                 <option value="missing" <?= $stateFilter === 'missing' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_missing', [], $lang)) ?></option>
               </select>
             </div>
-            <div>
+            <div style="grid-column: 1;">
               <label class="label" for="translation_id_filter"><?= h(t('admin.translations.filter_id', [], $lang)) ?></label>
               <input class="input" type="number" id="translation_id_filter" name="id_filter" value="<?= $idFilter > 0 ? $idFilter : '' ?>" placeholder="ex: 42" min="1">
             </div>
-            <div>
+            <div style="grid-column: span 4;">
               <label class="label" for="translation_search"><?= h(t('admin.translations.filter_search', [], $lang)) ?></label>
               <input class="input" type="text" id="translation_search" name="q" value="<?= h($searchQuery) ?>" placeholder="<?= h(t('admin.translations.filter_search_ph', [], $lang)) ?>">
             </div>

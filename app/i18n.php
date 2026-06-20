@@ -647,7 +647,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_id' => 'ID question',
       'admin.translations.filter_search' => 'Recherche',
       'admin.translations.filter_search_ph' => 'Mot-clé, texte...',
-      'admin.translations.filter_all_langs' => 'Toutes les langues',
+      'admin.translations.filter_all_langs' => 'Toutes',
 
       // Help / Documentation
       'admin.help.title' => 'Documentation',
@@ -1371,7 +1371,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_id' => 'Question ID',
       'admin.translations.filter_search' => 'Search',
       'admin.translations.filter_search_ph' => 'Keyword, text...',
-      'admin.translations.filter_all_langs' => 'All languages',
+      'admin.translations.filter_all_langs' => 'All',
 
       'admin.help.title' => 'Documentation',
       'admin.help.subtitle' => 'Admin guide: screen overview, best practices and reference points.',
@@ -2092,7 +2092,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_id' => 'ID pregunta',
       'admin.translations.filter_search' => 'Búsqueda',
       'admin.translations.filter_search_ph' => 'Palabra clave, texto...',
-      'admin.translations.filter_all_langs' => 'Todos los idiomas',
+      'admin.translations.filter_all_langs' => 'Todos',
 
       'admin.help.title' => 'Documentación',
       'admin.help.subtitle' => 'Guía de administración: visión general de pantallas y buenas prácticas.',
@@ -2813,7 +2813,7 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_id' => '質問ID',
       'admin.translations.filter_search' => '検索',
       'admin.translations.filter_search_ph' => 'キーワード、テキスト...',
-      'admin.translations.filter_all_langs' => 'すべての言語',
+      'admin.translations.filter_all_langs' => 'すべて',
 
       'admin.help.title' => 'ドキュメント',
       'admin.help.subtitle' => '管理者ガイド：画面の概要、ベストプラクティス、参照ポイント。',
