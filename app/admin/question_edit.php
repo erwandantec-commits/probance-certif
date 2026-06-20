@@ -540,7 +540,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <?php if (isset($_GET['saved'])): ?>
-      <div class="flash-success"><?= h(t('admin.questions.saved', [], $lang)) ?></div>
+      <div class="flash-success" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <span><?= h(t('admin.questions.saved', [], $lang)) ?></span>
+        <a class="btn ghost" style="white-space:nowrap;" href="<?= h($returnTo) ?>"><?= h(t('admin.questions.back_to_list', [], $lang)) ?></a>
+      </div>
       <?php if (isset($_GET['trad_stale']) && $_GET['trad_stale'] !== ''): ?>
         <div class="flash-warn"><?= h(t('admin.questions.saved_trad_stale', [], $lang)) ?> : <?= h($_GET['trad_stale']) ?></div>
       <?php endif; ?>
