@@ -178,39 +178,14 @@ foreach ($labels as $label) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $returnTo = admin_question_edit_safe_return((string)($_POST['return'] ?? $returnTo));
-  $translationStatusActionRaw = trim((string)($_POST['set_translation_status'] ?? ''));
-  $translationStatusLang = '';
-  $translationStatusValue = '';
-  if (preg_match('/^([a-z]{2,5}):(complete|stale)$/', $translationStatusActionRaw, $matches)) {
-    $translationStatusLang = question_translation_normalize_lang($matches[1]);
-    $translationStatusValue = $matches[2];
-  }
-  $stayOnPageAfterSave = ($translationStatusLang !== '');
-
-  if ($translationStatusLang !== '' && isset($translationLangs[$translationStatusLang])) {
-    try {
-      $currentQuestionUpdatedAtStmt = $pdo->prepare("SELECT updated_at FROM questions WHERE id = ? LIMIT 1");
-      $currentQuestionUpdatedAtStmt->execute([$id]);
-      $currentQuestionUpdatedAt = trim((string)($currentQuestionUpdatedAtStmt->fetchColumn() ?: ''));
-
-      $updateTranslationStatusStmt = $pdo->prepare("
-        UPDATE question_translations
-        SET source_updated_at = ?, status_override = ?, updated_at = NOW()
-        WHERE question_id = ? AND lang = ?
-      ");
-      $updateTranslationStatusStmt->execute([
-        $currentQuestionUpdatedAt !== '' ? $currentQuestionUpdatedAt : null,
-        $translationStatusValue,
-        $id,
-        $translationStatusLang,
-      ]);
-
-      header("Location: /admin/question_edit.php?id=" . (int)$id . ($activeProgramId > 0 ? "&program_id=" . (int)$activeProgramId : '') . "&return=" . urlencode($returnTo));
-      exit;
-    } catch (Throwable $e) {
-      $errors[] = "Erreur mise a jour du statut de traduction: " . $e->getMessage();
+  $translationStatusOverrides = [];
+  foreach ((array)($_POST['translation_status_overrides'] ?? []) as $overrideLang => $overrideValue) {
+    $normalizedLang = question_translation_normalize_lang((string)$overrideLang);
+    if (($overrideValue === 'complete' || $overrideValue === 'stale') && isset($translationLangs[$normalizedLang])) {
+      $translationStatusOverrides[$normalizedLang] = $overrideValue;
     }
   }
+  $stayOnPageAfterSave = !empty($translationStatusOverrides) || !empty($_POST['translations']);
 
   $question['text'] = trim((string)($_POST['text'] ?? ''));
   $question['need'] = normalize_question_need((string)($_POST['need'] ?? ($question['need'] ?? '')));
@@ -311,9 +286,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   if (!$errors) {
+    $sourceChanged =
+      $question['text'] !== (string)($originalQuestion['text'] ?? '')
+      || $question['need'] !== (string)($originalQuestion['need'] ?? '')
+      || $question['theme'] !== trim((string)($originalQuestion['theme'] ?? ''))
+      || (int)$question['level'] !== (int)($originalQuestion['level'] ?? 1)
+      || $question['question_type'] !== (string)($originalQuestion['question_type'] ?? 'MULTI')
+      || $question['explanation'] !== trim((string)($originalQuestion['explanation'] ?? ''));
+
+    if (!$sourceChanged) {
+      $submittedRowsByLabel = [];
+      foreach ($rows as $submittedRow) {
+        $submittedRowsByLabel[(string)$submittedRow['label']] = [
+          'text' => trim((string)($submittedRow['text'] ?? '')),
+          'is_correct' => (int)($submittedRow['is_correct'] ?? 0),
+          'score_value' => (int)($submittedRow['score_value'] ?? 0),
+        ];
+      }
+      $allLabels = array_values(array_unique(array_merge(array_keys($originalRowsByLabel), array_keys($submittedRowsByLabel))));
+      foreach ($allLabels as $label) {
+        $before = $originalRowsByLabel[$label] ?? ['text' => '', 'is_correct' => 0, 'score_value' => 0];
+        $after = $submittedRowsByLabel[$label] ?? ['text' => '', 'is_correct' => 0, 'score_value' => 0];
+        if (
+          $before['text'] !== $after['text']
+          || (int)$before['is_correct'] !== (int)$after['is_correct']
+          || (int)$before['score_value'] !== (int)$after['score_value']
+        ) {
+          $sourceChanged = true;
+          break;
+        }
+      }
+    }
+
     $pdo->beginTransaction();
     try {
       if ($question['id'] > 0) {
+        $qid = $question['id'];
+      } else {
+        throw new RuntimeException("Creation manuelle des questions desactivee.");
+      }
+
+      if ($sourceChanged) {
         $up = $pdo->prepare("UPDATE questions SET text=?, need=?, theme=?, level=?, question_type=?, allow_skip=?, explanation=?, updated_at=NOW() WHERE id=?");
         $up->execute([
           $question['text'],
@@ -323,75 +336,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $question['question_type'],
           $question['allow_skip'],
           $question['explanation'] !== '' ? $question['explanation'] : null,
-          $question['id'],
+          $qid,
         ]);
-        $qid = $question['id'];
-      } else {
-        throw new RuntimeException("Creation manuelle des questions desactivee.");
-      }
 
-      if (auth_table_exists($pdo, 'question_option_translations')) {
+        if (auth_table_exists($pdo, 'question_option_translations')) {
+          $pdo->prepare("
+            DELETE qot
+            FROM question_option_translations qot
+            JOIN question_options qo ON qo.id = qot.option_id
+            WHERE qo.question_id = ?
+          ")->execute([$qid]);
+        }
+        $pdo->prepare("DELETE FROM question_options WHERE question_id=?")->execute([$qid]);
+
+        $io = $pdo->prepare("
+          INSERT INTO question_options(question_id,label,option_text,is_correct,score_value)
+          VALUES(?,?,?,?,?)
+        ");
+        foreach ($rows as $r) {
+          $io->execute([$qid, $r['label'], $r['text'], $r['is_correct'], $r['score_value']]);
+        }
+
         $pdo->prepare("
-          DELETE qot
-          FROM question_option_translations qot
-          JOIN question_options qo ON qo.id = qot.option_id
-          WHERE qo.question_id = ?
+          UPDATE question_translations
+          SET source_updated_at = NULL, status_override = 'stale', updated_at = NOW()
+          WHERE question_id = ?
         ")->execute([$qid]);
-      }
-      $pdo->prepare("DELETE FROM question_options WHERE question_id=?")->execute([$qid]);
-
-      $io = $pdo->prepare("
-        INSERT INTO question_options(question_id,label,option_text,is_correct,score_value)
-        VALUES(?,?,?,?,?)
-      ");
-      foreach ($rows as $r) {
-        $io->execute([$qid, $r['label'], $r['text'], $r['is_correct'], $r['score_value']]);
       }
 
       $questionUpdatedAtStmt = $pdo->prepare("SELECT updated_at FROM questions WHERE id = ? LIMIT 1");
       $questionUpdatedAtStmt->execute([$qid]);
       $currentQuestionUpdatedAt = (string)($questionUpdatedAtStmt->fetchColumn() ?: '');
-
-      $sourceChanged =
-        $question['text'] !== (string)($originalQuestion['text'] ?? '')
-        || $question['need'] !== (string)($originalQuestion['need'] ?? '')
-        || $question['theme'] !== trim((string)($originalQuestion['theme'] ?? ''))
-        || (int)$question['level'] !== (int)($originalQuestion['level'] ?? 1)
-        || $question['question_type'] !== (string)($originalQuestion['question_type'] ?? 'MULTI')
-        || $question['explanation'] !== trim((string)($originalQuestion['explanation'] ?? ''));
-
-      if (!$sourceChanged) {
-        $submittedRowsByLabel = [];
-        foreach ($rows as $submittedRow) {
-          $submittedRowsByLabel[(string)$submittedRow['label']] = [
-            'text' => trim((string)($submittedRow['text'] ?? '')),
-            'is_correct' => (int)($submittedRow['is_correct'] ?? 0),
-            'score_value' => (int)($submittedRow['score_value'] ?? 0),
-          ];
-        }
-        $allLabels = array_values(array_unique(array_merge(array_keys($originalRowsByLabel), array_keys($submittedRowsByLabel))));
-        foreach ($allLabels as $label) {
-          $before = $originalRowsByLabel[$label] ?? ['text' => '', 'is_correct' => 0, 'score_value' => 0];
-          $after = $submittedRowsByLabel[$label] ?? ['text' => '', 'is_correct' => 0, 'score_value' => 0];
-          if (
-            $before['text'] !== $after['text']
-            || (int)$before['is_correct'] !== (int)$after['is_correct']
-            || (int)$before['score_value'] !== (int)$after['score_value']
-          ) {
-            $sourceChanged = true;
-            break;
-          }
-        }
-      }
-
-      if ($sourceChanged) {
-        $clearTranslationOverridesStmt = $pdo->prepare("
-          UPDATE question_translations
-          SET status_override = NULL
-          WHERE question_id = ?
-        ");
-        $clearTranslationOverridesStmt->execute([$qid]);
-      }
 
       $optionsReloadStmt = $pdo->prepare("
         SELECT id, label
@@ -463,35 +438,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
           }
         }
-        $sourceUpdatedAtForSave = null;
+
         if ($translationChanged) {
-          $sourceUpdatedAtForSave = ($currentQuestionUpdatedAt !== '' ? $currentQuestionUpdatedAt : null);
-        } else {
-          $sourceUpdatedAtForSave = (trim((string)($existingTranslation['source_updated_at'] ?? '')) !== '' ? trim((string)($existingTranslation['source_updated_at'] ?? '')) : null);
+          $saveQuestionTranslation->execute([
+            $qid,
+            $translationLang,
+            $translatedText !== '' ? $translatedText : $question['text'],
+            $translatedExplanation !== '' ? $translatedExplanation : null,
+            $currentQuestionUpdatedAt !== '' ? $currentQuestionUpdatedAt : null,
+          ]);
         }
 
-        $saveQuestionTranslation->execute([
-          $qid,
-          $translationLang,
-          $translatedText !== '' ? $translatedText : $question['text'],
-          $translatedExplanation !== '' ? $translatedExplanation : null,
-          $sourceUpdatedAtForSave,
-        ]);
-
-        $deleteOptionTranslationsForLang->execute([$qid, $translationLang]);
-        foreach ($labels as $label) {
-          $optionId = (int)($optionIdByLabel[$label] ?? 0);
-          $translatedOptionText = trim((string)($translatedOptions[$label] ?? ''));
-          if ($optionId <= 0 || $translatedOptionText === '') {
-            continue;
+        if ($translationChanged || $sourceChanged) {
+          $deleteOptionTranslationsForLang->execute([$qid, $translationLang]);
+          foreach ($labels as $label) {
+            $optionId = (int)($optionIdByLabel[$label] ?? 0);
+            $translatedOptionText = trim((string)($translatedOptions[$label] ?? ''));
+            if ($optionId <= 0 || $translatedOptionText === '') {
+              continue;
+            }
+            $saveOptionTranslation->execute([$optionId, $translationLang, $translatedOptionText]);
           }
-          $saveOptionTranslation->execute([$optionId, $translationLang, $translatedOptionText]);
         }
       }
 
+      foreach ($translationStatusOverrides as $overrideLang => $overrideValue) {
+        $pdo->prepare("
+          UPDATE question_translations
+          SET source_updated_at = ?, status_override = ?, updated_at = NOW()
+          WHERE question_id = ? AND lang = ?
+        ")->execute([
+          $currentQuestionUpdatedAt !== '' ? $currentQuestionUpdatedAt : null,
+          $overrideValue,
+          $qid,
+          $overrideLang,
+        ]);
+      }
+
       $pdo->commit();
+      $staleCheckStmt = $pdo->prepare("
+        SELECT qt.lang FROM question_translations qt
+        JOIN questions q ON q.id = qt.question_id
+        WHERE qt.question_id = ?
+        AND (
+          qt.status_override = 'stale'
+          OR (qt.status_override IS NULL AND qt.source_updated_at < q.updated_at)
+        )
+        ORDER BY qt.lang ASC
+      ");
+      $staleCheckStmt->execute([$qid]);
+      $staleLangs = $staleCheckStmt->fetchAll(\PDO::FETCH_COLUMN);
       if ($stayOnPageAfterSave) {
-        header("Location: /admin/question_edit.php?id=" . (int)$qid . ($activeProgramId > 0 ? "&program_id=" . (int)$activeProgramId : '') . "&return=" . urlencode($returnTo));
+        header("Location: /admin/question_edit.php?id=" . (int)$qid . ($activeProgramId > 0 ? "&program_id=" . (int)$activeProgramId : '') . "&return=" . urlencode($returnTo) . "&saved=1" . (!empty($staleLangs) ? "&trad_stale=" . urlencode(implode(',', array_map('question_translation_lang_label', $staleLangs))) : ""));
       } else {
         header("Location: " . $returnTo);
       }
@@ -539,6 +537,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
         </div>
       </div>
+    <?php endif; ?>
+
+    <?php if (isset($_GET['saved'])): ?>
+      <div class="flash-success"><?= h(t('admin.questions.saved', [], $lang)) ?></div>
+      <?php if (isset($_GET['trad_stale']) && $_GET['trad_stale'] !== ''): ?>
+        <div class="flash-warn"><?= h(t('admin.questions.saved_trad_stale', [], $lang)) ?> : <?= h($_GET['trad_stale']) ?></div>
+      <?php endif; ?>
     <?php endif; ?>
 
     <form method="post" class="question-form">
@@ -648,9 +653,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <article class="pack-config-card translation-edit-card">
               <div class="translation-edit-head">
                 <h4 class="pack-config-card-title"><?= h($translationLabel) ?></h4>
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                  <button class="<?= h($reviewBtnClass) ?>" type="submit" name="set_translation_status" value="<?= h($translationLang) ?>:stale"><?= h(t('admin.questions.translation_stale', [], $lang)) ?></button>
-                  <button class="<?= h($upToDateBtnClass) ?>" type="submit" name="set_translation_status" value="<?= h($translationLang) ?>:complete"><?= h(t('admin.questions.translation_ok', [], $lang)) ?></button>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;" data-status-container="<?= h($translationLang) ?>">
+                  <input type="hidden" name="translation_status_overrides[<?= h($translationLang) ?>]" value="">
+                  <button class="<?= h($reviewBtnClass) ?>" type="button" data-status-lang="<?= h($translationLang) ?>" data-status-action="stale"><?= h(t('admin.questions.translation_stale', [], $lang)) ?></button>
+                  <button class="<?= h($upToDateBtnClass) ?>" type="button" data-status-lang="<?= h($translationLang) ?>" data-status-action="complete"><?= h(t('admin.questions.translation_ok', [], $lang)) ?></button>
                 </div>
               </div>
               <div class="pack-config-fields">
@@ -681,5 +687,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
   </div>
 </div>
+<script>
+(function () {
+  document.querySelectorAll('[data-status-lang]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var action = btn.getAttribute('data-status-action');
+      var container = btn.closest('[data-status-container]');
+      if (container) {
+        container.querySelectorAll('[data-status-lang]').forEach(function (b) {
+          b.classList.remove('is-active');
+          b.classList.add('ghost');
+        });
+        var input = container.querySelector('input[type="hidden"]');
+        if (input) { input.value = action; }
+      }
+      btn.classList.remove('ghost');
+      btn.classList.add('is-active');
+    });
+  });
+})();
+</script>
 </body>
 </html>

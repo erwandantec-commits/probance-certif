@@ -625,7 +625,7 @@ function run_import(PDO $pdo, array $prepared, array $report, string $importMode
         question_text = VALUES(question_text),
         explanation = VALUES(explanation),
         source_updated_at = VALUES(source_updated_at),
-        status_override = NULL,
+        status_override = IF(status_override = 'complete', 'complete', NULL),
         updated_at = NOW()
     ");
     $upsertOptionTranslation = $pdo->prepare("
@@ -873,8 +873,8 @@ if (!isset($_SESSION[$stateKey]) || !is_array($_SESSION[$stateKey])) {
 }
 $state = $_SESSION[$stateKey];
 
-// Pre-select mode when arriving via GET with ?mode= (e.g. from translations page)
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['mode']) && import_mode_normalize($_GET['mode']) !== 'source') {
+// Clear stale import state on any fresh GET visit
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   $_SESSION[$stateKey] = [];
   $state = [];
 }
