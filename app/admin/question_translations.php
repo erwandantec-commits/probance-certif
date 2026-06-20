@@ -17,13 +17,15 @@ $packagesWhereSql = $activeProgramId > 0
 
 $packageId = (int)($_GET['package_id'] ?? 0);
 $needFilter = normalize_question_need((string)($_GET['need'] ?? ''));
-$langFilter = question_translation_normalize_lang((string)($_GET['lang_filter'] ?? (string)array_key_first($translationLangs)));
+$langFilter = question_translation_normalize_lang((string)($_GET['lang_filter'] ?? ''));
 $stateFilter = trim((string)($_GET['state_filter'] ?? 'ALL'));
+$idFilter = (int)($_GET['id_filter'] ?? 0);
+$searchQuery = trim((string)($_GET['q'] ?? ''));
 $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 50;
 
-if (!array_key_exists($langFilter, $translationLangs)) {
-  $langFilter = (string)array_key_first($translationLangs);
+if ($langFilter !== '' && !array_key_exists($langFilter, $translationLangs)) {
+  $langFilter = '';
 }
 if (!in_array($stateFilter, ['ALL', 'complete', 'stale', 'partial', 'missing'], true)) {
   $stateFilter = 'ALL';
@@ -70,6 +72,20 @@ $where[] = $questionProgramScopeSql;
 if ($needFilter !== '') {
   $where[] = "q.need = ?";
   $params[] = $needFilter;
+}
+if ($idFilter > 0) {
+  $where[] = "(q.external_id = ? OR q.id = ?)";
+  $params[] = $idFilter;
+  $params[] = $idFilter;
+}
+if ($searchQuery !== '') {
+  $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $searchQuery) . '%';
+  $where[] = "(q.text LIKE ?
+    OR q.explanation LIKE ?
+    OR EXISTS (SELECT 1 FROM question_options qo WHERE qo.question_id = q.id AND qo.option_text LIKE ?)
+    OR EXISTS (SELECT 1 FROM question_translations qt WHERE qt.question_id = q.id AND (qt.question_text LIKE ? OR qt.explanation LIKE ?))
+    OR EXISTS (SELECT 1 FROM question_option_translations qot JOIN question_options qo2 ON qo2.id = qot.option_id WHERE qo2.question_id = q.id AND qot.option_text LIKE ?))";
+  array_push($params, $like, $like, $like, $like, $like, $like);
 }
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
@@ -226,7 +242,7 @@ foreach ($questionRows as $row) {
   foreach ($translationLangs as $langCode => $_langLabel) {
     $statuses[$langCode] = question_translation_status($pdo, $questionId, $langCode, $programSourceLang);
   }
-  if ($stateFilter !== 'ALL' && ($statuses[$langFilter] ?? 'missing') !== $stateFilter) {
+  if ($stateFilter !== 'ALL' && $langFilter !== '' && ($statuses[$langFilter] ?? 'missing') !== $stateFilter) {
     continue;
   }
 
@@ -312,6 +328,19 @@ function translation_export_url(int $activeProgramId): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/assets/style.css?v=<?= APP_VERSION ?>">
   <script src="/assets/theme-toggle.js?v=1"></script>
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var langSel = document.getElementById('translation_lang_filter');
+    var stateSel = document.getElementById('translation_state_filter');
+    if (!langSel || !stateSel) return;
+    function syncState() {
+      stateSel.disabled = langSel.value === '';
+      if (stateSel.disabled) stateSel.value = 'ALL';
+    }
+    langSel.addEventListener('change', syncState);
+    syncState();
+  });
+  </script>
 </head>
 <body>
 <div class="container admin-container">
@@ -358,6 +387,7 @@ function translation_export_url(int $activeProgramId): string {
         </div>
 
         <form method="get" class="admin-panel-surface audit-config-panel">
+          <?php if ($activeProgramId > 0): ?><input type="hidden" name="program_id" value="<?= (int)$activeProgramId ?>"><?php endif; ?>
           <div class="audit-filter-grid audit-filter-grid-main">
             <div>
               <label class="label" for="translation_package_id"><?= h(t('admin.translations.filter_packs', [], $lang)) ?></label>
@@ -380,6 +410,7 @@ function translation_export_url(int $activeProgramId): string {
             <div>
               <label class="label" for="translation_lang_filter"><?= h(t('admin.translations.filter_lang', [], $lang)) ?></label>
               <select class="input" id="translation_lang_filter" name="lang_filter">
+                <option value="" <?= $langFilter === '' ? 'selected' : '' ?>><?= h(t('admin.translations.filter_all_langs', [], $lang)) ?></option>
                 <?php foreach ($translationLangs as $langCode => $langLabel): ?>
                   <option value="<?= h($langCode) ?>" <?= $langFilter === $langCode ? 'selected' : '' ?>><?= h($langLabel) ?></option>
                 <?php endforeach; ?>
@@ -387,13 +418,21 @@ function translation_export_url(int $activeProgramId): string {
             </div>
             <div>
               <label class="label" for="translation_state_filter"><?= h(t('admin.common.status', [], $lang)) ?></label>
-              <select class="input" id="translation_state_filter" name="state_filter">
+              <select class="input" id="translation_state_filter" name="state_filter" <?= $langFilter === '' ? 'disabled' : '' ?>>
                 <option value="ALL" <?= $stateFilter === 'ALL' ? 'selected' : '' ?>><?= h(t('admin.common.all', [], $lang)) ?></option>
                 <option value="complete" <?= $stateFilter === 'complete' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_ok', [], $lang)) ?></option>
                 <option value="stale" <?= $stateFilter === 'stale' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_stale', [], $lang)) ?></option>
                 <option value="partial" <?= $stateFilter === 'partial' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_partial', [], $lang)) ?></option>
                 <option value="missing" <?= $stateFilter === 'missing' ? 'selected' : '' ?>><?= h(t('admin.translations.stat_missing', [], $lang)) ?></option>
               </select>
+            </div>
+            <div>
+              <label class="label" for="translation_id_filter"><?= h(t('admin.translations.filter_id', [], $lang)) ?></label>
+              <input class="input" type="number" id="translation_id_filter" name="id_filter" value="<?= $idFilter > 0 ? $idFilter : '' ?>" placeholder="ex: 42" min="1">
+            </div>
+            <div>
+              <label class="label" for="translation_search"><?= h(t('admin.translations.filter_search', [], $lang)) ?></label>
+              <input class="input" type="text" id="translation_search" name="q" value="<?= h($searchQuery) ?>" placeholder="<?= h(t('admin.translations.filter_search_ph', [], $lang)) ?>">
             </div>
           </div>
           <div class="filters-actions audit-config-actions">

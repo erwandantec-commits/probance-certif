@@ -644,6 +644,10 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_all_cats' => 'Toutes',
       'admin.translations.filter_packs' => 'Packs',
       'admin.translations.n_packs' => '{{n}} packs',
+      'admin.translations.filter_id' => 'ID question',
+      'admin.translations.filter_search' => 'Recherche',
+      'admin.translations.filter_search_ph' => 'Mot-clé, texte...',
+      'admin.translations.filter_all_langs' => 'Toutes les langues',
 
       // Help / Documentation
       'admin.help.title' => 'Documentation',
@@ -1364,6 +1368,10 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_all_cats' => 'All',
       'admin.translations.filter_packs' => 'Packs',
       'admin.translations.n_packs' => '{{n}} packs',
+      'admin.translations.filter_id' => 'Question ID',
+      'admin.translations.filter_search' => 'Search',
+      'admin.translations.filter_search_ph' => 'Keyword, text...',
+      'admin.translations.filter_all_langs' => 'All languages',
 
       'admin.help.title' => 'Documentation',
       'admin.help.subtitle' => 'Admin guide: screen overview, best practices and reference points.',
@@ -2081,6 +2089,10 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_all_cats' => 'Todas',
       'admin.translations.filter_packs' => 'Paquetes',
       'admin.translations.n_packs' => '{{n}} paquetes',
+      'admin.translations.filter_id' => 'ID pregunta',
+      'admin.translations.filter_search' => 'Búsqueda',
+      'admin.translations.filter_search_ph' => 'Palabra clave, texto...',
+      'admin.translations.filter_all_langs' => 'Todos los idiomas',
 
       'admin.help.title' => 'Documentación',
       'admin.help.subtitle' => 'Guía de administración: visión general de pantallas y buenas prácticas.',
@@ -2798,6 +2810,10 @@ function t(string $key, array $vars = [], ?string $langOverride = null): string 
       'admin.translations.filter_all_cats' => 'すべて',
       'admin.translations.filter_packs' => 'パック',
       'admin.translations.n_packs' => '{{n}}パック',
+      'admin.translations.filter_id' => '質問ID',
+      'admin.translations.filter_search' => '検索',
+      'admin.translations.filter_search_ph' => 'キーワード、テキスト...',
+      'admin.translations.filter_all_langs' => 'すべての言語',
 
       'admin.help.title' => 'ドキュメント',
       'admin.help.subtitle' => '管理者ガイド：画面の概要、ベストプラクティス、参照ポイント。',
