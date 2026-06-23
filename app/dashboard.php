@@ -867,18 +867,21 @@ function dash_remaining_label(int $seconds): string {
               <ul class="dashboard-mode-features">
                 <?php foreach (match($lang) {
                   'en' => [
-                    'No feedback during the session — score revealed at the end',
-                    'Cannot be paused — the timer keeps running',
+                    'No feedback during the session',
+                    'Score displayed at the end without the answers',
+                    'Cannot be paused',
                     'Quitting or abandoning invalidates the exam',
                   ],
                   'es' => [
-                    'Sin corrección durante la sesión — puntuación revelada al final',
-                    'No se puede pausar — el temporizador sigue corriendo',
+                    'Sin corrección durante la sesión',
+                    'Puntuación mostrada al final sin las respuestas',
+                    'No se puede pausar',
                     'Salir o abandonar invalida el examen',
                   ],
                   'jp' => [
-                    'セッション中はフィードバックなし — スコアは最後に表示',
-                    '一時停止不可 — タイマーは常に動いています',
+                    'セッション中はフィードバックなし',
+                    'スコアは回答なしで最後に表示',
+                    '一時停止不可',
                     '中断または放棄すると試験が無効になります',
                   ],
                   default => [
@@ -912,19 +915,22 @@ function dash_remaining_label(int $seconds): string {
               <ul class="dashboard-mode-features">
                 <?php foreach (match($lang) {
                   'en' => [
-                    'Immediate feedback after each question — see correct answers as you go',
+                    'Immediate feedback after each question',
+                    'Ability to review each question at the end of the training',
                     'Can be paused and resumed at any time',
-                    'Stopping a training session has no consequences — it can be restarted freely',
+                    'A stopped training session can be restarted',
                   ],
                   'es' => [
-                    'Corrección inmediata tras cada pregunta — ve las respuestas correctas al instante',
+                    'Corrección inmediata tras cada pregunta',
+                    'Posibilidad de revisar cada pregunta al final del entrenamiento',
                     'Se puede pausar y reanudar en cualquier momento',
-                    'Detener un entrenamiento no tiene consecuencias — puede reiniciarse libremente',
+                    'Es posible reiniciar un entrenamiento detenido',
                   ],
                   'jp' => [
-                    '各問題後に即時フィードバック — 正解をすぐに確認できます',
+                    '各問題後に即時フィードバック',
+                    'トレーニング終了後に各問題を見直すことができます',
                     'いつでも一時停止・再開が可能',
-                    'トレーニングを中断しても影響なし — 自由に再開できます',
+                    '中断したトレーニングを再開できます',
                   ],
                   default => [
                     'Correction immédiate après chaque question',

@@ -11,6 +11,7 @@ $hasPackageProgramColumn = table_column_exists($pdo, 'packages', 'program_id');
 $hasProgramQuestionLinksTable = auth_table_exists($pdo, 'program_question_links');
 $idFilterRaw = trim((string)($_GET['id_question'] ?? ''));
 $idFilter = ($idFilterRaw !== '' && preg_match('/^\d+$/', $idFilterRaw)) ? (int)$idFilterRaw : null;
+$searchQuery = trim((string)($_GET['q'] ?? ''));
 
 $rawNeeds = $_GET['needs'] ?? [];
 if (!is_array($rawNeeds)) {
@@ -102,6 +103,15 @@ if (!empty($activeNeeds) || !empty($activeNeedLevels)) {
 if ($idFilter !== null) {
   $conds[] = 'q.external_id = ?';
   $params[] = $idFilter;
+}
+if ($searchQuery !== '') {
+  $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $searchQuery) . '%';
+  $conds[] = "(q.text LIKE ?
+    OR q.explanation LIKE ?
+    OR EXISTS (SELECT 1 FROM question_options qo WHERE qo.question_id = q.id AND qo.option_text LIKE ?)
+    OR EXISTS (SELECT 1 FROM question_translations qt WHERE qt.question_id = q.id AND (qt.question_text LIKE ? OR qt.explanation LIKE ?))
+    OR EXISTS (SELECT 1 FROM question_option_translations qot JOIN question_options qo2 ON qo2.id = qot.option_id WHERE qo2.question_id = q.id AND qot.option_text LIKE ?))";
+  array_push($params, $like, $like, $like, $like, $like, $like);
 }
 if ($activeProgramId > 0 && $hasProgramQuestionLinksTable) {
   $conds[] = 'EXISTS (
@@ -290,6 +300,10 @@ function questions_filter_url(array $needs = [], array $needLevels = [], ?int $i
   }
   if ($idFilter !== null && $idFilter > 0) {
     $params['id_question'] = $idFilter;
+  }
+  $q = trim((string)($_GET['q'] ?? ''));
+  if ($q !== '') {
+    $params['q'] = $q;
   }
 
   return '/admin/questions.php' . ($params ? ('?' . http_build_query($params)) : '');
@@ -656,6 +670,10 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
         <label class="label" for="id_question"><?= h(t('admin.questions.search_placeholder', [], $lang)) ?></label>
         <input class="input" id="id_question" name="id_question" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="ID" value="<?= h($idFilterRaw) ?>">
       </div>
+      <div>
+        <label class="label" for="q_search"><?= h(t('admin.translations.filter_search', [], $lang)) ?></label>
+        <input class="input" id="q_search" name="q" type="text" placeholder="<?= h(t('admin.translations.filter_search_ph', [], $lang)) ?>" value="<?= h($searchQuery) ?>">
+      </div>
       <div class="filters-actions">
         <button class="btn" type="submit"><?= h(t('admin.common.search', [], $lang)) ?></button>
         <a class="btn ghost" href="/admin/questions.php<?= $activeProgramId > 0 ? '?program_id=' . (int)$activeProgramId : '' ?>"><?= h(t('admin.common.reset', [], $lang)) ?></a>
@@ -771,7 +789,7 @@ if (isset($_GET['export']) && $_GET['export'] === '1') {
                   <td class="question-pack-count-col">
                     <?php $usedPackages = is_array($q['_used_packages'] ?? null) ? $q['_used_packages'] : []; ?>
                     <?php $usedPackageCount = count($usedPackages); ?>
-                    <span class="pill <?= $usedPackageCount > 0 ? 'info' : 'warning' ?>">
+                    <span class="pill <?= $usedPackageCount > 0 ? 'info' : 'warning' ?>" style="white-space:nowrap;">
                       <?= h(t('admin.translations.n_packs', ['n' => $usedPackageCount], $lang)) ?>
                     </span>
                   </td>
