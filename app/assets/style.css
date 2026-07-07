@@ -5565,25 +5565,27 @@ body.admin-with-sidebar .admin-tabs-bottom {
 
 .login-card {
   padding-top: 14px;
+  position: relative;
 }
 
 .login-topbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 2px;
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  margin: 0;
 }
 
 .login-brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 0 0 8px;
+  margin: 0 60px 8px -8px;
 }
 
 .login-brand-logo {
   width: 72px;
   height: 72px;
-  margin: 0 0 0 -4px;
+  margin: 0 0 0 -8px;
   flex: 0 0 auto;
 }
 

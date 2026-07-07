@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <button class="btn" type="submit"><?= h(t('login.submit', [], $lang)) ?></button>
 
       <p class="small" style="margin-top:10px;">
-        <a href="/forgot-password.php"><?= h(t('login.forgot', [], $lang)) ?></a>
+        <a href="/forgot-password.php?lang=<?= h(urlencode($lang)) ?>"><?= h(t('login.forgot', [], $lang)) ?></a>
       </p>
       <p class="small" style="margin-top:8px;">
         <?= h(t('login.no_account', [], $lang)) ?>
