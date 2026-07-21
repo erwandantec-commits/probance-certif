@@ -190,9 +190,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($remainingSeconds <= 0 || session_is_expired($sess)) {
     exam_redirect_to_submit($sid, $lang);
   }
+  $isPauseAction = $isTraining && isset($_POST['pause']);
   $navigationOnlyFromFeedback =
-    $showFeedback &&
-    (isset($_POST['next']) || ($isTraining && isset($_POST['pause'])) || isset($_POST['finish']) || isset($_POST['abandon']));
+    $isPauseAction ||
+    ($showFeedback && (isset($_POST['next']) || isset($_POST['finish']) || isset($_POST['abandon'])));
   $mustAnswerValidationError = false;
 
   if ($isTraining && isset($_POST['check'])) {
