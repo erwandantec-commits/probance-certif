@@ -21,6 +21,9 @@ $resultProfileSelect = table_column_exists($pdo, 'packages', 'profile')
 $resultCertValidityDaysSelect = table_column_exists($pdo, 'packages', 'cert_validity_days')
   ? ", pk.cert_validity_days AS package_cert_validity_days"
   : ", 365 AS package_cert_validity_days";
+$resultFailedCooldownDaysSelect = table_column_exists($pdo, 'packages', 'failed_cooldown_days')
+  ? ", pk.failed_cooldown_days AS package_failed_cooldown_days"
+  : ", 0 AS package_failed_cooldown_days";
 
 $sid = $_GET['sid'] ?? '';
 if (!$sid) {
@@ -34,6 +37,7 @@ $stmt = $pdo->prepare("
     $resultBadgeImageSelect
     $resultProfileSelect
     $resultCertValidityDaysSelect
+    $resultFailedCooldownDaysSelect
   FROM sessions s
   JOIN contacts c ON c.id = s.contact_id
   JOIN packages pk ON pk.id = s.package_id
@@ -131,6 +135,20 @@ $reviewItems = [];
 $selectedReviewItem = null;
 $selectedReviewOptions = [];
 $isAbandonedSession = ($displayStatus === 'ABANDONED');
+$abandonCooldownDate = '';
+$abandonCooldownDays = null;
+if ($isAbandonedSession) {
+  $cooldownDaysPkg = (int)($s['package_failed_cooldown_days'] ?? 0);
+  $lastFailedAt = (string)($s['submitted_at'] ?? '');
+  if ($cooldownDaysPkg > 0 && $lastFailedAt !== '') {
+    $cooldownStatus = failed_exam_cooldown_status_from_last_failure($lastFailedAt, null, $cooldownDaysPkg);
+    if (($cooldownStatus['status_key'] ?? 'AVAILABLE') === 'COOLDOWN') {
+      $availAt = $cooldownStatus['available_at'] ?? null;
+      $abandonCooldownDate = ($availAt instanceof DateTimeImmutable) ? $availAt->format('d/m/Y') : '';
+      $abandonCooldownDays = (int)($cooldownStatus['remaining_days'] ?? 0);
+    }
+  }
+}
 $isTerminatedExam = (
   (string)($s['session_type'] ?? '') === 'EXAM' &&
   in_array($displayStatus, ['TERMINATED', 'EXPIRED'], true) &&
@@ -226,6 +244,7 @@ if ($canShowReview) {
       $reviewAnswerStatusExpr,
       $reviewQuestionUpdatedExpr,
       q.updated_at AS current_question_updated_at,
+      q.explanation AS explanation,
       CASE WHEN q.id IS NULL THEN 1 ELSE 0 END AS is_question_deleted
     FROM session_questions sq
     LEFT JOIN questions q ON q.id = sq.question_id
@@ -251,9 +270,17 @@ if ($canShowReview) {
       }
     }
   }
+  if (!$selectedReviewItem && $reviewItems) {
+    $selectedReviewItem = $reviewItems[0];
+  }
 
+  $selectedExplanation = '';
   if ($selectedReviewItem) {
     $selectedQuestionId = (int)($selectedReviewItem['question_id'] ?? 0);
+    if ($selectedQuestionId > 0) {
+      $selectedExplanation = translated_question_field($pdo, $selectedQuestionId, $lang, 'explanation', (string)($selectedReviewItem['explanation'] ?? ''));
+      $selectedExplanation = trim(localize_text($selectedExplanation, $lang));
+    }
     $snapshotUpdatedAt = trim((string)($selectedReviewItem['question_updated_at_snapshot'] ?? ''));
     $currentUpdatedAt = trim((string)($selectedReviewItem['current_question_updated_at'] ?? ''));
     $selectedQuestionModified = (
@@ -303,29 +330,28 @@ if ($canShowReview) {
 <body>
   <div class="container">
     <div class="card">
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
-        <?php render_flag_lang_picker($lang, "'/result.php?sid=" . urlencode($sid) . "&lang={lang}'"); ?>
-      </div>
-
-      <div class="header">
+      <div class="header" style="align-items:flex-start;">
         <div>
           <h2 class="h1"><?= h(t('result.title', [], $lang)) ?></h2>
           <p class="sub"><span style="<?= h(package_label_style((string)$s['package_name'], (string)($s['package_color_hex'] ?? ''))) ?>"><?= h(localize_text((string)$s['package_name'], $lang)) ?></span> - <?= h($s['email']) ?></p>
         </div>
 
-        <?php if ($displayStatus === 'TERMINATED'): ?>
-          <?php if ($resultPassed === true): ?>
-            <span class="badge ok"><?= h(t('result.badge.passed', [], $lang)) ?></span>
-          <?php else: ?>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <?php render_flag_lang_picker($lang, "'/result.php?sid=" . urlencode($sid) . "&lang={lang}'"); ?>
+          <?php if ($displayStatus === 'TERMINATED'): ?>
+            <?php if ($resultPassed === true): ?>
+              <span class="badge ok"><?= h(t('result.badge.passed', [], $lang)) ?></span>
+            <?php else: ?>
+              <span class="badge bad"><?= h(t('result.badge.failed', [], $lang)) ?></span>
+            <?php endif; ?>
+          <?php elseif ($displayStatus === 'EXPIRED'): ?>
+            <span class="badge bad"><?= h(t('result.badge.expired', [], $lang)) ?></span>
+          <?php elseif ($displayStatus === 'ABANDONED'): ?>
             <span class="badge bad"><?= h(t('result.badge.failed', [], $lang)) ?></span>
+          <?php else: ?>
+            <span class="badge"><?= h(t('result.badge.active', [], $lang)) ?></span>
           <?php endif; ?>
-        <?php elseif ($displayStatus === 'EXPIRED'): ?>
-          <span class="badge bad"><?= h(t('result.badge.expired', [], $lang)) ?></span>
-        <?php elseif ($displayStatus === 'ABANDONED'): ?>
-          <span class="badge bad"><?= h(t('result.badge.failed', [], $lang)) ?></span>
-        <?php else: ?>
-          <span class="badge"><?= h(t('result.badge.active', [], $lang)) ?></span>
-        <?php endif; ?>
+        </div>
       </div>
 
       <div class="row" style="margin-bottom:12px;">
@@ -341,6 +367,9 @@ if ($canShowReview) {
 	      <?php if ($isAbandonedSession): ?>
           <div class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border); margin-bottom:14px;">
             <p style="margin:0; font-size:16px;"><?= h(t('result.abandoned_message', [], $lang)) ?></p>
+            <?php if ($abandonCooldownDate !== ''): ?>
+              <p style="margin:8px 0 0; font-size:14px; color:var(--muted);"><?= h(t('result.abandoned_cooldown', ['days' => (string)$abandonCooldownDays, 'date' => $abandonCooldownDate], $lang)) ?></p>
+            <?php endif; ?>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <a class="btn" href="/dashboard.php?lang=<?= h($lang) ?>"><?= h(t('result.candidate_space', [], $lang)) ?></a>
@@ -401,73 +430,79 @@ if ($canShowReview) {
       <?php if ($canShowReview): ?>
         <div class="card" style="margin-top:14px;">
           <h3 style="margin-top:0;"><?= h(t('result.review_title', [], $lang)) ?></h3>
-          <?php if ($selectedReviewItem): ?>
-            <?php
-              $selectedCorrectCount = 0;
-              foreach ($selectedReviewOptions as $selectedOption) {
-                if ((int)($selectedOption['is_correct'] ?? 0) === 1) {
-                  $selectedCorrectCount++;
-                }
-              }
-              $selectedInputType = $selectedCorrectCount > 1 ? 'checkbox' : 'radio';
-            ?>
-            <div id="review-detail" class="card" style="box-shadow:none; border-radius:12px; border:1px solid var(--border); margin-bottom:14px; position:relative; padding-right:48px;">
-              <a class="btn ghost icon-btn review-detail-close" href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>" aria-label="<?= h(t('result.back', [], $lang)) ?>" title="<?= h(t('result.back', [], $lang)) ?>" style="position:absolute; top:12px; right:12px; background:rgba(251,146,60,0.12); border-color:rgba(251,146,60,0.35); color:#c2540a; flex-shrink:0;">
-                <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M6.7 5.3a1 1 0 0 1 1.4 0L12 9.17l3.9-3.88a1 1 0 1 1 1.4 1.42L13.42 10.6l3.88 3.9a1 1 0 0 1-1.42 1.4L12 12.01l-3.9 3.88a1 1 0 0 1-1.4-1.42l3.87-3.88-3.88-3.9a1 1 0 0 1 0-1.4Z" fill="currentColor"/>
-                </svg>
-              </a>
-              <div>
-                <p style="margin:0; font-size:16px;"><b>#<?= (int)$selectedReviewItem['position'] ?></b> <?= h(localize_text((string)$selectedReviewItem['text'], $lang)) ?></p>
-              </div>
-              <div style="margin-top:12px;">
-                <?php if (!$selectedReviewOptions): ?>
-                  <p class="small" style="margin:0;">Le détail des options n'est plus disponible car la question a été modifiée ou supprimée depuis la session.</p>
-                <?php else: ?>
-                  <?php foreach ($selectedReviewOptions as $selectedOption): ?>
-                    <?php
-                      $selectedOptionClass = 'exam-option';
-                      $selectedOptionIsCorrect = (int)($selectedOption['is_correct'] ?? 0) === 1;
-                      $selectedOptionIsPicked = (int)($selectedOption['is_picked'] ?? 0) === 1;
-                      if ($selectedOptionIsCorrect) {
-                        $selectedOptionClass .= ' is-correct';
-                      } elseif ($selectedOptionIsPicked) {
-                        $selectedOptionClass .= ' is-wrong';
+          <?php if (!$reviewItems): ?>
+            <p class="empty-state"><?= h(t('dash.none', [], $lang)) ?></p>
+          <?php else: ?>
+            <div class="result-review-layout">
+              <div class="result-review-main">
+                <?php if ($selectedReviewItem): ?>
+                  <?php
+                    $selectedCorrectCount = 0;
+                    foreach ($selectedReviewOptions as $selectedOption) {
+                      if ((int)($selectedOption['is_correct'] ?? 0) === 1) {
+                        $selectedCorrectCount++;
                       }
-                    ?>
-                    <label class="<?= h($selectedOptionClass) ?>" style="cursor:default;">
-                      <input type="<?= h($selectedInputType) ?>" <?= $selectedOptionIsPicked ? 'checked' : '' ?> disabled>
-                      <b style="margin-left:8px;"><?= h((string)$selectedOption['label']) ?>.</b>
-                      <span style="margin-left:6px;"><?= h(localize_text((string)$selectedOption['option_text'], $lang)) ?></span>
-                    </label>
-                  <?php endforeach; ?>
+                    }
+                    $selectedInputType = $selectedCorrectCount > 1 ? 'checkbox' : 'radio';
+                  ?>
+                  <div id="review-detail" class="result-review-detail">
+                    <p style="margin:0; font-size:16px;"><b>#<?= (int)$selectedReviewItem['position'] ?></b> <?= h(localize_text((string)$selectedReviewItem['text'], $lang)) ?></p>
+                    <div style="margin-top:12px;">
+                      <?php if (!$selectedReviewOptions): ?>
+                        <p class="small" style="margin:0;">Le détail des options n'est plus disponible car la question a été modifiée ou supprimée depuis la session.</p>
+                      <?php else: ?>
+                        <?php foreach ($selectedReviewOptions as $selectedOption): ?>
+                          <?php
+                            $selectedOptionClass = 'exam-option';
+                            $selectedOptionIsCorrect = (int)($selectedOption['is_correct'] ?? 0) === 1;
+                            $selectedOptionIsPicked = (int)($selectedOption['is_picked'] ?? 0) === 1;
+                            if ($selectedOptionIsCorrect) {
+                              $selectedOptionClass .= ' is-correct';
+                            } elseif ($selectedOptionIsPicked) {
+                              $selectedOptionClass .= ' is-wrong';
+                            }
+                          ?>
+                          <label class="<?= h($selectedOptionClass) ?>" style="cursor:default;">
+                            <input type="<?= h($selectedInputType) ?>" <?= $selectedOptionIsPicked ? 'checked' : '' ?> disabled>
+                            <b style="margin-left:8px;"><?= h((string)$selectedOption['label']) ?>.</b>
+                            <span style="margin-left:6px;"><?= h(localize_text((string)$selectedOption['option_text'], $lang)) ?></span>
+                          </label>
+                        <?php endforeach; ?>
+                      <?php endif; ?>
+                    </div>
+                    <?php if ($selectedExplanation !== ''): ?>
+                      <div class="exam-explanation">
+                        <p class="exam-explanation-title"><?= h(t('exam.explanation', [], $lang)) ?></p>
+                        <p class="exam-explanation-text"><?= h($selectedExplanation) ?></p>
+                      </div>
+                    <?php endif; ?>
+                  </div>
                 <?php endif; ?>
               </div>
-            </div>
-          <?php endif; ?>
-          <div class="table-wrap">
-            <?php if (!$reviewItems): ?>
-              <p class="empty-state"><?= h(t('dash.none', [], $lang)) ?></p>
-            <?php else: ?>
-              <table class="table result-review-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th><?= h(t('result.review_question', [], $lang)) ?></th>
-                    <th><?= h(t('result.review_your_answer', [], $lang)) ?></th>
-                    <th><?= h(t('result.review_expected', [], $lang)) ?></th>
-                    <th><?= h(t('result.review_status', [], $lang)) ?></th>
-                    <th><?= h(t('dash.col.action', [], $lang)) ?></th>
-                  </tr>
-                </thead>
-                <tbody>
+              <aside class="result-review-sidebar">
+                <div class="result-review-legend">
+                  <span class="result-review-legend-item"><span class="result-review-legend-swatch ok"></span><?= h(t('result.review_correct', [], $lang)) ?></span>
+                  <span class="result-review-legend-item"><span class="result-review-legend-swatch bad"></span><?= h(t('result.review_incorrect', [], $lang)) ?></span>
+                  <span class="result-review-legend-item"><span class="result-review-legend-swatch warn"></span><?= h(t('result.review_partial', [], $lang)) ?></span>
+                </div>
+                <div class="result-review-nav">
                   <?php foreach ($reviewItems as $it): ?>
                     <?php
                       $pickedLabels = trim((string)($it['picked_labels'] ?? ''));
                       $correctLabels = trim((string)($it['correct_labels'] ?? ''));
-                      $status = strtoupper(trim((string)($it['answer_status_snapshot'] ?? '')));
-                      if (!in_array($status, ['OK', 'KO', 'UNANSWERED'], true)) {
-                        $status = build_session_question_answer_status($pickedLabels, $correctLabels);
+                      if ($pickedLabels === $correctLabels) {
+                        $navKey = 'result.review_correct';
+                        $navClass = 'ok';
+                      } else {
+                        $pickedSet = array_filter(array_map('trim', explode(',', $pickedLabels)), 'strlen');
+                        $correctSet = array_filter(array_map('trim', explode(',', $correctLabels)), 'strlen');
+                        if (array_intersect($pickedSet, $correctSet)) {
+                          $navKey = 'result.review_partial';
+                          $navClass = 'warn';
+                        } else {
+                          $navKey = 'result.review_incorrect';
+                          $navClass = 'bad';
+                        }
                       }
                       $snapshotUpdatedAt = trim((string)($it['question_updated_at_snapshot'] ?? ''));
                       $currentUpdatedAt = trim((string)($it['current_question_updated_at'] ?? ''));
@@ -477,54 +512,27 @@ if ($canShowReview) {
                         && $currentUpdatedAt !== ''
                         && strtotime($currentUpdatedAt) > strtotime($snapshotUpdatedAt)
                       );
-                      if ($status === 'UNANSWERED') {
-                        $reviewKey = 'result.review_unanswered';
-                        $reviewClass = 'pill warning';
-                      } elseif ($status === 'OK') {
-                        $reviewKey = 'result.review_correct';
-                        $reviewClass = 'pill success';
-                      } else {
-                        $reviewKey = 'result.review_incorrect';
-                        $reviewClass = 'pill danger';
-                      }
+                      $navActive = ($selectedReviewItem && (int)$selectedReviewItem['position'] === (int)$it['position']);
+                      $navTitle = '#' . (int)$it['position'] . ' — ' . t($navKey, [], $lang);
                     ?>
-                    <tr>
-                      <td><?= (int)$it['position'] ?></td>
-                      <td>
-                        <?= h(localize_text((string)$it['text'], $lang)) ?>
-                      </td>
-                      <td><?= h((string)($it['picked_labels'] ?: '-')) ?></td>
-                      <td><?= h((string)($it['correct_labels'] ?: '-')) ?></td>
-                      <td>
-                        <div class="result-review-status">
-                          <span class="<?= h($reviewClass) ?>"><?= h(t($reviewKey, [], $lang)) ?></span>
-                          <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
-                            <span class="result-review-flag" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
-                          <?php elseif ($isQuestionModified): ?>
-                            <span class="result-review-flag" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
-                          <?php endif; ?>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="result-review-actions">
-                          <a
-                            class="btn ghost icon-btn"
-                            href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>&review_p=<?= (int)$it['position'] ?>#review-detail"
-                            aria-label="<?= h(t('dash.view', [], $lang)) ?>"
-                            title="<?= h(t('dash.view', [], $lang)) ?>"
-                          >
-                            <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12s-3.8 6.5-10.5 6.5S1.5 12 1.5 12Zm10.5 4a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-2.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6Z" fill="currentColor"/>
-                            </svg>
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
+                    <a
+                      class="badge <?= h($navClass) ?> result-review-nav-item<?= $navActive ? ' active' : '' ?>"
+                      href="/result.php?sid=<?= h(urlencode($sid)) ?>&lang=<?= h(urlencode($lang)) ?>&review_p=<?= (int)$it['position'] ?>#review-detail"
+                      title="<?= h($navTitle) ?>"
+                      aria-label="<?= h($navTitle) ?>"
+                    >
+                      <?= (int)$it['position'] ?>
+                      <?php if ((int)($it['is_question_deleted'] ?? 0) === 1): ?>
+                        <span class="result-review-flag" title="Question supprimée depuis la session" aria-label="Question supprimée depuis la session">!</span>
+                      <?php elseif ($isQuestionModified): ?>
+                        <span class="result-review-flag" title="Question modifiée depuis la session" aria-label="Question modifiée depuis la session">!</span>
+                      <?php endif; ?>
+                    </a>
                   <?php endforeach; ?>
-                </tbody>
-              </table>
-            <?php endif; ?>
-          </div>
+                </div>
+              </aside>
+            </div>
+          <?php endif; ?>
         </div>
       <?php endif; ?>
 	  </div>

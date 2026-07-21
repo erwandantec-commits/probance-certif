@@ -348,7 +348,6 @@ foreach ($packages as $pk) {
 }
 
 foreach ($activeOverrideByPackage as $ovPid => $ovData) {
-  if (($examBlockReasonByPackage[$ovPid]['reason'] ?? null) === 'certified') continue;
   $ovExpiresAt = is_array($ovData) ? ($ovData['expires_at'] ?? null) : null;
   $ovDateFmt = '';
   if ($ovExpiresAt) {
@@ -628,6 +627,7 @@ function dash_remaining_label(int $seconds): string {
 </head>
 <body>
 <div class="container dashboard-container">
+  <div class="dashboard-sticky-top">
   <div class="dashboard-head">
     <div class="dashboard-head-copy">
       <img class="dashboard-candidate-logo" src="/assets/logo-candidat.svg" alt="Logo candidat">
@@ -691,6 +691,7 @@ function dash_remaining_label(int $seconds): string {
   <?php endif; ?>
 
   <?php if ($restrictToNoProgramAccess): ?>
+  </div>
     <div class="card dashboard-card dashboard-empty-program">
       <div class="dashboard-empty-program-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" focusable="false">
@@ -717,6 +718,7 @@ function dash_remaining_label(int $seconds): string {
     <a class="dashboard-jump-link" href="#sec-active"><?= h(t('dash.active_sessions.title', [], $lang)) ?></a>
     <a class="dashboard-jump-link" href="#sec-latest"><?= h(t('dash.last_sessions', [], $lang)) ?></a>
   </nav>
+  </div>
 
   <div class="card dashboard-card" id="sec-certifications">
     <div class="section-head dashboard-section-head">
@@ -810,7 +812,7 @@ function dash_remaining_label(int $seconds): string {
                 <?php if ($pkProfile !== ''): ?>
                   <span class="dash-cert-tile-profile"><?= h($pkProfile) ?></span>
                 <?php endif; ?>
-                <span class="dash-cert-tile-time"><?= (int)$pkDuration ?> min</span>
+                <span class="dash-cert-tile-time"><?= (int)$pkDuration ?> <?= h(t('dash.minutes_short', [], $lang)) ?></span>
                 <?php if ($isIncomplete): ?>
                   <span class="dash-cert-tile-badge dash-cert-tile-badge--incomplete">
                     <?= h(match($lang) { 'en' => 'Incomplete', 'es' => 'Incompleto', 'jp' => '未完了', default => 'Incomplet' }) ?>
@@ -849,7 +851,55 @@ function dash_remaining_label(int $seconds): string {
         <div class="dashboard-mode-group" role="radiogroup" aria-label="<?= h(t('dash.session_type', [], $lang)) ?>">
 
           <label class="dashboard-mode-option">
-            <input type="radio" name="session_type" value="EXAM" checked>
+            <input type="radio" name="session_type" value="TRAINING" checked>
+            <span class="dashboard-mode-content">
+              <span class="dashboard-mode-header">
+                <span class="dashboard-mode-icon" aria-hidden="true">
+                  <svg class="dashboard-mode-icon-training" viewBox="0 0 24 24" focusable="false">
+                    <circle cx="12" cy="4" r="2.2"/>
+                    <path d="M4.2 7.5h1.4v4h-1.4zM6.1 6.8h1v5.4h-1zM16.9 6.8h1v5.4h-1zM18.4 7.5h1.4v4h-1.4z"/>
+                    <path d="M7.1 8.5h9.8v1.6H7.1z"/>
+                    <path d="M10.1 11.2h3.8v2.9l1.6 2.2v4.2h-2.1v-3.4L12 15.5l-1.3 1.6v3.4H8.6v-4.2l1.5-2.2z"/>
+                  </svg>
+                </span>
+                <span class="dashboard-mode-title"><?= h(t('dash.session_type.training', [], $lang)) ?></span>
+              </span>
+              <span class="dashboard-mode-duration" id="dash-training-duration-display" style="display:none;"></span>
+              <ul class="dashboard-mode-features">
+                <?php foreach (match($lang) {
+                  'en' => [
+                    'Immediate feedback after each question',
+                    'Ability to review each question at the end of the training',
+                    'Can be paused and resumed at any time',
+                    'A stopped training session can be restarted',
+                  ],
+                  'es' => [
+                    'Corrección inmediata tras cada pregunta',
+                    'Posibilidad de revisar cada pregunta al final del entrenamiento',
+                    'Se puede pausar y reanudar en cualquier momento',
+                    'Es posible reiniciar un entrenamiento detenido',
+                  ],
+                  'jp' => [
+                    '各問題後に即時フィードバック',
+                    'トレーニング終了後に各問題を見直すことができます',
+                    'いつでも一時停止・再開が可能',
+                    '中断したトレーニングを再開できます',
+                  ],
+                  default => [
+                    'Correction immédiate après chaque question',
+                    'Possibilité de revoir chaque question à la fin de l\'entraînement',
+                    'Possibilité de mettre en pause et de reprendre à tout moment',
+                    'Possible de relancer un entraînement stoppé',
+                  ],
+                } as $feat): ?>
+                  <li><?= h($feat) ?></li>
+                <?php endforeach; ?>
+              </ul>
+            </span>
+          </label>
+
+          <label class="dashboard-mode-option">
+            <input type="radio" name="session_type" value="EXAM">
             <span class="dashboard-mode-content">
               <span class="dashboard-mode-header">
                 <span class="dashboard-mode-icon" aria-hidden="true">
@@ -889,54 +939,6 @@ function dash_remaining_label(int $seconds): string {
                     'Le score est affiché à la fin sans les réponses',
                     'Impossible de mettre en pause',
                     'Quitter ou abandonner rend l\'examen invalide',
-                  ],
-                } as $feat): ?>
-                  <li><?= h($feat) ?></li>
-                <?php endforeach; ?>
-              </ul>
-            </span>
-          </label>
-
-          <label class="dashboard-mode-option">
-            <input type="radio" name="session_type" value="TRAINING">
-            <span class="dashboard-mode-content">
-              <span class="dashboard-mode-header">
-                <span class="dashboard-mode-icon" aria-hidden="true">
-                  <svg class="dashboard-mode-icon-training" viewBox="0 0 24 24" focusable="false">
-                    <circle cx="12" cy="4" r="2.2"/>
-                    <path d="M4.2 7.5h1.4v4h-1.4zM6.1 6.8h1v5.4h-1zM16.9 6.8h1v5.4h-1zM18.4 7.5h1.4v4h-1.4z"/>
-                    <path d="M7.1 8.5h9.8v1.6H7.1z"/>
-                    <path d="M10.1 11.2h3.8v2.9l1.6 2.2v4.2h-2.1v-3.4L12 15.5l-1.3 1.6v3.4H8.6v-4.2l1.5-2.2z"/>
-                  </svg>
-                </span>
-                <span class="dashboard-mode-title"><?= h(t('dash.session_type.training', [], $lang)) ?></span>
-              </span>
-              <span class="dashboard-mode-duration" id="dash-training-duration-display" style="display:none;"></span>
-              <ul class="dashboard-mode-features">
-                <?php foreach (match($lang) {
-                  'en' => [
-                    'Immediate feedback after each question',
-                    'Ability to review each question at the end of the training',
-                    'Can be paused and resumed at any time',
-                    'A stopped training session can be restarted',
-                  ],
-                  'es' => [
-                    'Corrección inmediata tras cada pregunta',
-                    'Posibilidad de revisar cada pregunta al final del entrenamiento',
-                    'Se puede pausar y reanudar en cualquier momento',
-                    'Es posible reiniciar un entrenamiento detenido',
-                  ],
-                  'jp' => [
-                    '各問題後に即時フィードバック',
-                    'トレーニング終了後に各問題を見直すことができます',
-                    'いつでも一時停止・再開が可能',
-                    '中断したトレーニングを再開できます',
-                  ],
-                  default => [
-                    'Correction immédiate après chaque question',
-                    'Possibilité de revoir chaque question à la fin de l\'entraînement',
-                    'Possibilité de mettre en pause et de reprendre à tout moment',
-                    'Possible de relancer un entraînement stoppé',
                   ],
                 } as $feat): ?>
                   <li><?= h($feat) ?></li>
@@ -1057,7 +1059,7 @@ function dash_remaining_label(int $seconds): string {
         </select>
       </div>
       <div class="filters-actions" style="grid-column: auto; margin-bottom: 0;">
-        <a class="btn ghost" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>#sec-latest">Reinitialiser</a>
+        <a class="btn ghost" href="/dashboard.php?lang=<?= h(urlencode($lang)) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>#sec-latest"><?= h(t('dash.filters_reset', [], $lang)) ?></a>
       </div>
     </form>
 
@@ -1190,6 +1192,7 @@ function dash_remaining_label(int $seconds): string {
     var continueTrainingLabel  = <?= json_encode(t('dash.continue_current_training', [], $lang)) ?>;
     var overwriteConfirmExam   = <?= json_encode(t('dash.confirm_overwrite_session_exam', [], $lang)) ?>;
     var overwriteConfirmTrain  = <?= json_encode(t('dash.confirm_overwrite_session_training', [], $lang)) ?>;
+    var minutesShortLabel      = <?= json_encode(t('dash.minutes_short', [], $lang)) ?>;
 
     var selectedTile      = null;
     var selectedActiveSid = '';
@@ -1249,7 +1252,7 @@ function dash_remaining_label(int $seconds): string {
       var durationTrainEl = document.getElementById('dash-training-duration-display');
       [durationEl, durationTrainEl].forEach(function (el) {
         if (!el) return;
-        if (dur > 0) { el.textContent = '⏱ ' + dur + ' min'; el.style.display = ''; }
+        if (dur > 0) { el.textContent = '⏱ ' + dur + ' ' + minutesShortLabel; el.style.display = ''; }
         else { el.style.display = 'none'; }
       });
 
@@ -1322,6 +1325,17 @@ function dash_remaining_label(int $seconds): string {
         if (!window.confirm(msg)) e.preventDefault();
       });
     }
+  })();
+</script>
+<script>
+  (function () {
+    var stickyTop = document.querySelector('.dashboard-sticky-top');
+    if (!stickyTop) return;
+    function updateStickyOffset() {
+      document.documentElement.style.setProperty('--dashboard-sticky-offset', (stickyTop.offsetHeight + 16) + 'px');
+    }
+    updateStickyOffset();
+    window.addEventListener('resize', updateStickyOffset);
   })();
 </script>
 </body>

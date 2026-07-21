@@ -33,7 +33,7 @@ docker compose exec web bash
 
 **Bump version:**
 ```bash
-# Edit app/version.txt directly — every shipped change must increment it
+# Edit app/version.txt directly — only when explicitly pushing to prod, not after every change
 ```
 
 There is no linter, test suite, or build step. Changes to `app/` are live-reloaded via the bind mount.
@@ -126,13 +126,10 @@ CSV import is scoped to the active program. The importer:
 
 Translations are stored per-question for target languages derived from the program's source language (`program_source_lang`). `question_translation_target_langs($sourceLang)` returns the languages to translate into. Schema helpers `ensure_question_translation_schema()` and `ensure_program_source_language_schema()` run at page load to handle missing columns gracefully.
 
-### Current version
-
-`app/version.txt` = `2`. Last commit: `da2b470` ("lot 3"). Next release must increment `version.txt`.
-
 ## Git rules
 
 - **NEVER commit or push without an explicit instruction from the user.** Finish the code changes, then stop. Wait for the user to say "commit", "push", or "commit et push".
 - Push to the GitLab remote (`gitlab`), not just GitHub origin
 - If push is rejected because remote has advanced: `fetch` + `rebase` + `push`
 - No temporary files, debug artifacts, or local backups in commits
+- **Do not bump `app/version.txt` after every change.** The user bumps it themselves only when actually pushing to prod. Only touch it if explicitly asked ("bump la version", "on push en prod").

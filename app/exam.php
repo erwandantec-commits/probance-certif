@@ -460,7 +460,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             data-confirm-message="<?= h(t($isTraining ? 'exam.finish_confirm_training' : 'exam.finish_confirm_exam', [], $lang)) ?>"
             style="margin-left:auto;"
           >
-            <?= h(t('exam.finish_qcm', [], $lang)) ?>
+            <?= h(t($isTraining ? 'exam.finish_qcm' : 'exam.abandon_exam_btn', [], $lang)) ?>
           </button>
 	      </div>
 
@@ -506,7 +506,7 @@ $_abandonCancelLabel = match($lang) { 'en' => 'Cancel', 'es' => 'Cancelar', 'jp'
 ?>
 <div id="exam-abandon-modal" class="exam-abandon-overlay" style="display:none;">
   <div class="exam-abandon-dialog">
-    <div class="exam-abandon-icon"><?= $isTraining ? '⏹' : '⚠️' ?></div>
+    <div class="exam-abandon-icon">⚠️</div>
     <h3 class="exam-abandon-title"><?= h($_abandonTitle) ?></h3>
     <?php if ($_abandonWarning): ?>
       <p class="exam-abandon-warning"><?= h($_abandonWarning) ?></p>
@@ -541,6 +541,12 @@ $_abandonCancelLabel = match($lang) { 'en' => 'Cancel', 'es' => 'Cancelar', 'jp'
     function markIntentionalNavigation() {
       window.__examIntentionalNavigation = true;
     }
+
+    document.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('.flag-lang-picker-option')) {
+        markIntentionalNavigation();
+      }
+    }, true);
 
     function sendLeaveSignal(force) {
       if (!isExamSession || leaveHandled) return Promise.resolve();

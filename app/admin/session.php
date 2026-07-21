@@ -170,7 +170,7 @@ $statusClass = match ((string)$s['status']) {
       <div class="admin-head admin-page-hero">
         <div class="admin-head-copy">
           <p class="admin-page-eyebrow"><?= h(t('admin.common.program', [], $lang)) ?></p>
-          <h2 class="h1"><?= h(t('admin.session.title', [], $lang)) ?></h2>
+          <h2 class="h1"><?= h(t('admin.session.title', [], $lang)) ?> - (<a href="/admin/contact.php?email=<?= urlencode($s['email']) ?><?= $activeProgramId > 0 ? '&program_id=' . (int)$activeProgramId : '' ?>"><?= h($s['email']) ?></a>)</h2>
           <p class="sub"><?= h(t('admin.session.subtitle', [], $lang)) ?></p>
         </div>
         <div class="admin-head-actions">
@@ -180,10 +180,6 @@ $statusClass = match ((string)$s['status']) {
       </div>
 
       <div class="admin-stats-grid">
-        <article class="admin-stat-card">
-          <span class="admin-stat-label"><?= h(t('admin.common.email', [], $lang)) ?></span>
-          <strong class="admin-stat-value admin-stat-value-sm"><?= h($s['email']) ?></strong>
-        </article>
         <article class="admin-stat-card">
           <span class="admin-stat-label"><?= h(t('admin.common.score', [], $lang)) ?></span>
           <strong class="admin-stat-value"><?= $s['score_percent'] !== null ? h($s['score_percent']).'%' : '-' ?></strong>
@@ -235,8 +231,8 @@ $statusClass = match ((string)$s['status']) {
                 <tr>
                   <td><?= (int)$it['position'] ?></td>
                   <td><?= ($it['question_external_id'] === null || $it['question_external_id'] === '') ? '-' : (int)$it['question_external_id'] ?></td>
-                  <td>
-                    <?= h((string)$it['text']) ?>
+                  <td title="<?= h((string)$it['text']) ?>">
+                    <?= h(mb_strimwidth((string)$it['text'], 0, 110, '...', 'UTF-8')) ?>
                   </td>
                   <td><?= h($it['picked_labels'] ?: '-') ?></td>
                   <td><?= h($it['correct_labels'] ?: '-') ?></td>

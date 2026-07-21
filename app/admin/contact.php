@@ -1054,7 +1054,7 @@ $returnTo = (string)($_SERVER['REQUEST_URI'] ?? ('/admin/contact.php?email=' . u
                       <?php else: ?>
                         <a class="btn ghost icon-btn danger" href="/admin/certification_revoke.php?action=revoke&contact_id=<?= (int)$contact['id'] ?>&package_id=<?= $packageId ?>&return=<?= h(urlencode($returnUrl)) ?>"
                            aria-label="<?= h(t('admin.certs.revoke', [], $lang)) ?>" title="<?= h(t('admin.certs.revoke', [], $lang)) ?>"
-                           onclick="return confirm('<?= h(t('admin.contact.revoke_confirm', [], $lang)) ?>');"
+                           onclick="return confirm('<?= h(t('admin.contact.revoke_confirm', [], $lang)) ?>');">
                           <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M6.7 5.3 12 10.6l5.3-5.3 1.4 1.4L13.4 12l5.3 5.3-1.4 1.4L12 13.4l-5.3 5.3-1.4-1.4L10.6 12 5.3 6.7z"/>
                           </svg>

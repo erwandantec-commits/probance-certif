@@ -13,6 +13,8 @@ The dashboard is your starting page. You will find:
 
 From this page, choose a pack, then a mode, then start.
 
+Packs and certifications are grouped by **program**. If you have access to more than one program, a switcher appears at the top of the dashboard: switch programs to see the packs and certifications that belong to it. If you only have access to one program, this switcher does not appear.
+
 ## The two session modes
 
 ### Exam mode
@@ -21,7 +23,7 @@ The official mode. You answer all questions without immediate feedback. The scor
 
 ### Training mode
 
-The practice mode. You can validate each question one by one and immediately see whether your answer is correct. This mode does not count towards your certification.
+The practice mode. You can validate each question one by one and immediately see whether your answer is correct. You can also pause the session (**Pause** button): the timer stops and you can resume later from the dashboard, on the same question, with the remaining time kept. This mode does not count towards your certification.
 
 ## Starting a session
 
@@ -33,6 +35,7 @@ In some cases, an Exam session may be refused:
 
 - you already have a valid certification for this pack
 - a waiting period is active following a recent failure
+- the pack is not ready yet on the admin side (not enough questions configured) — contact an administrator in that case
 
 An explanatory message is displayed if this applies.
 
@@ -87,7 +90,7 @@ The history lists your previous sessions with their score and result.
 
 ### I cannot start a certification — why?
 
-Two possible reasons: you already have a valid certification for this pack, or a waiting period is active after a failure. A message on the dashboard tells you which applies.
+Three possible reasons: you already have a valid certification for this pack, a waiting period is active after a failure, or the pack is not ready yet on the admin side (not enough questions configured). A message on the dashboard tells you which applies.
 
 ### Is my score correct if I partially selected the right answers?
 
@@ -107,4 +110,4 @@ If you click the Abandon button, the session is immediately closed with no score
 
 ### Can I resume a session later?
 
-No. A session must be completed in one go. If you close the page, the session remains active until the timer runs out — the score will then be calculated on the questions answered. If you click Abandon, the session is closed immediately with no score.
+It depends on the mode. In Training, yes: the **Pause** button stops the timer and you can resume later from the dashboard, on the same question, with the remaining time kept. In Exam, no: the session must be completed in one go. If you close the page without pausing (not available in Exam) or abandoning, the session remains active until the timer runs out — the score will then be calculated on the questions answered. If you click Abandon, the session is closed immediately with no score.

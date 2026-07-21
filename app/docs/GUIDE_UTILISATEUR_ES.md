@@ -13,6 +13,8 @@ El panel principal es tu página de inicio. Aquí encontrarás:
 
 Desde esta página, elige un pack, luego un modo y empieza.
 
+Los packs y certificaciones están agrupados por **programa**. Si tienes acceso a varios programas, aparece un selector en la parte superior del panel: cambia de programa para ver los packs y certificaciones que le corresponden. Si solo tienes acceso a un programa, este selector no aparece.
+
 ## Los dos modos de sesión
 
 ### Modo Examen
@@ -21,7 +23,7 @@ El modo oficial. Respondes todas las preguntas sin corrección inmediata. El res
 
 ### Modo Entrenamiento
 
-El modo de práctica. Puedes validar cada pregunta una a una y ver inmediatamente si tu respuesta es correcta. Este modo no cuenta para tu certificación.
+El modo de práctica. Puedes validar cada pregunta una a una y ver inmediatamente si tu respuesta es correcta. También puedes pausar la sesión (botón **Pausa**): el temporizador se detiene y puedes retomarla más tarde desde el panel, en la misma pregunta, con el tiempo restante conservado. Este modo no cuenta para tu certificación.
 
 ## Iniciar una sesión
 
@@ -33,6 +35,7 @@ En algunos casos, una sesión de Examen puede ser rechazada:
 
 - ya tienes una certificación válida para ese pack
 - hay un período de espera activo tras un fallo reciente
+- el pack aún no está listo por parte de administración (no hay suficientes preguntas configuradas) — contacta con un administrador en ese caso
 
 Se muestra un mensaje explicativo si es el caso.
 
@@ -87,7 +90,7 @@ El historial lista tus sesiones anteriores con su puntuación y resultado.
 
 ### No puedo iniciar una certificación, ¿por qué?
 
-Dos razones posibles: ya tienes una certificación válida para ese pack o hay un período de espera activo tras un fallo. Un mensaje en el panel te indica cuál se aplica.
+Tres razones posibles: ya tienes una certificación válida para ese pack, hay un período de espera activo tras un fallo, o el pack aún no está listo por parte de administración (no hay suficientes preguntas configuradas). Un mensaje en el panel te indica cuál se aplica.
 
 ### ¿Es correcto mi resultado si seleccioné parcialmente las respuestas correctas?
 
@@ -107,4 +110,4 @@ Si haces clic en el botón Abandonar, la sesión se cierra de inmediato sin calc
 
 ### ¿Puedo retomar una sesión más tarde?
 
-No. Una sesión debe completarse de una sola vez. Si cierras la página, la sesión permanece activa hasta que el tiempo expire — entonces se calculará la puntuación sobre las preguntas respondidas. Si haces clic en Abandonar, la sesión se cierra de inmediato sin puntuación.
+Depende del modo. En Entrenamiento, sí: el botón **Pausa** detiene el temporizador y puedes retomarla más tarde desde el panel, en la misma pregunta, con el tiempo restante conservado. En Examen, no: la sesión debe completarse de una sola vez. Si cierras la página sin pausar (no disponible en Examen) ni abandonar, la sesión permanece activa hasta que el tiempo expire — entonces se calculará la puntuación sobre las preguntas respondidas. Si haces clic en Abandonar, la sesión se cierra de inmediato sin puntuación.

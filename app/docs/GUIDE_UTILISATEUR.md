@@ -13,6 +13,8 @@ Le tableau de bord est ta page de départ. Tu y retrouves :
 
 Depuis cette page, tu choisis un pack puis un mode, puis tu démarres.
 
+Les packs et certifications sont regroupés par **programme**. Si tu as accès à plusieurs programmes, un sélecteur apparaît en haut du tableau de bord : change de programme pour voir les packs et certifications qui lui sont propres. Si tu n'as accès qu'à un seul programme, ce sélecteur n'apparaît pas.
+
 ## Les deux modes de session
 
 ### Mode Exam
@@ -21,7 +23,7 @@ Le mode officiel. Tu réponds à toutes les questions sans correction immédiate
 
 ### Mode Entraînement
 
-Le mode pratique. Tu peux valider chaque question une par une et voir immédiatement si ta réponse est correcte. Ce mode ne compte pas pour ta certification.
+Le mode pratique. Tu peux valider chaque question une par une et voir immédiatement si ta réponse est correcte. Tu peux aussi mettre la session en pause (bouton **Pause**) : le chronomètre s'arrête et tu peux reprendre plus tard depuis le tableau de bord, à la même question, avec le temps restant conservé. Ce mode ne compte pas pour ta certification.
 
 ## Démarrer une session
 
@@ -33,6 +35,7 @@ Dans certains cas, une session Exam peut être refusée :
 
 - tu as déjà une certification valide pour ce pack
 - un délai d'attente est en cours après un échec récent
+- le pack n'est pas encore prêt côté administration (pas assez de questions configurées) — contacte un administrateur dans ce cas
 
 Un message explicatif s'affiche si c'est le cas.
 
@@ -87,7 +90,7 @@ L'historique liste tes sessions précédentes avec leur score et leur résultat.
 
 ### Je ne peux pas lancer une certification, pourquoi ?
 
-Deux raisons possibles : tu as déjà une certification valide pour ce pack, ou un délai d'attente est actif après un échec. Un message sur le tableau de bord t'indique lequel s'applique.
+Trois raisons possibles : tu as déjà une certification valide pour ce pack, un délai d'attente est actif après un échec, ou le pack n'est pas encore prêt côté administration (pas assez de questions configurées). Un message sur le tableau de bord t'indique laquelle s'applique.
 
 ### Mon score est-il juste si j'ai coché une réponse partiellement correcte ?
 
@@ -107,4 +110,4 @@ Si tu cliques sur le bouton Abandonner, la session est immédiatement clôturée
 
 ### Puis-je reprendre une session plus tard ?
 
-Non. Une session doit être terminée en une seule fois. Si tu fermes la page, la session reste active jusqu'à expiration du temps — le score sera alors calculé sur les questions répondues. Si tu cliques sur Abandonner, la session est clôturée sans score.
+Ça dépend du mode. En Entraînement, oui : le bouton **Pause** arrête le chronomètre et tu peux reprendre plus tard depuis le tableau de bord, à la même question, avec le temps restant conservé. En Exam, non : la session doit être terminée en une seule fois. Si tu fermes la page sans faire Pause (indisponible en Exam) ni Abandonner, la session reste active jusqu'à expiration du temps — le score sera alors calculé sur les questions répondues. Si tu cliques sur Abandonner, la session est clôturée sans score.
