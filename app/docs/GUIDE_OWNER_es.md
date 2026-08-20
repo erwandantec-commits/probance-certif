@@ -1,22 +1,77 @@
 # Guía del owner
 
-Esta guía cubre todo lo que puedes hacer como owner de un programa: supervisar sesiones, gestionar certificaciones, importar y traducir preguntas, administrar packs y gestionar tu equipo.
+¡Bienvenido! Esta guía te ayuda a familiarizarte con tu rol de owner: cómo está organizada la herramienta, qué hacer nada más asumir el rol, y luego el detalle de cada pantalla para consultar sobre la marcha.
 
 Todos los datos que ves están limitados a tu programa. Si no tienes acceso a algo descrito aquí, contacta al administrador.
 
 ---
 
-## Tu rol
+## Entender la organización de la herramienta
 
-Como owner, gestionas tu programa de principio a fin. Puedes:
+Antes de empezar, así es como se relacionan los elementos que vas a gestionar:
 
-- supervisar las sesiones de tus candidatos
-- seguir y gestionar las certificaciones
-- importar preguntas, actualizarlas y traducirlas
-- consultar el estado de los packs
-- gestionar los miembros de tu equipo
+- **Programa** — es tu ámbito. Todo lo que gestionas (packs, preguntas, candidatos, sesiones) pertenece a tu programa. Nunca ves los datos de otro programa.
+- **Pack** — una certificación ofrecida a tus candidatos (ej. "Certificación Ventas nivel 1"). Un pack define una duración, un umbral de aprobación y unas reglas de selección que determinan qué preguntas se plantean en el examen.
+- **Pregunta** — un elemento del banco, asociado a una necesidad (categoría) y un nivel. Las reglas de selección de un pack extraen de este banco.
+- **Sesión** — un intento de examen (`EXAM`) o de entrenamiento (`TRAINING`) por parte de un candidato.
+- **Certificación** — el resultado consolidado: un candidato certificado en un pack, con una fecha de expiración.
 
-No puedes modificar los parámetros de un pack, crear o eliminar packs, gestionar los programas en sí, ni acceder a la configuración global.
+En resumen: **Programa → Packs → Preguntas → Sesiones → Certificaciones**. Un pack necesita suficientes preguntas que cubran sus reglas de selección para poder utilizarse.
+
+### Lo que puedes hacer
+
+- supervisar sesiones y gestionar certificaciones de tu programa
+- importar, actualizar y traducir preguntas
+- consultar el estado de los packs (Listo / Incompleto / Sin reglas de selección)
+- crear, modificar y eliminar cuentas `USER` y `OWNER` de tu programa
+
+### Lo que corresponde al administrador
+
+- crear o eliminar packs, modificar sus parámetros (umbral, duración, reglas de selección)
+- crear o eliminar programas
+- acceder a la configuración global de la aplicación
+
+En cuanto te falte un permiso, la solución es casi siempre la misma: contactar al administrador.
+
+---
+
+## Primeros pasos: ¿qué hacer al convertirte en owner?
+
+Este es el orden recomendado para tu primera visita al espacio de administración.
+
+### 1. Revisar el estado de los packs de tu programa
+
+Ve a la pestaña **Packs** y mira la insignia de cada pack:
+
+| Insignia | Qué significa | Qué debes hacer |
+|---|---|---|
+| **Listo** | El pack está listo para usarse | Nada, pasa al siguiente paso |
+| **Incompleto** | Las reglas de selección están definidas pero el banco de preguntas no las cubre | Importar preguntas (paso 2) |
+| **Sin reglas de selección** | Nadie ha configurado aún reglas de selección en este pack | Contacta al administrador — solo él configura las reglas de selección, la duración y el umbral de un pack |
+
+Nunca compartas accesos con tus candidatos mientras un pack no muestre **Listo**.
+
+### 2. Revisar / completar el banco de preguntas
+
+Ve a la pestaña **Preguntas** para ver lo que ya existe, filtrado por necesidad y nivel, y detectar lo que falta respecto a las reglas de selección de tus packs.
+
+Si faltan preguntas, usa **Importación de preguntas** (modo *Fuente*) con un archivo CSV o Excel — consulta la sección **Importación de preguntas** más abajo para el formato esperado.
+
+### 3. Traducir si tu programa es multilingüe
+
+Si tus candidatos no hablan todos el idioma fuente de tu programa, ve a la pestaña **Traducciones** para ver la cobertura por idioma y completar lo que falte (importación de archivo o edición manual).
+
+### 4. Crear las cuentas de tu equipo
+
+Ve a la pestaña **Usuarios** y crea una cuenta para cada candidato (rol `USER`). Si otra persona debe co-gestionar el programa contigo, asígnale el rol `OWNER`.
+
+### 5. Hacer una prueba antes de compartir los accesos
+
+Antes de invitar a tus candidatos, verifica tú mismo (o con una cuenta `USER` de prueba) que un intento se desarrolla como se espera: número correcto de preguntas, idioma correcto, umbral de aprobación coherente.
+
+### 6. Compartir los accesos y seguir los resultados
+
+Una vez verificado, envía las credenciales a tus candidatos. Luego usa las pestañas **Sesiones**, **Certificaciones** y **Análisis** para seguir la actividad sobre la marcha (detalle de cada una más abajo).
 
 ---
 
@@ -203,25 +258,25 @@ Para cada pack:
 
 - su nombre
 - la duración y el umbral de aprobación
-- el número de preguntas extraídas por sesión (definido por los paliers)
+- el número de preguntas extraídas por sesión (definido por las reglas de selección)
 - su estado de configuración
 
 ### Estados de un pack
 
 | Badge | Significado |
 |---|---|
-| **Listo** | El pack está listo; las preguntas en la base cubren los paliers |
-| **Incompleto** | Los paliers están configurados pero no hay suficientes preguntas en la base |
-| **Sin paliers** | Ningún palier configurado — el pack no puede utilizarse |
+| **Listo** | El pack está listo; las preguntas en la base cubren las reglas de selección |
+| **Incompleto** | Las reglas de selección están configuradas pero no hay suficientes preguntas en la base |
+| **Sin reglas de selección** | Ninguna regla de selección configurada — el pack no puede utilizarse |
 
-Un pack con estado **Sin paliers** o **Incompleto** no funcionará correctamente para los candidatos.
+Un pack con estado **Sin reglas de selección** o **Incompleto** no funcionará correctamente para los candidatos.
 
 ### Lo que puedes hacer
 
 - **Reordenar**: usa las flechas arriba/abajo para cambiar el orden de visualización en el espacio candidato
 - **Activar / Desactivar**: un pack desactivado ya no se muestra a los candidatos
 
-No puedes modificar los parámetros de un pack (umbral, duración, paliers…) ni eliminarlo. Contacta al administrador para este tipo de cambios.
+No puedes modificar los parámetros de un pack (umbral, duración, reglas de selección…) ni eliminarlo. Contacta al administrador para este tipo de cambios.
 
 ---
 

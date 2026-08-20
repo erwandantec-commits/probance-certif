@@ -1,22 +1,77 @@
 # Owner guide
 
-This guide covers everything you can do as a programme owner: monitoring sessions, managing certifications, importing and translating questions, administering packs, and managing your team.
+Welcome! This guide will help you get up to speed as an owner: how the tool is organised, what to do the moment you take on the role, then the detail of every screen for reference as you go.
 
 All data you see is scoped to your programme. If you cannot access something described here, contact the administrator.
 
 ---
 
-## Your role
+## Understanding how the tool is organised
 
-As an owner, you manage your programme end to end. You can:
+Before you dive in, here's how the pieces you'll be working with fit together:
 
-- monitor your candidates' sessions
-- track and manage certifications
-- import questions, update them, and translate them
-- view pack status
-- manage your team members
+- **Programme** — your scope. Everything you manage (packs, questions, candidates, sessions) belongs to your programme. You never see another programme's data.
+- **Pack** — a certification offered to your candidates (e.g. "Sales Certification level 1"). A pack defines a duration, a pass threshold, and selection tiers that determine which questions get asked in the exam.
+- **Question** — an item in the bank, tagged with a need (category) and a level. A pack's selection tiers draw from this bank.
+- **Session** — one exam (`EXAM`) or practice (`TRAINING`) attempt by a candidate.
+- **Certification** — the consolidated result: a candidate certified on a pack, with an expiry date.
 
-You cannot modify pack settings, create or delete packs, manage programmes themselves, or access global settings.
+In short: **Programme → Packs → Questions → Sessions → Certifications**. A pack needs enough questions matching its selection tiers before it can be used.
+
+### What you can do
+
+- monitor sessions and manage certifications for your programme
+- import, update and translate questions
+- view pack status (OK / Incomplete / No tiers)
+- create, edit and delete `USER` and `OWNER` accounts in your programme
+
+### What stays with the administrator
+
+- creating or deleting packs, changing their settings (threshold, duration, selection tiers)
+- creating or deleting programmes
+- accessing the application's global settings
+
+Whenever you're blocked by a permission you don't have, the answer is almost always the same: contact the administrator.
+
+---
+
+## First steps: what to do when you become an owner
+
+Here's the recommended order for your first visit to the admin area.
+
+### 1. Check the status of your programme's packs
+
+Go to the **Packs** tab and look at each pack's badge:
+
+| Badge | What it means | What to do |
+|---|---|---|
+| **OK** | The pack is ready to use | Nothing, move to the next step |
+| **Incomplete** | Selection tiers are defined but the question bank doesn't cover them | Import questions (step 2) |
+| **No tiers** | No one has configured selection tiers for this pack yet | Contact the administrator — only they configure a pack's tiers, duration and threshold |
+
+Never hand out access to candidates until a pack shows **OK**.
+
+### 2. Check / complete the question bank
+
+Go to the **Questions** tab to see what already exists, filtered by need and level, and spot what's missing relative to your packs' selection tiers.
+
+If questions are missing, use **Import questions** (Source mode) with a CSV or Excel file — see the **Question import** section below for the expected format.
+
+### 3. Translate if your programme is multilingual
+
+If your candidates don't all speak your programme's source language, go to the **Translations** tab to see coverage by language and fill in what's missing (file import or manual entry).
+
+### 4. Create your team's accounts
+
+Go to the **Users** tab and create an account for each candidate (`USER` role). If someone else needs to co-manage the programme with you, give them the `OWNER` role.
+
+### 5. Run a test before rolling out access
+
+Before inviting your candidates, check yourself (or with a test `USER` account) that a session runs as expected: right number of questions, right language, sensible pass threshold.
+
+### 6. Roll out access and track results
+
+Once verified, send your candidates their credentials. Then use the **Sessions**, **Certifications** and **Analytics** tabs to follow activity over time (details for each below).
 
 ---
 

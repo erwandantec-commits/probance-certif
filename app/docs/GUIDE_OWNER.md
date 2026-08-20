@@ -1,22 +1,77 @@
 # Guide owner
 
-Ce guide couvre tout ce que tu peux faire en tant qu'owner de programme : suivre les sessions, gérer les certifications, importer et traduire des questions, administrer les packs et ton équipe.
+Bienvenue ! Ce guide t'accompagne dans la prise en main de ton rôle d'owner : comment l'outil est organisé, quoi faire dès ta prise de fonction, puis le détail de chaque écran pour t'y retrouver au fil de l'utilisation.
 
 Toutes les données que tu vois sont limitées à ton programme. Si tu n'as pas accès à un élément décrit ici, contacte l'administrateur.
 
 ---
 
-## Ton rôle
+## Comprendre l'organisation de l'outil
 
-En tant qu'owner, tu gères ton programme de bout en bout. Tu peux :
+Avant de te lancer, voici comment s'articulent les éléments que tu vas manipuler :
 
-- surveiller les sessions de tes candidats
-- suivre et gérer les certifications
-- importer des questions, les mettre à jour, les traduire
-- consulter l'état des packs
-- gérer les membres de ton équipe
+- **Programme** — c'est ton périmètre. Tout ce que tu gères (packs, questions, candidats, sessions) est rattaché à ton programme. Tu ne vois jamais les données d'un autre programme.
+- **Pack** — une certification proposée à tes candidats (ex. "Certification Vente niveau 1"). Un pack définit une durée, un seuil de réussite et des règles de tirage qui déterminent quelles questions sont posées à l'examen.
+- **Question** — un élément de la banque, rattaché à un besoin (catégorie) et un niveau. Les règles de tirage d'un pack piochent dedans.
+- **Session** — un passage d'examen (`EXAM`) ou d'entraînement (`TRAINING`) par un candidat.
+- **Certification** — le résultat consolidé : un candidat certifié sur un pack, avec une date d'expiration.
 
-Tu ne peux pas modifier les paramètres d'un pack, créer ou supprimer des packs, gérer les programmes eux-mêmes, ni accéder aux paramètres globaux.
+En résumé : **Programme → Packs → Questions → Sessions → Certifications**. Un pack a besoin d'assez de questions correspondant à ses règles de tirage pour être utilisable par tes candidats.
+
+### Ce que tu peux faire
+
+- suivre les sessions et gérer les certifications de ton programme
+- importer, mettre à jour et traduire les questions
+- consulter l'état des packs (OK / À compléter / Sans règles de tirage)
+- créer, modifier et supprimer les comptes `USER` et `OWNER` de ton programme
+
+### Ce qui reste à l'administrateur
+
+- créer ou supprimer des packs, modifier leurs paramètres (seuil, durée, règles de tirage)
+- créer ou supprimer des programmes
+- accéder aux paramètres globaux de l'application
+
+Dès que tu es bloqué par un droit qui te manque, la solution est presque toujours la même : contacter l'administrateur.
+
+---
+
+## Premiers pas : que faire quand tu deviens owner ?
+
+Voici l'ordre recommandé pour ta première connexion à l'espace admin.
+
+### 1. Repérer l'état des packs de ton programme
+
+Va dans l'onglet **Packs** et regarde le badge de chaque pack :
+
+| Badge | Ce que ça veut dire | Ce que tu dois faire |
+|---|---|---|
+| **OK** | Le pack est prêt à être utilisé | Rien, passe à l'étape suivante |
+| **À compléter** | Les règles de tirage sont définies mais la banque de questions n'en couvre pas assez | Importer des questions (étape 2) |
+| **Sans règles de tirage** | Personne n'a encore configuré de règles de tirage sur ce pack | Contacter l'administrateur — lui seul configure les règles de tirage, la durée et le seuil d'un pack |
+
+Ne communique jamais d'accès à tes candidats tant qu'un pack n'affiche pas **OK**.
+
+### 2. Vérifier / compléter la banque de questions
+
+Va dans l'onglet **Questions** pour voir ce qui existe déjà, filtré par besoin et niveau, et repérer ce qui manque par rapport aux règles de tirage de tes packs.
+
+S'il manque des questions, utilise **Import de questions** (mode *Source*) avec un fichier CSV ou Excel — voir la section **Import de questions** plus bas pour le format attendu.
+
+### 3. Traduire si ton programme est multilingue
+
+Si tes candidats ne parlent pas tous la langue source de ton programme, va dans l'onglet **Traductions** pour voir la couverture par langue et compléter ce qui manque (import de fichier ou saisie manuelle).
+
+### 4. Créer les comptes de ton équipe
+
+Va dans l'onglet **Utilisateurs** et crée un compte pour chaque candidat (rôle `USER`). Si une autre personne doit co-gérer le programme avec toi, donne-lui le rôle `OWNER`.
+
+### 5. Faire un essai avant de communiquer les accès
+
+Avant d'inviter tes candidats, vérifie toi-même (ou via un compte `USER` de test) qu'un passage se déroule comme prévu : bon nombre de questions, bonne langue, seuil de réussite cohérent.
+
+### 6. Communiquer les accès et suivre les résultats
+
+Une fois vérifié, transmets les identifiants à tes candidats. Utilise ensuite les onglets **Sessions**, **Certifications** et **Analyse** pour suivre l'activité au fil de l'eau (détail de chacun ci-dessous).
 
 ---
 
@@ -203,25 +258,25 @@ Pour chaque pack :
 
 - son nom
 - la durée et le seuil de réussite
-- le nombre de questions tirées par session (défini par les paliers)
+- le nombre de questions tirées par session (défini par les règles de tirage)
 - son statut de configuration
 
 ### Statuts d'un pack
 
 | Badge | Signification |
 |---|---|
-| **OK** | Le pack est prêt, les questions en base couvrent les paliers |
-| **À compléter** | Les paliers sont configurés mais il n'y a pas assez de questions en base |
-| **Sans paliers** | Aucun palier configuré — le pack ne peut pas être utilisé |
+| **OK** | Le pack est prêt, les questions en base couvrent les règles de tirage |
+| **À compléter** | Les règles de tirage sont configurées mais il n'y a pas assez de questions en base |
+| **Sans règles de tirage** | Aucune règle de tirage configurée — le pack ne peut pas être utilisé |
 
-Un pack affiché **Sans paliers** ou **À compléter** ne sera pas proposé correctement aux candidats.
+Un pack affiché **Sans règles de tirage** ou **À compléter** ne sera pas proposé correctement aux candidats.
 
 ### Ce que tu peux faire
 
 - **Réordonner** : utilise les flèches haut/bas pour changer l'ordre d'affichage dans l'espace candidat
 - **Activer / Désactiver** : un pack désactivé n'est plus proposé aux candidats
 
-Tu ne peux pas modifier les paramètres d'un pack (seuil, durée, paliers…) ni le supprimer. Contacte l'administrateur pour ce type de modification.
+Tu ne peux pas modifier les paramètres d'un pack (seuil, durée, règles de tirage…) ni le supprimer. Contacte l'administrateur pour ce type de modification.
 
 ---
 
