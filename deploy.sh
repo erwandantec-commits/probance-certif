@@ -11,13 +11,15 @@ RSYNC_PARAM=(
   -avz
   --itemize-changes
   --delete
+  --include='/app/docs/'
+  --include='/app/docs/**'
   --exclude='.*'
   --exclude='*.md'
   --exclude='deploy.sh'
   --exclude='docker-compose.yml'
   --exclude='Dockerfile'
   --exclude='README.md'
-  --exclude='docs'
+  --exclude='/docs'
   --exclude='data'
   --exclude='resources'
 )
