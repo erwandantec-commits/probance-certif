@@ -185,8 +185,8 @@ function render_admin_tabs(string $active = ''): void
   }
   $contentTabs = user_can_access_admin_area($user)
     ? [
-        ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => h(t('admin.nav.packages', [], $navLang))],
         ['key' => 'questions', 'href' => '/admin/questions.php', 'label' => h(t('admin.nav.questions', [], $navLang))],
+        ['key' => 'packages', 'href' => '/admin/packages.php', 'label' => h(t('admin.nav.packages', [], $navLang))],
         ['key' => 'translations', 'href' => '/admin/question_translations.php', 'label' => h(t('admin.nav.translations', [], $navLang))],
         ['key' => 'performance', 'href' => '/admin/question_performance.php', 'label' => h(t('admin.nav.performance', [], $navLang))],
       ]
