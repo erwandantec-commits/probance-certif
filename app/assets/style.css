@@ -1943,6 +1943,30 @@ body.admin-with-sidebar .admin-tabs-bottom {
   font-size: .92em;
 }
 
+.doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 18px;
+  font-size: .95em;
+}
+
+.doc-content th,
+.doc-content td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc-content th {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.doc-content td {
+  color: var(--text);
+}
+
 .doc-page {
   max-width: 1180px;
 }

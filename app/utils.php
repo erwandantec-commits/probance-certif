@@ -816,6 +816,19 @@ function app_markdown_slugify(string $title): string {
   return trim((string)$slug, '-');
 }
 
+function app_markdown_is_table_separator(string $line): bool {
+  $line = trim($line);
+  if ($line === '') {
+    return false;
+  }
+  return (bool)preg_match('/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/', $line);
+}
+
+function app_markdown_table_split_row(string $line): array {
+  $line = trim(trim($line), '|');
+  return array_map('trim', explode('|', $line));
+}
+
 function app_markdown_to_html(string $markdown): string {
   $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
   $lines = explode("\n", $markdown);
@@ -850,8 +863,9 @@ function app_markdown_to_html(string $markdown): string {
     $listType = '';
   };
 
-  foreach ($lines as $line) {
-    $trimmed = trim($line);
+  $count = count($lines);
+  for ($i = 0; $i < $count; $i++) {
+    $trimmed = trim($lines[$i]);
 
     if ($trimmed === '') {
       $flushParagraph();
@@ -868,6 +882,28 @@ function app_markdown_to_html(string $markdown): string {
       $slug = app_markdown_slugify($title);
       $idAttr = $slug !== '' ? ' id="' . h($slug) . '"' : '';
       $html[] = '<h' . $level . $idAttr . '>' . app_markdown_inline($title) . '</h' . $level . '>';
+      continue;
+    }
+
+    if (strpos($trimmed, '|') !== false && isset($lines[$i + 1]) && app_markdown_is_table_separator($lines[$i + 1])) {
+      $flushParagraph();
+      $flushList();
+      $html[] = '<table><thead><tr>';
+      foreach (app_markdown_table_split_row($trimmed) as $cell) {
+        $html[] = '<th>' . app_markdown_inline($cell) . '</th>';
+      }
+      $html[] = '</tr></thead><tbody>';
+      $i += 2;
+      while ($i < $count && trim($lines[$i]) !== '' && strpos(trim($lines[$i]), '|') !== false) {
+        $html[] = '<tr>';
+        foreach (app_markdown_table_split_row($lines[$i]) as $cell) {
+          $html[] = '<td>' . app_markdown_inline($cell) . '</td>';
+        }
+        $html[] = '</tr>';
+        $i++;
+      }
+      $html[] = '</tbody></table>';
+      $i--;
       continue;
     }
 
